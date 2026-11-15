@@ -20,22 +20,22 @@ const people = {
 };
 
 const services = {
-  hosting: { name: 'Hébergeur Cloud', email: 'noreply@hebergeur.example' },
-  billing: { name: 'Hébergeur Cloud — Facturation', email: 'facturation@hebergeur.example' },
-  parcel: { name: 'Colis Express', email: 'suivi@colis.example' },
-  newsletter: { name: 'Le Fil Tech', email: 'newsletter@lefil.example' },
-  calendar: { name: 'Agenda', email: 'agenda@lumen.example' },
-  bank: { name: 'Banque Exemple', email: 'alertes@banque.example' },
-  spam: { name: 'Service Clients', email: 'gagnant@promo-offres.example' },
-  shop: { name: 'Boutique Lumière', email: 'offres@news.boutique.example' },
-  orders: { name: 'Boutique Lumière', email: 'commandes@boutique.example' },
-  forum: { name: 'Forum Rust FR', email: 'notifications@forum.example' },
-  login: { name: 'Compte Lumen', email: 'noreply@compte.example' },
+  hosting: { name: 'CloudHost', email: 'noreply@cloudhost.example' },
+  billing: { name: 'CloudHost Billing', email: 'billing@cloudhost.example' },
+  parcel: { name: 'Parcel Express', email: 'tracking@parcel.example' },
+  newsletter: { name: 'The Tech Wire', email: 'newsletter@techwire.example' },
+  calendar: { name: 'Calendar', email: 'calendar@lumen.example' },
+  bank: { name: 'Example Bank', email: 'alerts@bank.example' },
+  spam: { name: 'Customer Service', email: 'winner@promo-deals.example' },
+  shop: { name: 'Lumière Lighting', email: 'offers@news.lumiere.example' },
+  orders: { name: 'Lumière Lighting', email: 'orders@lumiere.example' },
+  forum: { name: 'Rust Users Forum', email: 'notifications@forum.example' },
+  login: { name: 'Lumen Account', email: 'noreply@account.example' },
 };
 
 // What lists and marketing platforms add, which the app sorts the inbox by.
 function listHeaders(domain) {
-  return [`List-Unsubscribe: <https://${domain}/desinscription>`, 'List-Unsubscribe-Post: List-Unsubscribe=One-Click'];
+  return [`List-Unsubscribe: <https://${domain}/unsubscribe>`, 'List-Unsubscribe-Post: List-Unsubscribe=One-Click'];
 }
 
 const LOGO_PNG = Buffer.from(
@@ -64,60 +64,60 @@ function signature(person) {
 function newsletterHtml(issue) {
   return `<!doctype html><html><body style="margin:0;background:#f2f4f7;font-family:Arial,Helvetica,sans-serif">
 <table role="presentation" width="640" align="center" cellpadding="0" cellspacing="0" style="background:#ffffff">
-<tr><td style="padding:24px 32px;border-bottom:1px solid #e4e7ec"><img src="cid:logo@lefil.example" width="16" height="16" alt="">
-<span style="font-size:13px;color:#667085;margin-left:8px">Le Fil Tech · n°${issue}</span></td></tr>
-<tr><td style="padding:32px"><h1 style="margin:0 0 12px;font-size:24px;color:#101828">Ce qu'il fallait retenir cette semaine</h1>
-<p style="margin:0 0 16px;font-size:15px;line-height:22px;color:#344054">Trois sujets ont dominé l'actualité : la sortie d'une nouvelle version de Rust,
-les débats sur la sobriété numérique et l'essor des clients mail open source.</p>
-<img src="https://images.lefil.example/couverture-${issue}.jpg" width="576" height="240" alt="Illustration" style="display:block;width:100%;height:auto">
-<p style="margin:16px 0 0"><a href="https://www.lefil.example/numero/${issue}" style="color:#1d4ed8">Lire le numéro complet</a></p></td></tr>
-<tr><td style="padding:16px 32px;font-size:12px;color:#98a2b3">Vous recevez ce message car vous êtes abonné·e au Fil Tech.
-<a href="https://www.lefil.example/desinscription" style="color:#98a2b3">Se désinscrire</a>
-<img src="https://track.lefil.example/open/${issue}.gif" width="1" height="1" alt=""></td></tr></table></body></html>`;
+<tr><td style="padding:24px 32px;border-bottom:1px solid #e4e7ec"><img src="cid:logo@techwire.example" width="16" height="16" alt="">
+<span style="font-size:13px;color:#667085;margin-left:8px">The Tech Wire · #${issue}</span></td></tr>
+<tr><td style="padding:32px"><h1 style="margin:0 0 12px;font-size:24px;color:#101828">What mattered this week</h1>
+<p style="margin:0 0 16px;font-size:15px;line-height:22px;color:#344054">Three stories led the week: a new Rust release,
+the debate on digital sobriety and the rise of open source mail clients.</p>
+<img src="https://images.techwire.example/cover-${issue}.jpg" width="576" height="240" alt="Illustration" style="display:block;width:100%;height:auto">
+<p style="margin:16px 0 0"><a href="https://www.techwire.example/issue/${issue}" style="color:#1d4ed8">Read the full issue</a></p></td></tr>
+<tr><td style="padding:16px 32px;font-size:12px;color:#98a2b3">You receive this email because you subscribed to The Tech Wire.
+<a href="https://www.techwire.example/unsubscribe" style="color:#98a2b3">Unsubscribe</a>
+<img src="https://track.techwire.example/open/${issue}.gif" width="1" height="1" alt=""></td></tr></table></body></html>`;
 }
 
 const conversations = [
   {
     key: 'atlas',
-    subject: 'Lancement du projet Atlas',
+    subject: 'Project Atlas kickoff',
     messages: [
-      { from: 'claire', cc: ['thomas'], text: 'Bonjour Alice,\n\nNous lançons le projet Atlas lundi. Je propose un point de cadrage à 10h dans la salle Rivoli.\nPeux-tu préparer un premier découpage des lots ?\n\nMerci,' },
-      { from: 'alice', to: ['claire'], cc: ['thomas'], text: 'Bonjour Claire,\n\nC\'est noté pour lundi 10h. J\'apporterai une proposition de découpage en trois lots.' },
-      { from: 'thomas', to: ['alice', 'claire'], text: 'Parfait, je réserve la salle et j\'invite l\'équipe produit.' },
-      { from: 'claire', to: ['alice'], cc: ['thomas'], text: 'Merci à vous deux. J\'ajoute l\'ordre du jour en pièce jointe.', attachment: { filename: 'ordre-du-jour-atlas.pdf', type: 'application/pdf', content: pdf('Ordre du jour Atlas') } },
+      { from: 'claire', cc: ['thomas'], text: 'Hi Alice,\n\nWe kick off Project Atlas on Monday. I suggest a scoping meeting at 10am in the Rivoli room.\nCould you prepare a first breakdown of the work packages?\n\nThanks,' },
+      { from: 'alice', to: ['claire'], cc: ['thomas'], text: 'Hi Claire,\n\nMonday 10am works for me. I\'ll bring a proposal split into three work packages.' },
+      { from: 'thomas', to: ['alice', 'claire'], text: 'Perfect, I\'ll book the room and invite the product team.' },
+      { from: 'claire', to: ['alice'], cc: ['thomas'], text: 'Thanks to you both. The agenda is attached.', attachment: { filename: 'atlas-agenda.pdf', type: 'application/pdf', content: pdf('Atlas agenda') } },
     ],
   },
   {
     key: 'devis',
-    subject: 'Devis refonte du site — version 2',
+    subject: 'Website redesign quote — version 2',
     messages: [
-      { from: 'sophie', text: 'Bonjour,\n\nVous trouverez ci-joint la version 2 du devis, qui intègre la migration du blog et la formation.\nJe reste disponible pour en discuter.\n\nBien cordialement,', attachment: { filename: 'devis-refonte-v2.pdf', type: 'application/pdf', content: pdf('Devis refonte v2') } },
-      { from: 'alice', to: ['sophie'], text: 'Bonjour Sophie,\n\nMerci pour ce devis. Pourriez-vous détailler le poste « migration du blog » ? Le reste nous convient.' },
+      { from: 'sophie', text: 'Hello,\n\nPlease find attached version 2 of the quote, which now includes the blog migration and the training.\nHappy to discuss it.\n\nBest regards,', attachment: { filename: 'redesign-quote-v2.pdf', type: 'application/pdf', content: pdf('Redesign quote v2') } },
+      { from: 'alice', to: ['sophie'], text: 'Hi Sophie,\n\nThanks for the quote. Could you break down the "blog migration" item? The rest works for us.' },
     ],
   },
   {
     key: 'candidature',
-    subject: 'Candidature — Développeuse React Native',
+    subject: 'Application — React Native developer',
     messages: [
-      { from: 'nadia', text: 'Bonjour,\n\nJe vous adresse ma candidature pour le poste de développeuse React Native.\nVous trouverez mon CV en pièce jointe.\n\nCordialement,', attachment: { filename: 'cv-nadia-benali.pdf', type: 'application/pdf', content: pdf('CV Nadia Benali') } },
-      { from: 'alice', to: ['nadia'], text: 'Bonjour Nadia,\n\nMerci pour votre candidature. Seriez-vous disponible jeudi pour un premier échange en visio ?' },
-      { from: 'nadia', to: ['alice'], text: 'Bonjour,\n\nJeudi me convient très bien, à partir de 14h.\n\nBonne journée,' },
+      { from: 'nadia', text: 'Hello,\n\nI\'m applying for the React Native developer position.\nMy résumé is attached.\n\nKind regards,', attachment: { filename: 'resume-nadia-benali.pdf', type: 'application/pdf', content: pdf('Resume Nadia Benali') } },
+      { from: 'alice', to: ['nadia'], text: 'Hi Nadia,\n\nThank you for your application. Would you be available on Thursday for a first video call?' },
+      { from: 'nadia', to: ['alice'], text: 'Hello,\n\nThursday works well for me, any time after 2pm.\n\nHave a nice day,' },
     ],
   },
   {
     key: 'preprod',
-    subject: 'Accès au serveur de préproduction',
+    subject: 'Access to the staging server',
     messages: [
-      { from: 'hugo', text: 'Salut Alice,\n\nTu peux me donner un accès SSH à la préproduction ? Je dois vérifier la configuration du cache.' },
-      { from: 'alice', to: ['hugo'], text: 'C\'est fait, ta clé est ajoutée. L\'accès expire dans 7 jours.' },
-      { from: 'hugo', to: ['alice'], text: 'Merci, ça fonctionne.' },
+      { from: 'hugo', text: 'Hi Alice,\n\nCould you give me SSH access to staging? I need to check the cache configuration.' },
+      { from: 'alice', to: ['hugo'], text: 'Done, your key is added. Access expires in 7 days.' },
+      { from: 'hugo', to: ['alice'], text: 'Thanks, it works.' },
     ],
   },
   {
     key: 'bilan',
-    subject: 'Bilan 2026 — documents à transmettre',
+    subject: '2026 accounts — documents needed',
     messages: [
-      { from: 'ines', text: 'Bonjour Madame Durand,\n\nPour finaliser le bilan, il me manque les relevés de novembre et la liste des immobilisations.\n\nCordialement,', attachment: { filename: 'liste-pieces.csv', type: 'text/csv; charset=utf-8', content: Buffer.from('Pièce;Statut\nRelevés novembre;Manquant\nImmobilisations;Manquant\n') } },
+      { from: 'ines', text: 'Dear Ms Durand,\n\nTo close the 2026 accounts, I still need the November statements and the list of fixed assets.\n\nKind regards,', attachment: { filename: 'missing-documents.csv', type: 'text/csv; charset=utf-8', content: Buffer.from('Document;Status\nNovember statements;Missing\nFixed assets;Missing\n') } },
     ],
   },
   {
@@ -137,24 +137,24 @@ const conversations = [
   },
   {
     key: 'retour',
-    subject: 'Retour sur la maquette',
+    subject: 'Feedback on the mockup',
     messages: [
-      { from: 'marco', text: 'Bonjour Alice,\n\nLa nouvelle maquette est beaucoup plus lisible. Deux remarques : le contraste des boutons secondaires et la taille des titres sur mobile.' },
+      { from: 'marco', text: 'Hi Alice,\n\nThe new mockup is much easier to read. Two remarks: the contrast of the secondary buttons and the size of the headings on mobile.' },
     ],
   },
 ];
 
 const notifications = [
-  (index) => ({ from: services.hosting, subject: 'Nouvelle connexion à votre espace client', text: `Une connexion à votre espace client a été détectée depuis un nouvel appareil.\nSi vous n'êtes pas à l'origine de cette connexion, changez votre mot de passe.\n\nRéférence : CNX-${10240 + index}` }),
-  (index) => ({ from: services.billing, subject: `Facture n° 2026-${String(4100 + index).padStart(5, '0')} disponible`, text: 'Bonjour,\n\nVotre facture est disponible en pièce jointe.\n\nL\'équipe Facturation', attachment: { filename: `facture-2026-${4100 + index}.pdf`, type: 'application/pdf', content: pdf(`Facture ${4100 + index}`) } }),
-  (index) => ({ from: services.parcel, subject: 'Votre colis est en cours de livraison', text: `Votre colis n° CE${880000 + index}FR sera livré aujourd'hui entre 9h et 13h.` }),
-  (index) => ({ from: services.calendar, subject: 'Rappel : réunion d\'équipe demain à 10:00', text: `Réunion d'équipe hebdomadaire\nDemain, 10:00 – 10:45\nSalle Rivoli\n\nÉvénement n°${index}` }),
-  (index) => ({ from: services.bank, subject: 'Votre relevé mensuel est disponible', text: `Votre relevé du mois est disponible dans votre espace.\nRéférence : REL-${2000 + index}` }),
-  (index) => ({ from: services.newsletter, subject: `Le Fil Tech — n°${40 + index}`, text: `Ce qu'il fallait retenir cette semaine. Lire le numéro : https://www.lefil.example/numero/${40 + index}`, html: newsletterHtml(40 + index), inlineImages: [{ type: 'image/png', filename: 'logo.png', contentId: 'logo@lefil.example', content: LOGO_PNG }], headers: listHeaders('lefil.example') }),
-  (index) => ({ from: services.shop, subject: `Black Friday : -${20 + (index % 4) * 10} % sur toute la boutique`, text: 'Nos lampes et nos luminaires à prix réduit jusqu\'à dimanche.\n\nVoir les offres : https://boutique.example/black-friday', headers: [...listHeaders('boutique.example'), 'X-Mailin-Campaign: 4211'] }),
-  (index) => ({ from: services.orders, subject: `Votre commande n° ${4521 + index} a été expédiée`, text: `Votre commande n° ${4521 + index} est en route. Suivez-la : https://boutique.example/suivi/${4521 + index}` }),
-  (index) => ({ from: services.forum, subject: '[Forum Rust FR] Nouvelle réponse dans « Async et lifetimes »', text: `Hugo a répondu au sujet « Async et lifetimes ».\n\nRéponse n°${index}`, headers: ['List-Id: <rust.forum.example>', 'Auto-Submitted: auto-generated'] }),
-  (index) => ({ from: services.login, subject: `${String(482910 + index * 7).slice(-6)} est votre code de connexion`, text: 'Saisissez ce code pour vous connecter. Il expire dans 10 minutes.', headers: ['Auto-Submitted: auto-generated'] }),
+  (index) => ({ from: services.hosting, subject: 'New sign-in to your account', text: `We noticed a sign-in to your account from a new device.\nIf this wasn't you, change your password.\n\nReference: CNX-${10240 + index}` }),
+  (index) => ({ from: services.billing, subject: `Invoice 2026-${String(4100 + index).padStart(5, '0')} is ready`, text: 'Hello,\n\nYour invoice is attached.\n\nThe Billing team', attachment: { filename: `invoice-2026-${4100 + index}.pdf`, type: 'application/pdf', content: pdf(`Invoice ${4100 + index}`) } }),
+  (index) => ({ from: services.parcel, subject: 'Your parcel is out for delivery', text: `Your parcel CE${880000 + index}FR will be delivered today between 9am and 1pm.` }),
+  (index) => ({ from: services.calendar, subject: 'Reminder: team meeting tomorrow at 10:00', text: `Weekly team meeting\nTomorrow, 10:00 – 10:45\nRivoli room\n\nEvent #${index}` }),
+  (index) => ({ from: services.bank, subject: 'Your monthly statement is ready', text: `Your statement for this month is ready in online banking.\nReference: STM-${2000 + index}` }),
+  (index) => ({ from: services.newsletter, subject: `The Tech Wire — #${40 + index}`, text: `What mattered this week. Read the issue: https://www.techwire.example/issue/${40 + index}`, html: newsletterHtml(40 + index), inlineImages: [{ type: 'image/png', filename: 'logo.png', contentId: 'logo@techwire.example', content: LOGO_PNG }], headers: listHeaders('techwire.example') }),
+  (index) => ({ from: services.shop, subject: `Black Friday: ${20 + (index % 4) * 10}% off everything`, text: 'Our lamps and lights are on sale until Sunday.\n\nSee the deals: https://lumiere.example/black-friday', headers: [...listHeaders('lumiere.example'), 'X-Mailin-Campaign: 4211'] }),
+  (index) => ({ from: services.orders, subject: `Your order ${4521 + index} has shipped`, text: `Your order ${4521 + index} is on its way. Track it: https://lumiere.example/track/${4521 + index}` }),
+  (index) => ({ from: services.forum, subject: '[Rust Users Forum] New reply in "Async and lifetimes"', text: `Hugo replied to "Async and lifetimes".\n\nReply #${index}`, headers: ['List-Id: <rust.forum.example>', 'Auto-Submitted: auto-generated'] }),
+  (index) => ({ from: services.login, subject: `${String(482910 + index * 7).slice(-6)} is your sign-in code`, text: 'Enter this code to sign in. It expires in 10 minutes.', headers: ['Auto-Submitted: auto-generated'] }),
 ];
 
 class Mailboxes {
@@ -256,21 +256,21 @@ export function buildDataset({ inboxSize, now = new Date() }) {
   for (let index = 0; index < 3; index += 1) {
     const date = new Date(now.getTime() - (index + 2) * DAY);
     mailboxes.add(alice.email, 'Junk', {
-      raw: buildMessage({ from: services.spam, to: [alice], subject: 'Félicitations, vous avez été sélectionné(e) !', date, messageId: `spam.${index}@promo-offres.example`, text: 'Cliquez ici pour réclamer votre récompense.' }),
+      raw: buildMessage({ from: services.spam, to: [alice], subject: 'Congratulations, you have been selected!', date, messageId: `spam.${index}@promo-deals.example`, text: 'Click here to claim your reward.' }),
       date,
       flags: [],
     });
   }
   const draftDate = new Date(now.getTime() - 3 * 60 * MINUTE);
   mailboxes.add(alice.email, 'Drafts', {
-    raw: buildMessage({ from: alice, to: [people.marco], subject: 'Re: Retour sur la maquette', date: draftDate, messageId: `draft.1@example.com`, text: 'Bonjour Marco,\n\nMerci pour ces remarques, je reprends' }),
+    raw: buildMessage({ from: alice, to: [people.marco], subject: 'Re: Feedback on the mockup', date: draftDate, messageId: `draft.1@example.com`, text: 'Hi Marco,\n\nThanks for the notes, I\'m reworking' }),
     date: draftDate,
     flags: ['\\Seen', '\\Draft'],
   });
   for (let index = 0; index < 6; index += 1) {
     const date = new Date(now.getTime() - (index * 3 + 1) * DAY);
-    mailboxes.add(alice.email, 'Projets.Clients', {
-      raw: buildMessage({ from: people.claire, to: [alice], subject: `Compte rendu client — semaine ${46 - index}`, date, messageId: `client.${index}@lumen.example`, text: 'Bonjour,\n\nVoici le compte rendu de la semaine : avancement conforme, prochaine livraison vendredi.' + signature(people.claire) }),
+    mailboxes.add(alice.email, 'Projects.Clients', {
+      raw: buildMessage({ from: people.claire, to: [alice], subject: `Client report — week ${46 - index}`, date, messageId: `client.${index}@lumen.example`, text: 'Hello,\n\nHere is this week\'s report: on track, next delivery on Friday.' + signature(people.claire) }),
       date,
       flags: ['\\Seen'],
     });
@@ -278,7 +278,7 @@ export function buildDataset({ inboxSize, now = new Date() }) {
   for (let index = 0; index < 5; index += 1) {
     const date = new Date(now.getTime() - (index + 1) * 5 * 60 * MINUTE);
     mailboxes.add(bob.email, 'INBOX', {
-      raw: buildMessage({ from: people.julien, to: [bob], subject: `Point hebdomadaire n°${index + 1}`, date, messageId: `bob.${index}@mail.example`, text: 'Salut Bob,\n\nOn fait le point demain matin ?' + signature(people.julien) }),
+      raw: buildMessage({ from: people.julien, to: [bob], subject: `Weekly check-in #${index + 1}`, date, messageId: `bob.${index}@mail.example`, text: 'Hi Bob,\n\nShall we catch up tomorrow morning?' + signature(people.julien) }),
       date,
       flags: index > 1 ? ['\\Seen'] : [],
     });
