@@ -125,13 +125,17 @@ Want early access? Beta builds are available, reach out at
 | :---: | :---: | :---: |
 | <img src=".github/assets/reply-menu.png" alt="Reply menu" width="230" /> | <img src=".github/assets/compose.png" alt="Writing a reply" width="230" /> | <img src=".github/assets/swipe.png" alt="Swipe actions in a conversation" width="230" /> |
 
+| Inbox categories | Settings | Reading settings |
+| :---: | :---: | :---: |
+| <img src=".github/assets/categories.png" alt="Transactions category with sender logos" width="230" /> | <img src=".github/assets/settings.png" alt="Settings" width="230" /> | <img src=".github/assets/reading.png" alt="Reading settings: remote images and contact pictures" width="230" /> |
+
 | Dark mode | Dark mode |
 | :---: | :---: |
 | <img src=".github/assets/inbox-dark.png" alt="Inbox in dark mode" width="230" /> | <img src=".github/assets/thread-dark.png" alt="Conversation in dark mode" width="230" /> |
 
 </div>
 
-<sub>Screenshots show demo data from the local test server; every name and address in them is fictional.</sub>
+<sub>Screenshots show demo data from the local test server; every name, address and logo in them is fictional.</sub>
 
 ---
 
