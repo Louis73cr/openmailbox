@@ -234,3 +234,5 @@ Found a bug or have an idea? [Open an issue](https://github.com/SoluceTechnologi
 
 The app is under the [Mozilla Public License 2.0](LICENSE). The Rust core in `core/` is under the
 [Apache License 2.0](core/LICENSE), so its crates can be reused in other projects.
+
+
