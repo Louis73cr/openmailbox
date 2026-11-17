@@ -36,6 +36,14 @@ describe('prefill', () => {
     expect(result.body).toBe('\n\nOn today, Bob wrote:\n> Hello\n>> earlier');
   });
 
+  it('replies to the original recipients when the message was sent by the user', () => {
+    const sent = { ...email, from: [{ name: 'Me', email: 'ME@example.com' }], to: [{ name: 'Bob', email: 'bob@example.com' }] };
+    expect(prefill('reply', sent, 'Hi', ['me@example.com'], 'today', labels).to).toEqual([{ name: 'Bob', email: 'bob@example.com' }]);
+    expect(prefill('replyAll', sent, 'Hi', ['me@example.com'], 'today', labels).to.map((address) => address.email)).toEqual(['bob@example.com']);
+    const noteToSelf = { ...sent, to: [{ name: undefined, email: 'me@example.com' }] };
+    expect(prefill('reply', noteToSelf, 'Hi', ['me@example.com'], 'today', labels).to.map((address) => address.email)).toEqual(['ME@example.com']);
+  });
+
   it('quotes the HTML original under the attribution, escaped', () => {
     const { body } = prefill('reply', { ...email, from: [{ name: 'Bob <&>', email: 'bob@example.com' }] }, 'Hi', [], 'today', labels);
     const html = quoteHtml('reply', body, '<b>Hi</b>');

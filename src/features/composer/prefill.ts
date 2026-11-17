@@ -76,7 +76,9 @@ export function prefill(
     return { to: [], cc: [], subject: prefixed(subject, 'Fwd'), body: `\n\n${header}\n\n${originalText}` };
   }
   const sender = email.from.map(({ name, email: address }) => ({ name, email: address }));
-  const to = mode === 'replyAll' ? withoutAddresses([...sender, ...email.to], ownAddresses) : sender;
+  const sentByUser = sender.length > 0 && withoutAddresses(sender, ownAddresses).length === 0;
+  const recipients = sentByUser ? withoutAddresses(email.to, ownAddresses) : sender;
+  const to = mode === 'replyAll' ? withoutAddresses([...recipients, ...email.to], ownAddresses) : recipients;
   const cc = mode === 'replyAll' ? withoutAddresses(email.cc, [...ownAddresses, ...to.map((address) => address.email)]) : [];
   return {
     to: to.length > 0 ? to : sender,
