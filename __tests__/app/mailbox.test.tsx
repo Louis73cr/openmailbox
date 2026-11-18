@@ -67,6 +67,17 @@ describe('thread list', () => {
     expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/filters', params: { unified: '1' } });
   });
 
+  it('keeps mail received since local midnight for today', async () => {
+    useSettingsStore.setState({ filterEnabled: true, filterCriteria: { ...DEFAULT_FILTER_CRITERIA, unread: false, today: true } });
+    const dayLabel = jest.spyOn(Date.prototype, 'toDateString').mockReturnValue('day label');
+    renderWithProviders(<MailboxScreen />);
+    await waitFor(() => expect(core.listThreads).toHaveBeenCalled());
+    const midnight = new Date(NOW);
+    midnight.setHours(0, 0, 0, 0);
+    expect(core.listThreads.mock.calls.find((call) => call[4] === 50)?.[1].since).toBe(midnight.getTime());
+    dayLabel.mockRestore();
+  });
+
   it('keeps an opened thread listed until the filter is turned off', async () => {
     useSettingsStore.setState({ filterEnabled: true });
     let read = false;

@@ -87,7 +87,7 @@ export default function MailboxScreen() {
   const filterCriteria = useSettingsStore((state) => state.filterCriteria);
   const today = new Date().toDateString();
   const filter = useMemo(
-    () => (filterEnabled ? coreFilter(filterCriteria, accounts.map((candidate) => candidate.id), unified, new Date(today)) : EMPTY_THREAD_FILTER),
+    () => (filterEnabled ? coreFilter(filterCriteria, accounts.map((candidate) => candidate.id), unified, new Date()) : EMPTY_THREAD_FILTER),
     [filterEnabled, filterCriteria, accounts, unified, today],
   );
   const filterKey = JSON.stringify(filter);
@@ -153,20 +153,21 @@ export default function MailboxScreen() {
   const selection = useThreadSelection();
   const selectionActions = useSelectionActions([...selection.selected.values()], selection.end);
   const threadActions = useThreadActions(setMoving, setCategorizing);
-  const { actionsFor } = threadActions;
+  const { run, actionsFor } = threadActions;
+  const { toggle } = selection;
   const runThreadAction = useCallback(
     (action: ThreadActionId, thread: ThreadSummary) => {
       markKept([thread.threadId]);
-      threadActions.run(action, thread);
+      run(action, thread);
     },
-    [markKept, threadActions],
+    [markKept, run],
   );
   const toggleSelected = useCallback(
     (thread: ThreadSummary) => {
       markKept([thread.threadId]);
-      selection.toggle(thread);
+      toggle(thread);
     },
-    [markKept, selection],
+    [markKept, toggle],
   );
 
   const openThread = useCallback(
