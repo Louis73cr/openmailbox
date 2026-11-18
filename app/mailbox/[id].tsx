@@ -394,7 +394,7 @@ export default function MailboxScreen() {
                 {filterEnabled && !searchOpened && !searching ? (
                   <>
                     <Stack.Toolbar.Button icon="magnifyingglass" accessibilityLabel={t('search.placeholder')} onPress={() => setSearchOpened(true)} />
-                    <Stack.Toolbar.Spacer width={8} />
+                    <Stack.Toolbar.Spacer width={1} />
                   </>
                 ) : (
                   <>
