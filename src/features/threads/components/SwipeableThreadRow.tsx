@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import { Link } from 'expo-router';
@@ -54,41 +54,35 @@ interface SwipeableThreadRowProps {
 function SwipeableThreadRowImpl({ thread, accountAccent, canArchive, menuActions, onOpen, onLongPress, onAction, onMore, selected }: SwipeableThreadRowProps) {
   const { t } = useTranslation();
   const swipeable = useRef<SwipeableMethods>(null);
-  const unread = thread.unreadCount > 0;
+  const selecting = selected !== undefined;
 
   useEffect(() => {
     swipeable.current?.reset();
   }, [thread.key]);
 
-  const close = (then: () => void) => () => {
-    swipeable.current?.close();
-    then();
-  };
-  const act = (action: ThreadActionId) => close(() => onAction(action, thread));
-  const flag: ThreadActionId = thread.isFlagged ? 'unflag' : 'flag';
+  useEffect(() => {
+    if (selecting) swipeable.current?.close();
+  }, [selecting]);
 
-  if (selected !== undefined) {
-    return <ThreadRow thread={thread} accountAccent={accountAccent} onOpen={onOpen} selected={selected} />;
-  }
-
-  return (
-    <ReanimatedSwipeable
-      ref={swipeable}
-      friction={1.5}
-      overshootFriction={8}
-      leftThreshold={ACTION_WIDTH / 2}
-      rightThreshold={ACTION_WIDTH / 2}
-      onSwipeableWillOpen={() => haptic()}
-      renderLeftActions={() => (
+  const actions = useMemo(() => {
+    const unread = thread.unreadCount > 0;
+    const close = (then: () => void) => () => {
+      swipeable.current?.close();
+      then();
+    };
+    const act = (action: ThreadActionId) => close(() => onAction(action, thread));
+    const flag: ThreadActionId = thread.isFlagged ? 'unflag' : 'flag';
+    return {
+      left: (
         <SwipeAction
           label={unread ? t('threads.markRead') : t('threads.markUnread')}
           Icon={unread ? MailOpen : Mail}
           color="#109be6"
           onPress={act(unread ? 'markRead' : 'markUnread')}
         />
-      )}
-      renderRightActions={() => (
-        <View style={styles.actions}>
+      ),
+      right: (
+        <>
           <SwipeAction label={t('threads.more')} Icon={Ellipsis} color="#8e8e93" onPress={close(() => onMore(thread))} />
           <SwipeAction label={t(`threads.${flag}`)} Icon={thread.isFlagged ? FlagOff : Flag} color="#ff9500" onPress={act(flag)} />
           {canArchive ? (
@@ -96,8 +90,27 @@ function SwipeableThreadRowImpl({ thread, accountAccent, canArchive, menuActions
           ) : (
             <SwipeAction label={t('threads.delete')} Icon={Trash2} color="#ff3b30" onPress={act('delete')} />
           )}
-        </View>
-      )}
+        </>
+      ),
+    };
+  }, [t, thread, canArchive, onAction, onMore]);
+  const actionGroup = (content: ReactNode) => (
+    <View aria-hidden={selecting} style={styles.actions}>
+      {content}
+    </View>
+  );
+
+  return (
+    <ReanimatedSwipeable
+      ref={swipeable}
+      enabled={!selecting}
+      friction={1.5}
+      overshootFriction={8}
+      leftThreshold={ACTION_WIDTH / 2}
+      rightThreshold={ACTION_WIDTH / 2}
+      onSwipeableWillOpen={() => haptic()}
+      renderLeftActions={() => actionGroup(actions.left)}
+      renderRightActions={() => actionGroup(actions.right)}
     >
       {NATIVE_CHROME && menuActions ? (
         <Link href={{ pathname: '/thread/[threadId]', params: { threadId: thread.threadId, mailboxId: thread.mailboxId } }} asChild>
@@ -121,7 +134,7 @@ function SwipeableThreadRowImpl({ thread, accountAccent, canArchive, menuActions
           </Link.Menu>
         </Link>
       ) : (
-        <ThreadRow thread={thread} accountAccent={accountAccent} onOpen={onOpen} onLongPress={onLongPress} />
+        <ThreadRow thread={thread} accountAccent={accountAccent} onOpen={onOpen} onLongPress={selecting ? undefined : onLongPress} selected={selected} />
       )}
     </ReanimatedSwipeable>
   );
