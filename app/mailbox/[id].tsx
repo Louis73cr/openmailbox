@@ -94,6 +94,12 @@ export default function MailboxScreen() {
   const kept = useRef({ filterKey, threadIds: [] as string[] });
   const searchBar = useRef<SearchBarCommands>(null);
   const [searchOpened, setSearchOpened] = useState(false);
+  const summary = filterSummary(filterCriteria, t);
+  const [measuredSummary, setMeasuredSummary] = useState(summary);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setMeasuredSummary(summary));
+    return () => cancelAnimationFrame(frame);
+  }, [summary]);
   useEffect(() => {
     if (!searchOpened) return;
     // ponytail: waits for the native toolbar to attach the search slot; no mount callback is exposed.
@@ -294,7 +300,7 @@ export default function MailboxScreen() {
     <FilterPill
       bare={bare}
       enabled={enabled}
-      summary={filterSummary(filterCriteria, t)}
+      summary={summary}
       onToggle={() => setFilterEnabled(!filterEnabled)}
       onOpen={() => router.push({ pathname: '/filters', params: unified ? { unified: '1' } : {} })}
     />
@@ -302,7 +308,7 @@ export default function MailboxScreen() {
 
   // Both states stay mounted: the native toolbar sizes a view only when it first appears.
   const toolbarFilterPills = [false, true].map((enabled) => (
-    <Stack.Toolbar.View key={String(enabled)} hidden={enabled !== filterEnabled}>
+    <Stack.Toolbar.View key={String(enabled)} hidden={enabled !== filterEnabled || (enabled && measuredSummary !== summary)}>
       {filterPill(true, enabled)}
     </Stack.Toolbar.View>
   ));

@@ -7,8 +7,17 @@ import { Typography } from '@/ui/components';
 import { haptic } from '@/utils/haptics';
 
 const TOGGLE_SIZE = 44;
-const BARE_TOGGLE_SIZE = 36;
-const BARE_ENABLED_WIDTH = 150;
+const BARE_TOGGLE_SIZE = 38;
+const LABEL_GAP = 10;
+const LABEL_END_PADDING = 12;
+const CHEVRON_WIDTH = 16;
+// ponytail: estimated caption glyph width; the native toolbar needs a fixed width up front. Measure the text if locales overflow.
+const CAPTION_CHARACTER_WIDTH = 7.8;
+
+export function barePillWidth(filteredBy: string, summary: string): number {
+  const label = Math.max(filteredBy.length, summary.length + CHEVRON_WIDTH / CAPTION_CHARACTER_WIDTH) * CAPTION_CHARACTER_WIDTH;
+  return Math.min(BARE_TOGGLE_SIZE + LABEL_GAP + label + LABEL_END_PADDING, 220);
+}
 
 interface FilterPillProps {
   enabled: boolean;
@@ -29,7 +38,7 @@ export function FilterPill({ enabled, summary, onToggle, onOpen, bare = false }:
       style={[
         styles.pill,
         bare
-          ? { width: enabled ? BARE_ENABLED_WIDTH : BARE_TOGGLE_SIZE, height: BARE_TOGGLE_SIZE, padding: 0 }
+          ? { width: enabled ? barePillWidth(filteredBy, summary) : BARE_TOGGLE_SIZE, height: BARE_TOGGLE_SIZE, padding: 0 }
           : [styles.raised, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }],
       ]}
     >
@@ -66,7 +75,7 @@ export function FilterPill({ enabled, summary, onToggle, onOpen, bare = false }:
 }
 
 const styles = StyleSheet.create({
-  pill: { flexDirection: 'row', alignItems: 'center', borderRadius: 25, padding: 3, gap: 10, maxWidth: 220 },
+  pill: { flexDirection: 'row', alignItems: 'center', borderRadius: 25, padding: 3, gap: LABEL_GAP, maxWidth: 220 },
   raised: {
     borderWidth: StyleSheet.hairlineWidth,
     shadowColor: '#000',
@@ -76,7 +85,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   toggle: { alignItems: 'center', justifyContent: 'center' },
-  summary: { flexShrink: 1, paddingRight: 10 },
+  summary: { flexShrink: 1, paddingRight: LABEL_END_PADDING },
   criteria: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   criteriaText: { flexShrink: 1 },
 });
