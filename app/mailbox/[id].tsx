@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
-import type { SearchBarCommands } from 'react-native-screens';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Inbox } from 'lucide-react-native';
 import { MailboxRole, type ThreadSummary } from '@openmailbox/mail-core';
 import type { ThreadActionId } from '@/features/threads/threadActions';
@@ -38,7 +38,6 @@ import { haptic } from '@/utils/haptics';
 import { goBack } from '@/utils/navigation';
 
 const MINIMUM_REFRESH_MS = 700;
-const SEARCH_SLOT_MOUNT_MS = 350;
 const MARK_ACTIONS: MarkAction[] = ['markRead', 'markUnread', 'flag', 'unflag'];
 
 function usePullToRefresh(accountIds: string[]) {
@@ -92,20 +91,14 @@ export default function MailboxScreen() {
   );
   const filterKey = JSON.stringify(filter);
   const kept = useRef({ filterKey, threadIds: [] as string[] });
-  const searchBar = useRef<SearchBarCommands>(null);
-  const [searchOpened, setSearchOpened] = useState(false);
   const summary = filterSummary(filterCriteria, t);
-  const [measuredSummary, setMeasuredSummary] = useState(summary);
+  const barLayout = `${filterEnabled}:${summary}`;
+  const [laidOutBar, setLaidOutBar] = useState(barLayout);
   useEffect(() => {
-    const frame = requestAnimationFrame(() => setMeasuredSummary(summary));
+    const frame = requestAnimationFrame(() => setLaidOutBar(barLayout));
     return () => cancelAnimationFrame(frame);
-  }, [summary]);
-  useEffect(() => {
-    if (!searchOpened) return;
-    // ponytail: waits for the native toolbar to attach the search slot; no mount callback is exposed.
-    const timer = setTimeout(() => searchBar.current?.focus(), SEARCH_SLOT_MOUNT_MS);
-    return () => clearTimeout(timer);
-  }, [searchOpened]);
+  }, [barLayout]);
+  const barSettling = laidOutBar !== barLayout;
   if (kept.current.filterKey !== filterKey) kept.current = { filterKey, threadIds: [] };
   const keep = useCallback(() => kept.current.threadIds, []);
   useEffect(() => {
@@ -213,9 +206,12 @@ export default function MailboxScreen() {
     for (const candidate of scopedMailboxes) mailCore().loadOlder(candidate.id).catch(() => undefined);
   };
 
-  const list = searching ? (
-    <SearchResults query={query} currentMailboxIds={scopedMailboxes.map((candidate) => candidate.id)} />
-  ) : (
+  const searchResults = searching ? (
+    <Animated.View entering={FadeIn} exiting={FadeOut.duration(150)} style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}>
+      <SearchResults query={query} currentMailboxIds={scopedMailboxes.map((candidate) => candidate.id)} />
+    </Animated.View>
+  ) : null;
+  const list = (
     <FlashList
       contentInsetAdjustmentBehavior="automatic"
       maintainVisibleContentPosition={{ disabled: true }}
@@ -306,9 +302,9 @@ export default function MailboxScreen() {
     />
   );
 
-  // Both states stay mounted: the native toolbar sizes a view only when it first appears.
+  // Both states stay mounted: the native toolbar sizes a view, and picks search field or button, only when an item first appears.
   const toolbarFilterPills = [false, true].map((enabled) => (
-    <Stack.Toolbar.View key={String(enabled)} hidden={enabled !== filterEnabled || (enabled && measuredSummary !== summary)}>
+    <Stack.Toolbar.View key={String(enabled)} hidden={enabled !== filterEnabled || (enabled && barSettling)}>
       {filterPill(true, enabled)}
     </Stack.Toolbar.View>
   ));
@@ -318,6 +314,7 @@ export default function MailboxScreen() {
     return (
       <>
         {list}
+        {searchResults}
         {overlays}
         {selectionActions.picker}
         <Stack.Screen
@@ -375,33 +372,26 @@ export default function MailboxScreen() {
           </>
         ) : (
           <>
-            <Stack.SearchBar
-              ref={searchBar}
-              placeholder={t('search.placeholder')}
-              hideWhenScrolling={false}
-              onChangeText={(event) => setQuery(event.nativeEvent.text)}
-              onFocus={() => setSearchActive(true)}
-              onCancelButtonPress={() => {
-                setQuery('');
-                setSearchActive(false);
-                setSearchOpened(false);
-              }}
-            />
+            {/* UIKit picks the toolbar search field or button only when the search bar attaches, so it reattaches when the bar changes. */}
+            {LIQUID_GLASS && barSettling ? null : (
+              <Stack.SearchBar
+                placement={LIQUID_GLASS && filterEnabled ? 'integratedButton' : 'automatic'}
+                placeholder={t('search.placeholder')}
+                hideWhenScrolling={false}
+                onChangeText={(event) => setQuery(event.nativeEvent.text)}
+                onFocus={() => setSearchActive(true)}
+                onCancelButtonPress={() => {
+                  setQuery('');
+                  setSearchActive(false);
+                }}
+              />
+            )}
             {LIQUID_GLASS ? (
               <Stack.Toolbar placement="bottom">
                 {toolbarFilterPills}
                 <Stack.Toolbar.Spacer />
-                {filterEnabled && !searchOpened && !searching ? (
-                  <>
-                    <Stack.Toolbar.Button icon="magnifyingglass" accessibilityLabel={t('search.placeholder')} onPress={() => setSearchOpened(true)} />
-                    <Stack.Toolbar.Spacer width={1} />
-                  </>
-                ) : (
-                  <>
-                    <Stack.Toolbar.SearchBarSlot />
-                    <Stack.Toolbar.Spacer />
-                  </>
-                )}
+                {barSettling ? null : <Stack.Toolbar.SearchBarSlot />}
+                <Stack.Toolbar.Spacer width={1} />
                 <Stack.Toolbar.Button icon="square.and.pencil" accessibilityLabel={t('compose.newMessage')} onPress={compose} />
               </Stack.Toolbar>
             ) : (
