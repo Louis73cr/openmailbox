@@ -201,6 +201,11 @@ export default function MailboxScreen() {
     .filter(Boolean)
     .join(' · ');
   const data = threads.data ?? [];
+  const allSelected = data.length > 0 && selection.selected.size === data.length;
+  const toggleAll = () => {
+    markKept(data.map((thread) => thread.threadId));
+    selection.toggleAll(data);
+  };
   const compose = () => router.push({ pathname: '/compose', params: account ? { accountId: account.id } : {} });
   const loadOlder = () => {
     for (const candidate of scopedMailboxes) mailCore().loadOlder(candidate.id).catch(() => undefined);
@@ -309,7 +314,6 @@ export default function MailboxScreen() {
   ));
 
   if (NATIVE_CHROME) {
-    const allSelected = data.length > 0 && selection.selected.size === data.length;
     return (
       <>
         {list}
@@ -339,12 +343,7 @@ export default function MailboxScreen() {
         {selection.active ? (
           <>
             <Stack.Toolbar placement="left">
-              <Stack.Toolbar.Button
-                onPress={() => {
-                  markKept(data.map((thread) => thread.threadId));
-                  selection.toggleAll(data);
-                }}
-              >
+              <Stack.Toolbar.Button onPress={toggleAll}>
                 {allSelected ? t('threads.deselectAll') : t('threads.selectAll')}
               </Stack.Toolbar.Button>
             </Stack.Toolbar>
@@ -408,7 +407,18 @@ export default function MailboxScreen() {
     <ViewContainer>
       <SafeAreaView edges={['top']} style={styles.flex}>
         <ScreenHeader
-          onBack={goBack}
+          onBack={selection.active ? undefined : goBack}
+          left={
+            selection.active ? (
+              <IconButton
+                glass
+                round
+                size={40}
+                label={allSelected ? t('threads.deselectAll') : t('threads.selectAll')}
+                onPress={toggleAll}
+              />
+            ) : undefined
+          }
           right={
             <IconButton
               glass

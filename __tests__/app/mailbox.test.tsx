@@ -242,6 +242,20 @@ describe('thread list', () => {
       expect(mockRouter.push).not.toHaveBeenCalled();
     });
 
+    it('selects and deselects every listed thread from the header', async () => {
+      renderWithProviders(<MailboxScreen />);
+      await screen.findByText('Devis signé');
+      fireEvent.press(screen.getByRole('button', { name: 'Select' }));
+      expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Select All' }));
+      expect(screen.getByText('3 selected')).toBeOnTheScreen();
+      expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(3);
+
+      fireEvent.press(screen.getByRole('button', { name: 'Deselect All' }));
+      expect(screen.getByText('0 selected')).toBeOnTheScreen();
+    });
+
     it('archives threads of two accounts with one undo', async () => {
       renderWithProviders(<MailboxScreen />);
       await screen.findByText('Devis signé');
