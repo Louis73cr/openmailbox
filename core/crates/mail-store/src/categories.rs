@@ -276,7 +276,8 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use mail_model::{
-        Address, FetchedMessage, Flags, MailboxRole, RemoteMailbox, SendingSignals, ThreadScope,
+        Address, FetchedMessage, Flags, MailboxRole, RemoteMailbox, SendingSignals, ThreadFilter,
+        ThreadScope,
     };
 
     use super::*;
@@ -342,7 +343,13 @@ mod tests {
 
     fn subjects(store: &Store, category: Option<Category>) -> Vec<String> {
         let mut subjects: Vec<String> = store
-            .list_threads(ThreadScope::Unified, false, category, None, 50)
+            .list_threads(
+                ThreadScope::Unified,
+                &ThreadFilter::default(),
+                category,
+                None,
+                50,
+            )
             .unwrap()
             .threads
             .into_iter()
@@ -418,7 +425,13 @@ mod tests {
             )
             .unwrap();
         let threads = store
-            .list_threads(ThreadScope::Mailbox(inbox), false, None, None, 50)
+            .list_threads(
+                ThreadScope::Mailbox(inbox),
+                &ThreadFilter::default(),
+                None,
+                None,
+                50,
+            )
             .unwrap()
             .threads;
         assert_eq!(threads.len(), 1);

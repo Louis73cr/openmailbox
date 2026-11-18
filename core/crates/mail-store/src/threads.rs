@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
-use mail_model::{Category, EmailSummary, Result, ThreadPage, ThreadScope, ThreadSummary};
-use rusqlite::{Transaction, params};
+use mail_model::{
+    Category, EmailSummary, Result, ThreadFilter, ThreadPage, ThreadScope, ThreadSummary,
+};
+use rusqlite::{ToSql, Transaction, params, params_from_iter};
 
 use crate::categories::THREAD_CATEGORY;
 use crate::{EMAIL_COLUMNS, StorageResult, Store, email_from_row};
@@ -56,11 +58,87 @@ fn parse_cursor(cursor: Option<&str>) -> (i64, i64) {
         .unwrap_or((i64::MAX, i64::MAX))
 }
 
+// ponytail: scans the JSON recipients of each candidate thread; add a recipients table if
+// `benchmark:store` shows it.
+fn addressed_to_account(column: &str) -> String {
+    format!(
+        "EXISTS (SELECT 1 FROM email x JOIN email_mailbox xm ON xm.email_id = x.id
+           JOIN account a ON a.id = x.account_id, json_each(x.{column}) j
+           WHERE x.thread_id = mt.thread_id AND xm.mailbox_id = mt.mailbox_id
+             AND lower(json_extract(j.value, '$.email')) = lower(a.email))"
+    )
+}
+
+fn bound_list<T: ToSql + Clone + 'static>(items: &[T], values: &mut Vec<Box<dyn ToSql>>) -> String {
+    let start = values.len() + 1;
+    values.extend(
+        items
+            .iter()
+            .map(|item| Box::new(item.clone()) as Box<dyn ToSql>),
+    );
+    (start..start + items.len())
+        .map(|index| format!("?{index}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn filter_sql(filter: &ThreadFilter, values: &mut Vec<Box<dyn ToSql>>) -> String {
+    let any =
+        |clauses: Vec<String>| (!clauses.is_empty()).then(|| format!("({})", clauses.join(" OR ")));
+    let include = any([
+        filter.unread.then(|| "mt.unread_count > 0".to_owned()),
+        filter.flagged.then(|| "mt.is_flagged".to_owned()),
+    ]
+    .into_iter()
+    .flatten()
+    .collect());
+    let addressed = any([
+        filter.to_me.then(|| addressed_to_account("to_json")),
+        filter.cc_me.then(|| addressed_to_account("cc_json")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect());
+    let accounts = (!filter.account_ids.is_empty()).then(|| {
+        format!(
+            "mt.account_id IN ({})",
+            bound_list(&filter.account_ids, values)
+        )
+    });
+    let criteria: Vec<String> = [
+        include,
+        addressed,
+        filter
+            .with_attachment
+            .then(|| "mt.has_attachment".to_owned()),
+        filter
+            .since
+            .map(|since| format!("mt.last_received_at >= {}", bound_list(&[since], values))),
+        accounts,
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let criteria = if criteria.is_empty() {
+        "1".to_owned()
+    } else {
+        criteria.join(" AND ")
+    };
+    if filter.keep_thread_ids.is_empty() {
+        format!("({criteria})")
+    } else {
+        format!(
+            "(mt.thread_id IN ({}) OR ({criteria}))",
+            bound_list(&filter.keep_thread_ids, values)
+        )
+    }
+}
+
 impl Store {
     pub fn list_threads(
         &self,
         scope: ThreadScope,
-        unread_only: bool,
+        filter: &ThreadFilter,
         category: Option<Category>,
         cursor: Option<&str>,
         limit: u32,
@@ -70,6 +148,14 @@ impl Store {
             ThreadScope::Unified => ("mt.unified = 1", 0),
             ThreadScope::Mailbox(mailbox_id) => ("mt.mailbox_id = ?1", mailbox_id),
         };
+        let mut values: Vec<Box<dyn ToSql>> = vec![
+            Box::new(scope_value),
+            Box::new(cursor_received_at),
+            Box::new(cursor_row_id),
+            Box::new(limit),
+            Box::new(category.map(Category::code)),
+        ];
+        let filter_sql = filter_sql(filter, &mut values);
         let connection = self.read();
         let mut statement = connection
             .prepare_cached(&format!(
@@ -77,43 +163,33 @@ impl Store {
                    mt.has_attachment, mt.last_received_at, mt.category, {EMAIL_COLUMNS}
                  FROM mailbox_thread mt JOIN email e ON e.id = mt.latest_email_id
                  WHERE {scope_filter}
-                   AND (?2 = 0 OR mt.unread_count > 0)
-                   AND (?6 IS NULL OR mt.category = ?6)
-                   AND (mt.last_received_at < ?3 OR (mt.last_received_at = ?3 AND mt.rowid < ?4))
+                   AND {filter_sql}
+                   AND (?5 IS NULL OR mt.category = ?5)
+                   AND (mt.last_received_at < ?2 OR (mt.last_received_at = ?2 AND mt.rowid < ?3))
                  ORDER BY mt.last_received_at DESC, mt.rowid DESC
-                 LIMIT ?5"
+                 LIMIT ?4"
             ))
             .storage()?;
         let mut last_position = None;
         let threads: Vec<ThreadSummary> = statement
-            .query_map(
-                params![
-                    scope_value,
-                    unread_only,
-                    cursor_received_at,
-                    cursor_row_id,
-                    limit,
-                    category.map(Category::code)
-                ],
-                |row| {
-                    let row_id: i64 = row.get(0)?;
-                    let last_received_at: i64 = row.get(7)?;
-                    last_position = Some((last_received_at, row_id));
-                    let latest = email_from_row(row, 9)?;
-                    Ok(ThreadSummary {
-                        thread_id: row.get(1)?,
-                        mailbox_id: row.get(2)?,
-                        account_id: latest.account_id.clone(),
-                        message_count: row.get(3)?,
-                        unread_count: row.get(4)?,
-                        is_flagged: row.get(5)?,
-                        has_attachment: row.get(6)?,
-                        last_received_at,
-                        category: Category::from_code(row.get(8)?),
-                        latest,
-                    })
-                },
-            )
+            .query_map(params_from_iter(values.iter()), |row| {
+                let row_id: i64 = row.get(0)?;
+                let last_received_at: i64 = row.get(7)?;
+                last_position = Some((last_received_at, row_id));
+                let latest = email_from_row(row, 9)?;
+                Ok(ThreadSummary {
+                    thread_id: row.get(1)?,
+                    mailbox_id: row.get(2)?,
+                    account_id: latest.account_id.clone(),
+                    message_count: row.get(3)?,
+                    unread_count: row.get(4)?,
+                    is_flagged: row.get(5)?,
+                    has_attachment: row.get(6)?,
+                    last_received_at,
+                    category: Category::from_code(row.get(8)?),
+                    latest,
+                })
+            })
             .storage()?
             .collect::<rusqlite::Result<_>>()
             .storage()?;
@@ -158,6 +234,7 @@ impl Store {
 mod tests {
     use mail_model::{
         Address, FetchedMessage, Flags, Keyword, MailboxRole, ParsedHeaders, RemoteMailbox,
+        ThreadFilter,
     };
 
     use super::*;
@@ -242,7 +319,13 @@ mod tests {
             .unwrap();
 
         let first_page = store
-            .list_threads(ThreadScope::Unified, false, None, None, 1)
+            .list_threads(
+                ThreadScope::Unified,
+                &ThreadFilter::default(),
+                None,
+                None,
+                1,
+            )
             .unwrap();
         assert_eq!(first_page.threads.len(), 1);
         assert_eq!(first_page.threads[0].message_count, 2);
@@ -255,7 +338,7 @@ mod tests {
         let second_page = store
             .list_threads(
                 ThreadScope::Unified,
-                false,
+                &ThreadFilter::default(),
                 None,
                 first_page.next_cursor.as_deref(),
                 1,
@@ -268,7 +351,7 @@ mod tests {
         let third_page = store
             .list_threads(
                 ThreadScope::Unified,
-                false,
+                &ThreadFilter::default(),
                 None,
                 second_page.next_cursor.as_deref(),
                 1,
@@ -285,7 +368,7 @@ mod tests {
             .unwrap();
         store.set_mailbox_counts(inbox, 1, 1).unwrap();
         let thread = store
-            .list_threads(ThreadScope::Mailbox(inbox), true, None, None, 10)
+            .list_threads(ThreadScope::Mailbox(inbox), &unread_only(), None, None, 10)
             .unwrap()
             .threads[0]
             .clone();
@@ -295,7 +378,7 @@ mod tests {
             .unwrap();
         assert!(
             store
-                .list_threads(ThreadScope::Mailbox(inbox), true, None, None, 10)
+                .list_threads(ThreadScope::Mailbox(inbox), &unread_only(), None, None, 10)
                 .unwrap()
                 .threads
                 .is_empty()
@@ -308,14 +391,26 @@ mod tests {
         assert_eq!(sources[0].uid, Some(1));
         assert!(
             store
-                .list_threads(ThreadScope::Unified, false, None, None, 10)
+                .list_threads(
+                    ThreadScope::Unified,
+                    &ThreadFilter::default(),
+                    None,
+                    None,
+                    10
+                )
                 .unwrap()
                 .threads
                 .is_empty()
         );
         assert_eq!(
             store
-                .list_threads(ThreadScope::Mailbox(trash), false, None, None, 10)
+                .list_threads(
+                    ThreadScope::Mailbox(trash),
+                    &ThreadFilter::default(),
+                    None,
+                    None,
+                    10
+                )
                 .unwrap()
                 .threads
                 .len(),
@@ -348,7 +443,13 @@ mod tests {
         store.update_flags(inbox, &[(1, Flags::default())]).unwrap();
         let unread = |store: &Store| {
             store
-                .list_threads(ThreadScope::Mailbox(inbox), false, None, None, 1)
+                .list_threads(
+                    ThreadScope::Mailbox(inbox),
+                    &ThreadFilter::default(),
+                    None,
+                    None,
+                    1,
+                )
                 .unwrap()
                 .threads[0]
                 .unread_count
@@ -396,5 +497,267 @@ mod tests {
         let in_inbox = store.search("subj", 10, &[inbox]).unwrap();
         assert_eq!(in_inbox.len(), 1);
         assert_eq!(in_inbox[0].mailbox_id, inbox);
+    }
+
+    fn unread_only() -> ThreadFilter {
+        ThreadFilter {
+            unread: true,
+            ..ThreadFilter::default()
+        }
+    }
+
+    fn address(email: &str) -> Address {
+        Address {
+            name: None,
+            email: email.into(),
+        }
+    }
+
+    fn subjects(store: &Store, scope: ThreadScope, filter: &ThreadFilter) -> Vec<String> {
+        store
+            .list_threads(scope, filter, None, None, 10)
+            .unwrap()
+            .threads
+            .into_iter()
+            .map(|thread| thread.latest.subject.unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn filter_combines_include_criteria_with_or() {
+        let (store, _directory, inbox, _) = setup();
+        let mut flagged = message(2, "b@x", &[], 2_000, true);
+        flagged.flags.flagged = true;
+        store
+            .insert_messages(
+                "alice",
+                inbox,
+                &[
+                    message(1, "a@x", &[], 3_000, false),
+                    flagged,
+                    message(3, "c@x", &[], 1_000, true),
+                ],
+            )
+            .unwrap();
+        let scope = ThreadScope::Mailbox(inbox);
+
+        let unread_or_flagged = ThreadFilter {
+            unread: true,
+            flagged: true,
+            ..ThreadFilter::default()
+        };
+        assert_eq!(
+            subjects(&store, scope, &unread_or_flagged),
+            ["Subject 1", "Subject 2"]
+        );
+        let unread = ThreadFilter {
+            unread: true,
+            ..ThreadFilter::default()
+        };
+        assert_eq!(subjects(&store, scope, &unread), ["Subject 1"]);
+        assert_eq!(subjects(&store, scope, &ThreadFilter::default()).len(), 3);
+    }
+
+    #[test]
+    fn filter_ands_sections() {
+        let (store, _directory, inbox, _) = setup();
+        let mut with_attachment = message(1, "a@x", &[], 2_000, false);
+        with_attachment.headers.has_attachment = true;
+        store
+            .insert_messages(
+                "alice",
+                inbox,
+                &[with_attachment, message(2, "b@x", &[], 1_000, false)],
+            )
+            .unwrap();
+
+        let filter = ThreadFilter {
+            unread: true,
+            with_attachment: true,
+            ..ThreadFilter::default()
+        };
+        assert_eq!(
+            subjects(&store, ThreadScope::Mailbox(inbox), &filter),
+            ["Subject 1"]
+        );
+    }
+
+    #[test]
+    fn to_me_and_cc_me_match_the_account_address_case_insensitively() {
+        let (store, _directory, inbox, _) = setup();
+        let mut to_me = message(1, "a@x", &[], 3_000, true);
+        to_me.headers.to = vec![address("Alice@Example.com")];
+        let mut cc_me = message(2, "b@x", &[], 2_000, true);
+        cc_me.headers.to = vec![address("team@example.com")];
+        cc_me.headers.cc = vec![address("alice@example.com")];
+        let mut other = message(3, "c@x", &[], 1_000, true);
+        other.headers.to = vec![address("team@example.com")];
+        store
+            .insert_messages("alice", inbox, &[to_me, cc_me, other])
+            .unwrap();
+        let scope = ThreadScope::Mailbox(inbox);
+
+        let to = ThreadFilter {
+            to_me: true,
+            ..ThreadFilter::default()
+        };
+        assert_eq!(subjects(&store, scope, &to), ["Subject 1"]);
+        let cc = ThreadFilter {
+            cc_me: true,
+            ..ThreadFilter::default()
+        };
+        assert_eq!(subjects(&store, scope, &cc), ["Subject 2"]);
+        let either = ThreadFilter {
+            to_me: true,
+            cc_me: true,
+            ..ThreadFilter::default()
+        };
+        assert_eq!(subjects(&store, scope, &either), ["Subject 1", "Subject 2"]);
+    }
+
+    #[test]
+    fn since_keeps_threads_received_from_then() {
+        let (store, _directory, inbox, _) = setup();
+        store
+            .insert_messages(
+                "alice",
+                inbox,
+                &[
+                    message(1, "a@x", &[], 1_000, true),
+                    message(2, "b@x", &[], 3_000, true),
+                ],
+            )
+            .unwrap();
+
+        let filter = ThreadFilter {
+            since: Some(2_000),
+            ..ThreadFilter::default()
+        };
+        assert_eq!(
+            subjects(&store, ThreadScope::Mailbox(inbox), &filter),
+            ["Subject 2"]
+        );
+    }
+
+    #[test]
+    fn account_ids_limit_the_unified_list() {
+        let (store, _directory, inbox, _) = setup();
+        store.insert_account(&test_support::account("bob")).unwrap();
+        store
+            .replace_mailboxes(
+                "bob",
+                &[RemoteMailbox {
+                    remote_name: "INBOX".into(),
+                    name: "INBOX".into(),
+                    depth: 0,
+                    role: Some(MailboxRole::Inbox),
+                    selectable: true,
+                }],
+            )
+            .unwrap();
+        let bob_inbox = store
+            .mailbox_by_role("bob", MailboxRole::Inbox)
+            .unwrap()
+            .unwrap()
+            .id;
+        store
+            .insert_messages("alice", inbox, &[message(1, "a@x", &[], 2_000, true)])
+            .unwrap();
+        store
+            .insert_messages("bob", bob_inbox, &[message(2, "b@x", &[], 1_000, true)])
+            .unwrap();
+
+        let alice_only = ThreadFilter {
+            account_ids: vec!["alice".into()],
+            ..ThreadFilter::default()
+        };
+        assert_eq!(
+            subjects(&store, ThreadScope::Unified, &alice_only),
+            ["Subject 1"]
+        );
+        assert_eq!(
+            subjects(&store, ThreadScope::Unified, &ThreadFilter::default()).len(),
+            2
+        );
+    }
+
+    #[test]
+    fn kept_threads_bypass_criteria_but_not_category() {
+        let (store, _directory, inbox, _) = setup();
+        store
+            .insert_messages(
+                "alice",
+                inbox,
+                &[
+                    message(1, "a@x", &[], 2_000, true),
+                    message(2, "b@x", &[], 1_000, true),
+                ],
+            )
+            .unwrap();
+        let scope = ThreadScope::Mailbox(inbox);
+        let read = store
+            .list_threads(scope, &ThreadFilter::default(), None, None, 10)
+            .unwrap()
+            .threads[1]
+            .thread_id;
+
+        let filter = ThreadFilter {
+            unread: true,
+            keep_thread_ids: vec![read],
+            ..ThreadFilter::default()
+        };
+        assert_eq!(subjects(&store, scope, &filter), ["Subject 2"]);
+        assert!(
+            store
+                .list_threads(scope, &filter, Some(Category::Updates), None, 10)
+                .unwrap()
+                .threads
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn kept_threads_page_in_date_order() {
+        let (store, _directory, inbox, _) = setup();
+        store
+            .insert_messages(
+                "alice",
+                inbox,
+                &[
+                    message(1, "a@x", &[], 3_000, false),
+                    message(2, "b@x", &[], 2_000, true),
+                    message(3, "c@x", &[], 1_000, false),
+                ],
+            )
+            .unwrap();
+        let scope = ThreadScope::Mailbox(inbox);
+        let read = store
+            .list_threads(scope, &ThreadFilter::default(), None, None, 10)
+            .unwrap()
+            .threads[1]
+            .thread_id;
+        let filter = ThreadFilter {
+            unread: true,
+            keep_thread_ids: vec![read],
+            ..ThreadFilter::default()
+        };
+
+        let mut seen = Vec::new();
+        let mut cursor = None;
+        loop {
+            let page = store
+                .list_threads(scope, &filter, None, cursor.as_deref(), 1)
+                .unwrap();
+            seen.extend(
+                page.threads
+                    .into_iter()
+                    .map(|thread| thread.latest.subject.unwrap()),
+            );
+            match page.next_cursor {
+                Some(next) => cursor = Some(next),
+                None => break,
+            }
+        }
+        assert_eq!(seen, ["Subject 1", "Subject 2", "Subject 3"]);
     }
 }
