@@ -1,5 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, View, type AccessibilityActionEvent, type AccessibilityActionInfo } from 'react-native';
+import {
+  Pressable, StyleSheet, View, type AccessibilityActionEvent, type AccessibilityActionInfo, type AccessibilityState,
+} from 'react-native';
 import { useTheme } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 
@@ -17,13 +19,14 @@ interface ListRowProps {
   onPress?: () => void;
   accessibilityLabel?: string;
   accessibilityActions?: AccessibilityActionInfo[];
+  accessibilityState?: AccessibilityState;
   onAccessibilityAction?: (event: AccessibilityActionEvent) => void;
   testID?: string;
 }
 
 function ListRow({
   title, subtitle, leading, detail, trailing, chevron = true, destructive, disabled, onPress, accessibilityLabel, accessibilityActions,
-  onAccessibilityAction, testID,
+  accessibilityState, onAccessibilityAction, testID,
 }: ListRowProps) {
   const { colors } = useTheme();
   const showDetail = detail !== undefined && detail !== '' && detail !== 0;
@@ -69,6 +72,7 @@ function ListRow({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityActions={accessibilityActions}
+      accessibilityState={accessibilityState}
       onAccessibilityAction={onAccessibilityAction}
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface }]}

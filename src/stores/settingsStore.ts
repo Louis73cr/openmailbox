@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { zustandStorage } from '@/storage';
 import type { InboxFilter } from '@/features/categories/categories';
+import { DEFAULT_FILTER_CRITERIA, type FilterCriteria } from '@/features/threads/threadFilter';
 import { getInitialLanguage, type AppLanguage } from '@/utils/i18n';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -28,6 +29,8 @@ interface SettingsState {
   collapsedIds: string[];
   accountOrder: string[];
   categorySeenAt: Partial<Record<InboxFilter, number>>;
+  filterEnabled: boolean;
+  filterCriteria: FilterCriteria;
   setThemePreference: (preference: ThemePreference) => void;
   setLanguage: (language: AppLanguage) => void;
   setHapticsEnabled: (enabled: boolean) => void;
@@ -43,6 +46,8 @@ interface SettingsState {
   toggleCollapsed: (id: string) => void;
   setAccountOrder: (accountIds: string[]) => void;
   markCategorySeen: (filter: InboxFilter, receivedAt: number) => void;
+  setFilterEnabled: (enabled: boolean) => void;
+  setFilterCriteria: (criteria: Partial<FilterCriteria>) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -63,6 +68,8 @@ export const useSettingsStore = create<SettingsState>()(
       collapsedIds: [],
       accountOrder: [],
       categorySeenAt: {},
+      filterEnabled: false,
+      filterCriteria: DEFAULT_FILTER_CRITERIA,
       setThemePreference: (themePreference) => set({ themePreference }),
       setLanguage: (language) => set({ language }),
       setHapticsEnabled: (hapticsEnabled) => set({ hapticsEnabled }),
@@ -71,6 +78,8 @@ export const useSettingsStore = create<SettingsState>()(
       setDefaultAccountId: (defaultAccountId) => set({ defaultAccountId }),
       setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
       setInboxFilter: (inboxFilter) => set({ inboxFilter }),
+      setFilterEnabled: (filterEnabled) => set({ filterEnabled }),
+      setFilterCriteria: (criteria) => set(({ filterCriteria }) => ({ filterCriteria: { ...filterCriteria, ...criteria } })),
       toggleCollapsed: (id) =>
         set(({ collapsedIds }) => ({
           collapsedIds: collapsedIds.includes(id) ? collapsedIds.filter((collapsed) => collapsed !== id) : [...collapsedIds, id],
@@ -89,12 +98,16 @@ export const useSettingsStore = create<SettingsState>()(
         ),
       setAccountName: (accountId, name) => set(({ accountNames }) => ({ accountNames: withText(accountNames, accountId, name) })),
       forgetAccount: (accountId) =>
-        set(({ signatures, accountNames, silencedAccountIds, collapsedIds, accountOrder }) => ({
+        set(({ signatures, accountNames, silencedAccountIds, collapsedIds, accountOrder, filterCriteria }) => ({
           signatures: withText(signatures, accountId, ''),
           accountNames: withText(accountNames, accountId, ''),
           silencedAccountIds: silencedAccountIds.filter((silenced) => silenced !== accountId),
           collapsedIds: collapsedIds.filter((collapsed) => collapsed !== accountId),
           accountOrder: accountOrder.filter((ordered) => ordered !== accountId),
+          filterCriteria: {
+            ...filterCriteria,
+            excludedAccountIds: filterCriteria.excludedAccountIds.filter((excluded) => excluded !== accountId),
+          },
         })),
     }),
     {
@@ -116,6 +129,8 @@ export const useSettingsStore = create<SettingsState>()(
         collapsedIds,
         accountOrder,
         categorySeenAt,
+        filterEnabled,
+        filterCriteria,
       }) => ({
         themePreference,
         language,
@@ -132,6 +147,8 @@ export const useSettingsStore = create<SettingsState>()(
         collapsedIds,
         accountOrder,
         categorySeenAt,
+        filterEnabled,
+        filterCriteria,
       }),
     },
   ),

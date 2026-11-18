@@ -3,7 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { ThreadScope } from '@openmailbox/mail-core';
 
-import { useSearch, useThreads } from '@/core/hooks';
+import { EMPTY_THREAD_FILTER, useSearch, useThreads } from '@/core/hooks';
 import { queryClient } from '@/core/queryClient';
 
 import { core, makeEmail, makeThread } from '../helpers/fixtures';
@@ -21,26 +21,40 @@ describe('core hooks', () => {
   it('reads the unified inbox page by page and flattens the pages', async () => {
     const first = makeThread({ key: 'a', latest: makeEmail({ threadId: 'thread-a' }) });
     const second = makeThread({ key: 'b', latest: makeEmail({ threadId: 'thread-b' }) });
-    core.listThreads.mockImplementation(async (_scope, _unreadOnly, _category, cursor) =>
+    core.listThreads.mockImplementation(async (_scope, _filter, _category, cursor) =>
       cursor === 'cursor-1' ? { threads: [second], nextCursor: undefined } : { threads: [first], nextCursor: 'cursor-1' },
     );
 
-    const { result } = renderHook(() => useThreads('unified', false), { wrapper });
+    const { result } = renderHook(() => useThreads('unified', EMPTY_THREAD_FILTER), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual([first]));
     expect(ThreadScope.Unified.instanceOf(core.listThreads.mock.calls[0][0])).toBe(true);
 
     await act(() => result.current.fetchNextPage());
     await waitFor(() => expect(result.current.data).toEqual([first, second]));
-    expect(core.listThreads).toHaveBeenLastCalledWith(expect.anything(), false, undefined, 'cursor-1', 50);
+    expect(core.listThreads).toHaveBeenLastCalledWith(expect.anything(), EMPTY_THREAD_FILTER, undefined, 'cursor-1', 50);
     expect(result.current.hasNextPage).toBe(false);
   });
 
   it('reads a single mailbox when given its id', async () => {
-    renderHook(() => useThreads('mailbox-inbox', true), { wrapper });
+    renderHook(() => useThreads('mailbox-inbox', { ...EMPTY_THREAD_FILTER, unread: true }), { wrapper });
     await waitFor(() => expect(core.listThreads).toHaveBeenCalled());
-    const [scope, unreadOnly] = core.listThreads.mock.calls[0];
+    const [scope, filter] = core.listThreads.mock.calls[0];
     expect(ThreadScope.Mailbox.instanceOf(scope) && scope.inner.mailboxId).toBe('mailbox-inbox');
-    expect(unreadOnly).toBe(true);
+    expect(filter.unread).toBe(true);
+  });
+
+  it('sends the kept threads without keying the list on them', async () => {
+    let kept = ['thread-a'];
+    const { rerender } = renderHook(() => useThreads('unified', EMPTY_THREAD_FILTER, undefined, () => kept), { wrapper });
+    await waitFor(() => expect(core.listThreads).toHaveBeenCalledTimes(1));
+    expect(core.listThreads.mock.calls[0][1].keepThreadIds).toEqual(['thread-a']);
+
+    kept = ['thread-a', 'thread-b'];
+    rerender({});
+    await act(() => queryClient.invalidateQueries({ queryKey: ['threads'] }));
+    expect(core.listThreads).toHaveBeenCalledTimes(2);
+    expect(core.listThreads.mock.calls[1][1].keepThreadIds).toEqual(['thread-a', 'thread-b']);
+    expect(queryClient.getQueryCache().findAll({ queryKey: ['threads'] })).toHaveLength(1);
   });
 
   it('waits for two characters before searching and trims the query', async () => {

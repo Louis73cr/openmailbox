@@ -238,6 +238,21 @@ pub enum ThreadScope {
     Mailbox(i64),
 }
 
+/// Criteria for a thread list. Within `unread`/`flagged` and within `to_me`/`cc_me` a thread
+/// needs any of the set ones; every other criterion must also hold. `keep_thread_ids` are
+/// listed whatever the criteria.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ThreadFilter {
+    pub unread: bool,
+    pub flagged: bool,
+    pub to_me: bool,
+    pub cc_me: bool,
+    pub with_attachment: bool,
+    pub since: Option<i64>,
+    pub account_ids: Vec<String>,
+    pub keep_thread_ids: Vec<i64>,
+}
+
 /// An unread inbox message that arrived since the last background check.
 #[derive(Debug, Clone)]
 pub struct NewMessage {

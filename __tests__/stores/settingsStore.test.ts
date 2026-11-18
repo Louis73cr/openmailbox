@@ -24,4 +24,20 @@ describe('settings store', () => {
       categorySeenAt: { updates: 2_000 },
     });
   });
+
+  it('keeps the mailbox filter off with unread mail as its criterion', () => {
+    expect(useSettingsStore.getState().filterEnabled).toBe(false);
+    expect(useSettingsStore.getState().filterCriteria.unread).toBe(true);
+  });
+
+  it('persists the mailbox filter and forgets removed accounts in it', () => {
+    useSettingsStore.getState().setFilterEnabled(true);
+    useSettingsStore.getState().setFilterCriteria({ flagged: true, excludedAccountIds: ['account-1', 'account-2'] });
+    useSettingsStore.getState().forgetAccount('account-1');
+    const saved = JSON.parse(storage.getString('settings-store') ?? '{}');
+    expect(saved.state).toMatchObject({
+      filterEnabled: true,
+      filterCriteria: { unread: true, flagged: true, excludedAccountIds: ['account-2'] },
+    });
+  });
 });
