@@ -19,6 +19,7 @@ static SANITIZER: LazyLock<ammonia::Builder<'static>> = LazyLock::new(|| {
     builder
         .add_tags(["style", "center", "font", "span", "div"])
         .rm_clean_content_tags(["style"])
+        .add_clean_content_tags(["title"])
         .add_generic_attributes([
             "style",
             "class",
@@ -421,6 +422,14 @@ Content-Type: multipart/alternative; boundary=\"b\"\r\n\r\n";
         assert!(!html.contains("onclick"));
         assert!(html.contains("color:red"));
         assert!(body.has_remote_content);
+    }
+
+    #[test]
+    fn render_drops_the_document_title() {
+        let raw = b"From: a@example.com\r\nContent-Type: text/html\r\n\r\n<html><head><title>Weekly deals</title></head><body><p>Hello</p></body></html>";
+        let html = render(raw).unwrap().html.unwrap();
+        assert!(!html.contains("Weekly deals"));
+        assert!(html.contains("Hello"));
     }
 
     #[test]
