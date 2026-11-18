@@ -29,7 +29,7 @@ import { THREAD_ACTION_PRESENTATION } from '@/features/threads/threadActions';
 import { FilterPill } from '@/features/threads/components/FilterPill';
 import { coreFilter, filterSummary } from '@/features/threads/threadFilter';
 import { useThreadActions } from '@/features/threads/useThreadActions';
-import { useThreadSelection } from '@/features/threads/useThreadSelection';
+import { everySelected, useThreadSelection } from '@/features/threads/useThreadSelection';
 import { accountColor } from '@/theme';
 import { EmptyState, IconButton, ScreenHeader, Spinner, Typography, ViewContainer } from '@/ui/components';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -201,7 +201,7 @@ export default function MailboxScreen() {
     .filter(Boolean)
     .join(' · ');
   const data = threads.data ?? [];
-  const allSelected = data.length > 0 && selection.selected.size === data.length;
+  const allSelected = selection.active && everySelected(selection.selected, data);
   const toggleAll = () => {
     markKept(data.map((thread) => thread.threadId));
     selection.toggleAll(data);

@@ -254,6 +254,30 @@ describe('thread list', () => {
 
       fireEvent.press(screen.getByRole('button', { name: 'Deselect All' }));
       expect(screen.getByText('0 selected')).toBeOnTheScreen();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+      expect(screen.getByRole('button', { name: 'Back' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Select' })).toBeOnTheScreen();
+      expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    });
+
+    it('offers Select All again in a category whose threads are not selected', async () => {
+      const promotions = [1, 2, 3].map((n) =>
+        makeThread({ latest: makeEmail({ id: `promo-email-${n}`, threadId: `promo-${n}`, subject: `Promo ${n}` }) }),
+      );
+      core.listThreads.mockImplementation(async (_scope, _filter, category) => ({
+        threads: category === Category.Promotions ? promotions : [UNREAD, READ, OTHER_ACCOUNT_THREAD],
+      }));
+      renderWithProviders(<MailboxScreen />);
+      await screen.findByText('Devis signé');
+      fireEvent.press(screen.getByRole('button', { name: 'Select' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Select All' }));
+      fireEvent.press(screen.getByRole('tab', { name: 'Promotions' }));
+      await screen.findByText('Promo 1');
+
+      fireEvent.press(screen.getByRole('button', { name: 'Select All' }));
+      expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(3);
+      expect(screen.getByRole('button', { name: 'Deselect All' })).toBeOnTheScreen();
     });
 
     it('archives threads of two accounts with one undo', async () => {

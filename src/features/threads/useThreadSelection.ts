@@ -1,6 +1,9 @@
 import { useCallback, useState } from 'react';
 import type { ThreadSummary } from '@openmailbox/mail-core';
 
+export const everySelected = (selected: Map<string, ThreadSummary>, threads: ThreadSummary[]) =>
+  threads.length > 0 && threads.every((thread) => selected.has(thread.key));
+
 export function useThreadSelection() {
   const [active, setActive] = useState(false);
   const [selected, setSelected] = useState<Map<string, ThreadSummary>>(() => new Map());
@@ -26,7 +29,7 @@ export function useThreadSelection() {
 
   const toggleAll = useCallback((threads: ThreadSummary[]) => {
     setSelected((current) =>
-      current.size === threads.length ? new Map() : new Map(threads.map((thread) => [thread.key, thread])),
+      everySelected(current, threads) ? new Map() : new Map(threads.map((thread) => [thread.key, thread])),
     );
   }, []);
 
