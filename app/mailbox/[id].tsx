@@ -425,7 +425,7 @@ export default function MailboxScreen() {
       {selection.active ? (
         <SelectionToolbar threads={[...selection.selected.values()]} onDone={selection.end} />
       ) : (
-        <BottomBar composeAccountId={account?.id} left={filterPill()} />
+        <BottomBar composeAccountId={account?.id} left={filterPill()} collapseSearch={filterEnabled} />
       )}
       {overlays}
     </ViewContainer>
