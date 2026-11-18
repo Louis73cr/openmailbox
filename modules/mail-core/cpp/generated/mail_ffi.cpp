@@ -194,7 +194,7 @@ extern "C" {
     /*handle*/ uint64_t uniffi_mail_ffi_fn_method_mailcore_list_threads(
         /*handle*/ uint64_t ptr, 
         RustBuffer scope, 
-        int8_t unread_only, 
+        RustBuffer filter, 
         RustBuffer category, 
         RustBuffer cursor, 
         uint32_t limit
@@ -3696,7 +3696,7 @@ jsi::Value NativeMailFfi::cpp_uniffi_mail_ffi_fn_method_mailcore_list_mailboxes(
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeMailFfi::cpp_uniffi_mail_ffi_fn_method_mailcore_list_threads(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_mail_ffi_fn_method_mailcore_list_threads(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::mail_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[2]), uniffi::mail_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]), uniffi::mail_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[5])
+        auto value = uniffi_mail_ffi_fn_method_mailcore_list_threads(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::mail_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::mail_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), uniffi::mail_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]), uniffi::mail_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[5])
         );
 
         

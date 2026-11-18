@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData } from '@tanstack/react-query';
-import { ThreadScope, type Account, type Category, type Mailbox, type ThreadPage } from '@openmailbox/mail-core';
+import { ThreadScope, type Account, type Category, type Mailbox, type ThreadFilter, type ThreadPage } from '@openmailbox/mail-core';
 
 import { CATEGORIES, filterOf } from '@/features/categories/categories';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -15,6 +15,18 @@ const EMPTY_ACCOUNTS: Account[] = [];
 const EMPTY_MAILBOXES: Mailbox[] = [];
 const EMPTY_IDS: string[] = [];
 const EMPTY_CATEGORIES: Category[] = [];
+
+export const EMPTY_THREAD_FILTER: ThreadFilter = {
+  unread: false,
+  flagged: false,
+  toMe: false,
+  ccMe: false,
+  withAttachment: false,
+  since: undefined,
+  accountIds: [],
+  keepThreadIds: [],
+};
+const UNREAD_FILTER: ThreadFilter = { ...EMPTY_THREAD_FILTER, unread: true };
 
 export function sortAccounts(accounts: Account[], order: string[]): Account[] {
   if (order.length === 0) return accounts;
@@ -43,18 +55,19 @@ function threadScope(scope: string): ThreadScope {
 
 const flattenThreadPages = (data: InfiniteData<ThreadPage, string | undefined>) => data.pages.flatMap((page) => page.threads);
 
-export function threadsQuery(scope: string, unreadOnly: boolean, category?: Category) {
+export function threadsQuery(scope: string, filter: ThreadFilter, category?: Category, keep?: () => string[]) {
   return infiniteQueryOptions({
-    queryKey: queryKeys.threads(scope, unreadOnly, category),
-    queryFn: ({ pageParam }) => mailCore().listThreads(threadScope(scope), unreadOnly, category, pageParam, THREAD_PAGE_SIZE),
+    queryKey: queryKeys.threads(scope, filter, category),
+    queryFn: ({ pageParam }) =>
+      mailCore().listThreads(threadScope(scope), { ...filter, keepThreadIds: keep?.() ?? [] }, category, pageParam, THREAD_PAGE_SIZE),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor,
   });
 }
 
-export function useThreads(scope: string, unreadOnly: boolean, category?: Category) {
+export function useThreads(scope: string, filter: ThreadFilter, category?: Category, keep?: () => string[]) {
   return useInfiniteQuery({
-    ...threadsQuery(scope, unreadOnly, category),
+    ...threadsQuery(scope, filter, category, keep),
     select: flattenThreadPages,
     // Another category or the unread filter keeps the list on screen until its threads are read,
     // rather than flashing a spinner.
@@ -69,7 +82,7 @@ export function useCategoriesWithNewMail(scope: string, enabled: boolean): Categ
     queryFn: () =>
       Promise.all(
         CATEGORIES.map(async (category) => {
-          const page = await mailCore().listThreads(threadScope(scope), true, category, undefined, 1);
+          const page = await mailCore().listThreads(threadScope(scope), UNREAD_FILTER, category, undefined, 1);
           return page.threads[0]?.lastReceivedAt ?? 0;
         }),
       ),

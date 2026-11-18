@@ -8,7 +8,9 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use mail_model::{AccountConfig, CoreEvent, Security, ServerEndpoint, SyncStatus, ThreadScope};
+use mail_model::{
+    AccountConfig, CoreEvent, Security, ServerEndpoint, SyncStatus, ThreadFilter, ThreadScope,
+};
 use mail_sync::Engine;
 
 fn endpoint(port: u16) -> ServerEndpoint {
@@ -75,7 +77,13 @@ async fn main() {
 
     let first_page = loop {
         if !engine
-            .list_threads(ThreadScope::Unified, false, None, None, 50)
+            .list_threads(
+                ThreadScope::Unified,
+                &ThreadFilter::default(),
+                None,
+                None,
+                50,
+            )
             .unwrap()
             .threads
             .is_empty()
@@ -95,7 +103,13 @@ async fn main() {
     let mut cursor = None;
     loop {
         let page = engine
-            .list_threads(ThreadScope::Unified, false, None, cursor.as_deref(), 500)
+            .list_threads(
+                ThreadScope::Unified,
+                &ThreadFilter::default(),
+                None,
+                cursor.as_deref(),
+                500,
+            )
             .unwrap();
         threads += page.threads.len();
         cursor = page.next_cursor;
@@ -109,7 +123,13 @@ async fn main() {
     let refresh = wait_for_idle(&events, refresh_started).await - refresh_started;
 
     let page = engine
-        .list_threads(ThreadScope::Unified, false, None, None, 50)
+        .list_threads(
+            ThreadScope::Unified,
+            &ThreadFilter::default(),
+            None,
+            None,
+            50,
+        )
         .unwrap()
         .threads;
     let mut cold = Vec::new();
@@ -129,7 +149,13 @@ async fn main() {
     for _ in 0..100 {
         std::hint::black_box(
             engine
-                .list_threads(ThreadScope::Unified, false, None, None, 50)
+                .list_threads(
+                    ThreadScope::Unified,
+                    &ThreadFilter::default(),
+                    None,
+                    None,
+                    50,
+                )
                 .unwrap(),
         );
     }

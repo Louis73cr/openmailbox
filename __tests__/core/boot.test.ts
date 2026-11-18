@@ -1,6 +1,7 @@
 import { Category } from '@openmailbox/mail-core';
 
 import { boot } from '@/core/boot';
+import { EMPTY_THREAD_FILTER } from '@/core/hooks';
 import { queryClient, queryKeys, UNIFIED_SCOPE } from '@/core/queryClient';
 import { useSettingsStore } from '@/stores/settingsStore';
 
@@ -18,8 +19,8 @@ describe('boot', () => {
     await boot();
 
     expect(queryClient.getQueryData(queryKeys.mailboxes)).toEqual(mailboxes);
-    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), false, Category.Transactions, undefined, 50);
-    expect(queryClient.getQueryData(queryKeys.threads(UNIFIED_SCOPE, false, Category.Transactions))).toMatchObject({
+    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), EMPTY_THREAD_FILTER, Category.Transactions, undefined, 50);
+    expect(queryClient.getQueryData(queryKeys.threads(UNIFIED_SCOPE, EMPTY_THREAD_FILTER, Category.Transactions))).toMatchObject({
       pages: [{ threads }],
     });
   });

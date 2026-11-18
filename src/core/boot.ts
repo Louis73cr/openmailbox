@@ -5,7 +5,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { useSyncStore } from '@/stores/syncStore';
 
 import { CoreEventListener } from './events';
-import { mailboxesQuery, threadsQuery } from './hooks';
+import { EMPTY_THREAD_FILTER, mailboxesQuery, threadsQuery } from './hooks';
 import { mailCore } from './mailCore';
 import { queryClient, queryKeys, UNIFIED_SCOPE } from './queryClient';
 import { readSecret } from './secrets';
@@ -22,7 +22,7 @@ async function start(): Promise<void> {
     const category = categoryOf(useSettingsStore.getState().inboxFilter);
     await Promise.all([
       queryClient.prefetchQuery(mailboxesQuery),
-      queryClient.prefetchInfiniteQuery(threadsQuery(UNIFIED_SCOPE, false, category)),
+      queryClient.prefetchInfiniteQuery(threadsQuery(UNIFIED_SCOPE, EMPTY_THREAD_FILTER, category)),
     ]);
   }
   await Promise.all(

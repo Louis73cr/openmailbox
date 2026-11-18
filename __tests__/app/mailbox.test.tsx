@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { Category, Destination, MailboxRole } from '@openmailbox/mail-core';
 
 import MailboxScreen from '../../app/mailbox/[id]';
+import { EMPTY_THREAD_FILTER } from '@/core/hooks';
 import { queryClient, queryKeys } from '@/core/queryClient';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useUndoStore } from '@/stores/undoStore';
@@ -40,7 +41,7 @@ describe('thread list', () => {
     queryClient.clear();
     queryClient.setQueryData(queryKeys.accounts, [makeAccount()]);
     queryClient.setQueryData(queryKeys.mailboxes, [makeMailbox({ unreadCount: 1 })]);
-    core.listThreads.mockImplementation(async (_scope, unreadOnly) => ({ threads: unreadOnly ? [UNREAD] : [UNREAD, READ] }));
+    core.listThreads.mockImplementation(async (_scope, filter) => ({ threads: filter.unread ? [UNREAD] : [UNREAD, READ] }));
   });
 
   it('lists the threads of every inbox under the unread count', async () => {
@@ -56,14 +57,14 @@ describe('thread list', () => {
     await screen.findByText('Facture disponible');
     fireEvent.press(screen.getByRole('tab', { name: 'Unread' }));
     await waitFor(() => expect(screen.queryByText('Facture disponible')).toBeNull());
-    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), true, Category.Primary, undefined, 50);
+    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ unread: true }), Category.Primary, undefined, 50);
   });
 
   it('marks the categories that received unread mail since their list was last shown', async () => {
     const newUpdate = makeThread({ threadId: 'thread-update', lastReceivedAt: NOW });
     const oldPromotion = makeThread({ threadId: 'thread-promotion', lastReceivedAt: NOW - 60_000 });
     useSettingsStore.setState({ categorySeenAt: { updates: NOW - 120_000, promotions: NOW - 60_000 } });
-    core.listThreads.mockImplementation(async (_scope, unreadOnly, category, _cursor, limit) => ({
+    core.listThreads.mockImplementation(async (_scope, filter, category, _cursor, limit) => ({
       threads:
         limit === 1
           ? category === Category.Updates
@@ -73,7 +74,7 @@ describe('thread list', () => {
               : []
           : category === Category.Updates
             ? [newUpdate]
-            : unreadOnly
+            : filter.unread
               ? [UNREAD]
               : [UNREAD, READ],
     }));
@@ -90,14 +91,14 @@ describe('thread list', () => {
   it('shows one inbox category at a time and remembers the choice', async () => {
     renderWithProviders(<MailboxScreen />);
     await screen.findByText('Facture disponible');
-    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), false, Category.Primary, undefined, 50);
+    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), EMPTY_THREAD_FILTER, Category.Primary, undefined, 50);
     fireEvent.press(screen.getByRole('tab', { name: 'Promotions' }));
     await waitFor(() =>
-      expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), false, Category.Promotions, undefined, 50),
+      expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), EMPTY_THREAD_FILTER, Category.Promotions, undefined, 50),
     );
     expect(useSettingsStore.getState().inboxFilter).toBe('promotions');
     fireEvent.press(screen.getByRole('tab', { name: 'All Mail' }));
-    await waitFor(() => expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), false, undefined, undefined, 50));
+    await waitFor(() => expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), EMPTY_THREAD_FILTER, undefined, undefined, 50));
   });
 
   it('lists every thread of other folders, without categories', async () => {
@@ -106,7 +107,7 @@ describe('thread list', () => {
     renderWithProviders(<MailboxScreen />);
     await screen.findByText('Facture disponible');
     expect(screen.queryByRole('tab', { name: 'Promotions' })).toBeNull();
-    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), false, undefined, undefined, 50);
+    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), EMPTY_THREAD_FILTER, undefined, undefined, 50);
   });
 
   it('opens a thread in the mailbox it was listed from', async () => {

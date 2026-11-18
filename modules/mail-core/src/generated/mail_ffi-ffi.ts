@@ -80,7 +80,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_mail_ffi_fn_method_mailcore_discover(uniffiSelf: bigint, email: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_list_accounts(uniffiSelf: bigint): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_list_mailboxes(uniffiSelf: bigint, accountId: Uint8Array): bigint;
-    ubrn_uniffi_mail_ffi_fn_method_mailcore_list_threads(uniffiSelf: bigint, scope: Uint8Array, unreadOnly: number, category: Uint8Array, cursor: Uint8Array, limit: number): bigint;
+    ubrn_uniffi_mail_ffi_fn_method_mailcore_list_threads(uniffiSelf: bigint, scope: Uint8Array, filter: Uint8Array, category: Uint8Array, cursor: Uint8Array, limit: number): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_load_older(uniffiSelf: bigint, mailboxId: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_move_emails(uniffiSelf: bigint, emailIds: Uint8Array, fromMailboxId: Uint8Array, destination: Uint8Array, holdMs: number): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_move_thread(uniffiSelf: bigint, mailboxId: Uint8Array, threadId: Uint8Array, destination: Uint8Array, holdMs: number): bigint;

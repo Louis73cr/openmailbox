@@ -326,7 +326,7 @@ mod tests {
                 store
                     .list_threads(
                         mail_model::ThreadScope::Mailbox(inbox),
-                        false,
+                        &mail_model::ThreadFilter::default(),
                         None,
                         None,
                         1,
@@ -405,7 +405,7 @@ mod tests {
         let thread_id = store
             .list_threads(
                 mail_model::ThreadScope::Mailbox(inbox),
-                false,
+                &mail_model::ThreadFilter::default(),
                 None,
                 None,
                 1,

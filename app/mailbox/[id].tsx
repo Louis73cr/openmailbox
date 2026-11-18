@@ -8,7 +8,7 @@ import { Inbox } from 'lucide-react-native';
 import { MailboxRole, type ThreadSummary } from '@openmailbox/mail-core';
 
 import { BottomBar } from '@/components/BottomBar';
-import { useAccounts, useCategoriesWithNewMail, useMailboxes, useThreads } from '@/core/hooks';
+import { EMPTY_THREAD_FILTER, useAccounts, useCategoriesWithNewMail, useMailboxes, useThreads } from '@/core/hooks';
 import { mailCore } from '@/core/mailCore';
 import { UNIFIED_SCOPE } from '@/core/queryClient';
 import { accountName } from '@/features/accounts/accountName';
@@ -35,6 +35,7 @@ import { haptic } from '@/utils/haptics';
 import { goBack } from '@/utils/navigation';
 
 const MINIMUM_REFRESH_MS = 700;
+const UNREAD_THREAD_FILTER = { ...EMPTY_THREAD_FILTER, unread: true };
 const MARK_ACTIONS: MarkAction[] = ['markRead', 'markUnread', 'flag', 'unflag'];
 
 function usePullToRefresh(accountIds: string[]) {
@@ -79,7 +80,7 @@ export default function MailboxScreen() {
   const inboxFilter = useSettingsStore((state) => state.inboxFilter);
   const setInboxFilter = useSettingsStore((state) => state.setInboxFilter);
   const accountNames = useSettingsStore((state) => state.accountNames);
-  const threads = useThreads(scope, unreadOnly, categorized ? categoryOf(inboxFilter) : undefined);
+  const threads = useThreads(scope, unreadOnly ? UNREAD_THREAD_FILTER : EMPTY_THREAD_FILTER, categorized ? categoryOf(inboxFilter) : undefined);
   const categoriesWithNewMail = useCategoriesWithNewMail(scope, categorized);
   const markCategorySeen = useSettingsStore((state) => state.markCategorySeen);
   const newestShown = threads.isPlaceholderData ? undefined : threads.data?.[0]?.lastReceivedAt;
