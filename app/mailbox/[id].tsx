@@ -290,15 +290,22 @@ export default function MailboxScreen() {
     </>
   );
 
-  const filterPill = (bare?: boolean) => (
+  const filterPill = (bare?: boolean, enabled = filterEnabled) => (
     <FilterPill
       bare={bare}
-      enabled={filterEnabled}
+      enabled={enabled}
       summary={filterSummary(filterCriteria, t)}
       onToggle={() => setFilterEnabled(!filterEnabled)}
       onOpen={() => router.push({ pathname: '/filters', params: unified ? { unified: '1' } : {} })}
     />
   );
+
+  // Both states stay mounted: the native toolbar sizes a view only when it first appears.
+  const toolbarFilterPills = [false, true].map((enabled) => (
+    <Stack.Toolbar.View key={String(enabled)} hidden={enabled !== filterEnabled}>
+      {filterPill(true, enabled)}
+    </Stack.Toolbar.View>
+  ));
 
   if (NATIVE_CHROME) {
     const allSelected = data.length > 0 && selection.selected.size === data.length;
@@ -376,7 +383,7 @@ export default function MailboxScreen() {
             />
             {LIQUID_GLASS ? (
               <Stack.Toolbar placement="bottom">
-                <Stack.Toolbar.View key={filterEnabled ? 'filtered' : 'unfiltered'}>{filterPill(true)}</Stack.Toolbar.View>
+                {toolbarFilterPills}
                 <Stack.Toolbar.Spacer />
                 {filterEnabled && !searchOpened && !searching ? (
                   <>
@@ -393,7 +400,7 @@ export default function MailboxScreen() {
               </Stack.Toolbar>
             ) : (
               <Stack.Toolbar placement="bottom">
-                <Stack.Toolbar.View key={filterEnabled ? 'filtered' : 'unfiltered'}>{filterPill(true)}</Stack.Toolbar.View>
+                {toolbarFilterPills}
                 <Stack.Toolbar.Spacer />
               </Stack.Toolbar>
             )}

@@ -6,8 +6,9 @@ import { ChevronDown, ListFilter } from 'lucide-react-native';
 import { Typography } from '@/ui/components';
 import { haptic } from '@/utils/haptics';
 
-const BARE_SIZE = 50;
-const BARE_ENABLED_WIDTH = 180;
+const TOGGLE_SIZE = 44;
+const BARE_TOGGLE_SIZE = 36;
+const BARE_ENABLED_WIDTH = 150;
 
 interface FilterPillProps {
   enabled: boolean;
@@ -21,12 +22,15 @@ export function FilterPill({ enabled, summary, onToggle, onOpen, bare = false }:
   const { colors } = useTheme();
   const { t } = useTranslation();
   const filteredBy = t('threads.filters.filteredBy');
+  const toggleSize = bare ? BARE_TOGGLE_SIZE : TOGGLE_SIZE;
 
   return (
     <View
       style={[
         styles.pill,
-        bare ? { width: enabled ? BARE_ENABLED_WIDTH : BARE_SIZE, height: BARE_SIZE } : [styles.raised, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }],
+        bare
+          ? { width: enabled ? BARE_ENABLED_WIDTH : BARE_TOGGLE_SIZE, height: BARE_TOGGLE_SIZE, padding: 0 }
+          : [styles.raised, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }],
       ]}
     >
       <Pressable
@@ -37,9 +41,12 @@ export function FilterPill({ enabled, summary, onToggle, onOpen, bare = false }:
           haptic();
           onToggle();
         }}
-        style={[styles.toggle, { backgroundColor: enabled ? colors.primary : 'transparent' }]}
+        style={[
+          styles.toggle,
+          { width: toggleSize, height: toggleSize, borderRadius: toggleSize / 2, backgroundColor: enabled ? colors.primary : 'transparent' },
+        ]}
       >
-        <ListFilter size={22} color={enabled ? colors.background : colors.primary} />
+        <ListFilter size={bare ? 20 : 22} color={enabled ? colors.background : colors.text} />
       </Pressable>
       {enabled ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`${filteredBy} ${summary}`} onPress={onOpen} style={styles.summary}>
@@ -68,8 +75,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  toggle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  summary: { flexShrink: 1, paddingRight: 14 },
+  toggle: { alignItems: 'center', justifyContent: 'center' },
+  summary: { flexShrink: 1, paddingRight: 10 },
   criteria: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   criteriaText: { flexShrink: 1 },
 });
