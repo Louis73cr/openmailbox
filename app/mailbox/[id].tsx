@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
+import type { SearchBarCommands } from 'react-native-screens';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
 import { Inbox } from 'lucide-react-native';
@@ -37,6 +38,7 @@ import { haptic } from '@/utils/haptics';
 import { goBack } from '@/utils/navigation';
 
 const MINIMUM_REFRESH_MS = 700;
+const SEARCH_SLOT_MOUNT_MS = 350;
 const MARK_ACTIONS: MarkAction[] = ['markRead', 'markUnread', 'flag', 'unflag'];
 
 function usePullToRefresh(accountIds: string[]) {
@@ -91,6 +93,14 @@ export default function MailboxScreen() {
   );
   const filterKey = JSON.stringify(filter);
   const kept = useRef({ filterKey, threadIds: [] as string[] });
+  const searchBar = useRef<SearchBarCommands>(null);
+  const [searchOpened, setSearchOpened] = useState(false);
+  useEffect(() => {
+    if (!searchOpened) return;
+    // ponytail: waits for the native toolbar to attach the search slot; no mount callback is exposed.
+    const timer = setTimeout(() => searchBar.current?.focus(), SEARCH_SLOT_MOUNT_MS);
+    return () => clearTimeout(timer);
+  }, [searchOpened]);
   if (kept.current.filterKey !== filterKey) kept.current = { filterKey, threadIds: [] };
   const keep = useCallback(() => kept.current.threadIds, []);
   useEffect(() => {
@@ -353,6 +363,7 @@ export default function MailboxScreen() {
         ) : (
           <>
             <Stack.SearchBar
+              ref={searchBar}
               placeholder={t('search.placeholder')}
               hideWhenScrolling={false}
               onChangeText={(event) => setQuery(event.nativeEvent.text)}
@@ -360,14 +371,24 @@ export default function MailboxScreen() {
               onCancelButtonPress={() => {
                 setQuery('');
                 setSearchActive(false);
+                setSearchOpened(false);
               }}
             />
             {LIQUID_GLASS ? (
               <Stack.Toolbar placement="bottom">
                 <Stack.Toolbar.View key={filterEnabled ? 'filtered' : 'unfiltered'}>{filterPill(true)}</Stack.Toolbar.View>
                 <Stack.Toolbar.Spacer />
-                <Stack.Toolbar.SearchBarSlot />
-                <Stack.Toolbar.Spacer />
+                {filterEnabled && !searchOpened && !searching ? (
+                  <>
+                    <Stack.Toolbar.Button icon="magnifyingglass" accessibilityLabel={t('search.placeholder')} onPress={() => setSearchOpened(true)} />
+                    <Stack.Toolbar.Spacer width={8} />
+                  </>
+                ) : (
+                  <>
+                    <Stack.Toolbar.SearchBarSlot />
+                    <Stack.Toolbar.Spacer />
+                  </>
+                )}
                 <Stack.Toolbar.Button icon="square.and.pencil" accessibilityLabel={t('compose.newMessage')} onPress={compose} />
               </Stack.Toolbar>
             ) : (
