@@ -302,7 +302,6 @@ export default function MailboxScreen() {
     />
   );
 
-  // Both states stay mounted: the native toolbar sizes a view, and picks search field or button, only when an item first appears.
   const toolbarFilterPills = [false, true].map((enabled) => (
     <Stack.Toolbar.View key={String(enabled)} hidden={enabled !== filterEnabled || (enabled && barSettling)}>
       {filterPill(true, enabled)}
@@ -372,7 +371,6 @@ export default function MailboxScreen() {
           </>
         ) : (
           <>
-            {/* UIKit picks the toolbar search field or button only when the search bar attaches, so it reattaches when the bar changes. */}
             {LIQUID_GLASS && barSettling ? null : (
               <Stack.SearchBar
                 placement={LIQUID_GLASS && filterEnabled ? 'integratedButton' : 'automatic'}
