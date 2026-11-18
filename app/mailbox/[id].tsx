@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
 import type { SearchBarCommands } from 'react-native-screens';
 import { useTranslation } from 'react-i18next';
@@ -72,7 +72,6 @@ export default function MailboxScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const accounts = useAccounts();
   const mailboxes = useMailboxes();
   const [query, setQuery] = useState('');
@@ -392,9 +391,10 @@ export default function MailboxScreen() {
                 <Stack.Toolbar.Button icon="square.and.pencil" accessibilityLabel={t('compose.newMessage')} onPress={compose} />
               </Stack.Toolbar>
             ) : (
-              <View pointerEvents="box-none" style={[styles.floatingPill, { bottom: Math.max(insets.bottom, 12) }]}>
-                {filterPill()}
-              </View>
+              <Stack.Toolbar placement="bottom">
+                <Stack.Toolbar.View key={filterEnabled ? 'filtered' : 'unfiltered'}>{filterPill(true)}</Stack.Toolbar.View>
+                <Stack.Toolbar.Spacer />
+              </Stack.Toolbar>
             )}
           </>
         )}
@@ -435,7 +435,6 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 12 },
   subtitle: { marginTop: 2, fontSize: 13 },
   categories: { marginTop: 14, marginHorizontal: -20 },
-  floatingPill: { position: 'absolute', left: 16 },
   listContent: { paddingBottom: 120 },
   footer: { marginVertical: 20, alignSelf: 'center' },
 });
