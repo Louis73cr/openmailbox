@@ -16,6 +16,7 @@ import { THREAD_ACTION_PRESENTATION, type ThreadActionId } from '../threadAction
 import { ThreadRow } from './ThreadRow';
 
 const ACTION_WIDTH = 80;
+const swipeHaptic = () => haptic();
 const MENU_ORDER: ThreadActionId[] = [
   'reply', 'replyAll', 'forward', 'markRead', 'markUnread', 'flag', 'unflag',
   'move', 'categorize', 'archive', 'moveToInbox', 'junk', 'notJunk', 'delete',
@@ -108,7 +109,7 @@ function SwipeableThreadRowImpl({ thread, accountAccent, canArchive, menuActions
       overshootFriction={8}
       leftThreshold={ACTION_WIDTH / 2}
       rightThreshold={ACTION_WIDTH / 2}
-      onSwipeableWillOpen={() => haptic()}
+      onSwipeableWillOpen={swipeHaptic}
       renderLeftActions={() => actionGroup(actions.left)}
       renderRightActions={() => actionGroup(actions.right)}
     >
