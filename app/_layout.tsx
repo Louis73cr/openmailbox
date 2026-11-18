@@ -38,6 +38,18 @@ function Navigator() {
       />
       <Stack.Screen name="accounts/add" options={modalHeader(t('accounts.setup.chooseProvider'), colors.groupedBackground)} />
       <Stack.Screen name="attachment" options={({ route }) => modalHeader((route.params as { name?: string } | undefined)?.name ?? '')} />
+      <Stack.Screen
+        name="filters"
+        options={{
+          presentation: 'formSheet',
+          sheetAllowedDetents: [0.6, 1],
+          sheetGrabberVisible: true,
+          headerShown: NATIVE_CHROME,
+          ...translucentHeader(colors.groupedBackground),
+          title: t('threads.filters.title'),
+          contentStyle: { backgroundColor: colors.groupedBackground },
+        }}
+      />
     </Stack>
   );
 }
