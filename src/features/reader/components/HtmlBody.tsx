@@ -9,8 +9,70 @@ const INITIAL_HEIGHT = 120;
 const BROKEN_IMAGE_MESSAGE = 'broken-image:';
 const MAX_REFETCHED_IMAGE_BYTES = 5 * 1024 * 1024;
 
-const fitAndMeasure = (availableWidth: number) => `
+const MIN_FONT_SIZE = 15;
+
+export const ADAPT_COLOR = `
+function adaptColor(color, background) {
+  if (color.indexOf('rgb') !== 0) return null;
+  var channels = color.match(/[\\d.]+/g);
+  var alpha = channels.length > 3 ? Number(channels[3]) : 1;
+  if (alpha === 0) return null;
+  var r = channels[0] / 255, g = channels[1] / 255, b = channels[2] / 255;
+  var luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  if (background !== (luma > 0.5)) return null;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min, sum = max + min;
+  var hue = 0, saturation = 0;
+  if (delta) {
+    saturation = delta / (sum > 1 ? 2 - sum : sum);
+    hue = max === r ? (g - b) / delta + (g < b ? 6 : 0) : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+  }
+  var lightness = background ? 0.11 + (1 - luma) * 0.48 : 0.95 - luma * 0.7;
+  return 'hsla(' + Math.round(hue * 60) + ', ' + Math.round(saturation * 100) + '%, ' + Math.round(lightness * 100) + '%, ' + alpha + ')';
+}
+`;
+
+const fitAndMeasure = (availableWidth: number, dark: boolean) => `
 (function () {
+  ${ADAPT_COLOR}
+  function apply(changes) {
+    changes.forEach(function (change) {
+      if (change[2]) change[0].style.setProperty(change[1], change[2], 'important');
+    });
+  }
+  function darken() {
+    var changes = [];
+    Array.prototype.forEach.call(document.querySelectorAll('body, body *'), function (element) {
+      var style = getComputedStyle(element);
+      changes.push([element, 'color', adaptColor(style.color, false)]);
+      changes.push([element, 'background-color', adaptColor(style.backgroundColor, true)]);
+      ['top', 'right', 'bottom', 'left'].forEach(function (side) {
+        if (parseFloat(style.getPropertyValue('border-' + side + '-width'))) {
+          changes.push([element, 'border-' + side + '-color', adaptColor(style.getPropertyValue('border-' + side + '-color'), true)]);
+        }
+      });
+    });
+    apply(changes);
+  }
+  function hasText(element) {
+    return Array.prototype.some.call(element.childNodes, function (node) {
+      return node.nodeType === 3 && /\\S/.test(node.nodeValue);
+    });
+  }
+  function floorFonts(zoom) {
+    var changes = [];
+    Array.prototype.forEach.call(document.querySelectorAll('body, body *'), function (element) {
+      if (!hasText(element) || !element.getClientRects().length) return;
+      var style = getComputedStyle(element);
+      var size = parseFloat(style.fontSize);
+      var target = (${MIN_FONT_SIZE} + Math.max(0, size - ${MIN_FONT_SIZE}) * zoom) / zoom;
+      if (size <= 1 || target <= size) return;
+      var lineHeight = parseFloat(style.lineHeight);
+      changes.push([element, 'font-size', target + 'px']);
+      if (lineHeight) changes.push([element, 'line-height', (lineHeight * target) / size + 'px']);
+    });
+    apply(changes);
+  }
+  if (${dark}) darken();
   function reportBrokenImage(image) {
     if (image.dataset.reported || !/^https?:/i.test(image.src)) return;
     image.dataset.reported = '1';
@@ -20,12 +82,20 @@ const fitAndMeasure = (availableWidth: number) => `
     if (image.complete && image.naturalWidth === 0) reportBrokenImage(image);
     else image.addEventListener('error', function () { reportBrokenImage(image); });
   });
+  function zoomFor(body) {
+    var overflow = body.scrollWidth / ${availableWidth};
+    return overflow > 1.02 ? 1 / overflow : 1;
+  }
+  var floored = false;
   function fit() {
     var body = document.body;
     if (!body) return;
     body.style.zoom = '1';
-    var overflow = body.scrollWidth / ${availableWidth};
-    if (overflow > 1.02) body.style.zoom = String(1 / overflow);
+    if (!floored) {
+      floored = true;
+      floorFonts(zoomFor(body));
+    }
+    body.style.zoom = String(zoomFor(body));
   }
   function report() {
     fit();
@@ -39,16 +109,10 @@ const fitAndMeasure = (availableWidth: number) => `
 true;
 `;
 
-const SETS_COLORS = /(^|[\s;"'{])(background(-color)?|color)\s*:|\bbgcolor\s*=|<font[^>]*\bcolor\s*=/i;
-
 const PAGE = {
   light: { background: '#ffffff', text: '#1a1a1a', quote: '#555555', rule: '#d0d0d0', link: '#0b6bcb' },
   dark: { background: '#1c1c1e', text: '#f1f1f1', quote: '#aaaaaa', rule: '#48484a', link: '#4ea5ff' },
 };
-
-export function pageColors(html: string, dark: boolean) {
-  return dark && !SETS_COLORS.test(html) ? PAGE.dark : PAGE.light;
-}
 
 export async function fetchImageAsDataUri(url: string): Promise<string | null> {
   if (!/^https?:\/\//i.test(url)) return null;
@@ -98,7 +162,7 @@ interface HtmlBodyProps {
 function HtmlBodyImpl({ html, allowRemoteContent }: HtmlBodyProps) {
   const { t } = useTranslation();
   const { dark } = useTheme();
-  const page = pageColors(html, dark);
+  const page = dark ? PAGE.dark : PAGE.light;
   const [height, setHeight] = useState(INITIAL_HEIGHT);
   const [width, setWidth] = useState(0);
   const webViewRef = useRef<ComponentRef<typeof WebView>>(null);
@@ -139,10 +203,10 @@ function HtmlBodyImpl({ html, allowRemoteContent }: HtmlBodyProps) {
       {width > 0 ? (
         <WebView
           ref={webViewRef}
-          key={width}
+          key={`${width}-${dark}`}
           source={source}
           originWhitelist={['*']}
-          injectedJavaScript={fitAndMeasure(width)}
+          injectedJavaScript={fitAndMeasure(width, dark)}
           onMessage={onMessage}
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
           scrollEnabled={false}
