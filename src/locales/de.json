@@ -228,10 +228,6 @@
     "deselectAll": "Auswahl aufheben",
     "empty": "Keine E-Mails",
     "emptyHint": "Neue Nachrichten erscheinen hier.",
-    "emptyUnread": "Keine ungelesenen E-Mails",
-    "filter": "Filter",
-    "filterAll": "Alle",
-    "filterUnread": "Ungelesen",
     "filters": {
       "addressed": "Adressiert",
       "allMail": "Alle E-Mails",

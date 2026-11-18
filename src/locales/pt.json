@@ -228,10 +228,6 @@
     "deselectAll": "Desmarcar tudo",
     "empty": "Sem correio",
     "emptyHint": "As novas mensagens aparecerão aqui.",
-    "emptyUnread": "Sem correio por ler",
-    "filter": "Filtro",
-    "filterAll": "Todas",
-    "filterUnread": "Por ler",
     "filters": {
       "addressed": "Destinatário",
       "allMail": "Todo o e-mail",

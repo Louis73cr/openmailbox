@@ -230,10 +230,6 @@
     "deselectAll": "Снять выбор",
     "empty": "Нет писем",
     "emptyHint": "Новые письма появятся здесь.",
-    "emptyUnread": "Нет непрочитанных писем",
-    "filter": "Фильтр",
-    "filterAll": "Все",
-    "filterUnread": "Непрочитанные",
     "filters": {
       "addressed": "Адресовано",
       "allMail": "Вся почта",

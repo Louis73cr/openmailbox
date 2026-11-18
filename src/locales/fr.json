@@ -228,10 +228,6 @@
     "deselectAll": "Tout désélectionner",
     "empty": "Aucun message",
     "emptyHint": "Les nouveaux messages apparaîtront ici.",
-    "emptyUnread": "Aucun message non lu",
-    "filter": "Filtre",
-    "filterAll": "Tous",
-    "filterUnread": "Non lus",
     "filters": {
       "addressed": "Destinataire",
       "allMail": "Tous les e-mails",

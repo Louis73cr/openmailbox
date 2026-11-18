@@ -4,6 +4,7 @@ import { Category, Destination, MailboxRole } from '@openmailbox/mail-core';
 import MailboxScreen from '../../app/mailbox/[id]';
 import { EMPTY_THREAD_FILTER } from '@/core/hooks';
 import { queryClient, queryKeys } from '@/core/queryClient';
+import { DEFAULT_FILTER_CRITERIA } from '@/features/threads/threadFilter';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useUndoStore } from '@/stores/undoStore';
 import i18n from '@/utils/i18n';
@@ -37,7 +38,7 @@ describe('thread list', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockParams = { id: 'unified' };
-    useSettingsStore.setState({ inboxFilter: 'primary', categorySeenAt: {} });
+    useSettingsStore.setState({ inboxFilter: 'primary', categorySeenAt: {}, filterEnabled: false, filterCriteria: DEFAULT_FILTER_CRITERIA });
     queryClient.clear();
     queryClient.setQueryData(queryKeys.accounts, [makeAccount()]);
     queryClient.setQueryData(queryKeys.mailboxes, [makeMailbox({ unreadCount: 1 })]);
@@ -52,12 +53,37 @@ describe('thread list', () => {
     expect(screen.getByText('Lancement du projet Atlas')).toBeOnTheScreen();
   });
 
-  it('filters down to unread threads', async () => {
+  it('filters from the bottom pill and opens the filters sheet', async () => {
     renderWithProviders(<MailboxScreen />);
     await screen.findByText('Facture disponible');
-    fireEvent.press(screen.getByRole('tab', { name: 'Unread' }));
+    expect(screen.queryByText('Filtered by')).toBeNull();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Filter' }));
     await waitFor(() => expect(screen.queryByText('Facture disponible')).toBeNull());
-    expect(core.listThreads).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ unread: true }), Category.Primary, undefined, 50);
+    expect(core.listThreads).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ unread: true }), Category.Primary, undefined, 50);
+    expect(useSettingsStore.getState().filterEnabled).toBe(true);
+
+    fireEvent.press(screen.getByRole('button', { name: 'Filtered by Unread' }));
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/filters', params: { unified: '1' } });
+  });
+
+  it('keeps an opened thread listed until the filter is turned off', async () => {
+    useSettingsStore.setState({ filterEnabled: true });
+    let read = false;
+    core.listThreads.mockImplementation(async (_scope, filter) => ({
+      threads: !filter.unread || !read || filter.keepThreadIds.includes(UNREAD.threadId) ? [UNREAD] : [],
+    }));
+    renderWithProviders(<MailboxScreen />);
+    fireEvent.press(await screen.findByText('Lancement du projet Atlas'));
+    read = true;
+    await act(() => queryClient.invalidateQueries({ queryKey: ['threads'] }));
+    expect(screen.getByText('Lancement du projet Atlas')).toBeOnTheScreen();
+    expect(core.listThreads.mock.lastCall?.[1].keepThreadIds).toEqual([UNREAD.threadId]);
+
+    fireEvent.press(screen.getByRole('button', { name: 'Filter' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Filter' }));
+    expect(await screen.findByText('No Mail Matches the Filter')).toBeOnTheScreen();
+    expect(core.listThreads.mock.lastCall?.[1].keepThreadIds).toEqual([]);
   });
 
   it('marks the categories that received unread mail since their list was last shown', async () => {

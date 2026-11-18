@@ -8,9 +8,10 @@ import { IconButton, Typography } from '@/ui/components';
 
 interface BottomBarProps {
   composeAccountId?: string;
+  left?: React.ReactNode;
 }
 
-export function BottomBar({ composeAccountId }: BottomBarProps) {
+export function BottomBar({ composeAccountId, left }: BottomBarProps) {
   const router = useRouter();
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -18,6 +19,7 @@ export function BottomBar({ composeAccountId }: BottomBarProps) {
 
   return (
     <View pointerEvents="box-none" style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      {left}
       <Pressable
         accessibilityRole="search"
         onPress={() => router.push('/search')}

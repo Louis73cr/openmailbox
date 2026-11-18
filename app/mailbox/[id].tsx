@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
 import { Inbox } from 'lucide-react-native';
 import { MailboxRole, type ThreadSummary } from '@openmailbox/mail-core';
+import type { ThreadActionId } from '@/features/threads/threadActions';
 
 import { BottomBar } from '@/components/BottomBar';
 import { EMPTY_THREAD_FILTER, useAccounts, useCategoriesWithNewMail, useMailboxes, useThreads } from '@/core/hooks';
 import { mailCore } from '@/core/mailCore';
-import { UNIFIED_SCOPE } from '@/core/queryClient';
+import { queryClient, UNIFIED_SCOPE } from '@/core/queryClient';
 import { accountName } from '@/features/accounts/accountName';
 import { CategoryBar } from '@/features/categories/CategoryBar';
 import { CategoryPicker } from '@/features/categories/CategoryPicker';
@@ -24,18 +25,18 @@ import { ThreadActionSheet } from '@/features/threads/components/ThreadActionShe
 import { ThreadPreview } from '@/features/threads/components/ThreadPreview';
 import { SelectionToolbar, useSelectionActions, type MarkAction } from '@/features/threads/components/SelectionToolbar';
 import { THREAD_ACTION_PRESENTATION } from '@/features/threads/threadActions';
+import { FilterPill } from '@/features/threads/components/FilterPill';
+import { coreFilter, filterSummary } from '@/features/threads/threadFilter';
 import { useThreadActions } from '@/features/threads/useThreadActions';
 import { useThreadSelection } from '@/features/threads/useThreadSelection';
 import { accountColor } from '@/theme';
 import { EmptyState, IconButton, ScreenHeader, Spinner, Typography, ViewContainer } from '@/ui/components';
-import { SegmentedPicker } from '@/ui/SegmentedPicker';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { LIQUID_GLASS, NATIVE_CHROME, translucentHeader } from '@/ui/nativeChrome';
 import { haptic } from '@/utils/haptics';
 import { goBack } from '@/utils/navigation';
 
 const MINIMUM_REFRESH_MS = 700;
-const UNREAD_THREAD_FILTER = { ...EMPTY_THREAD_FILTER, unread: true };
 const MARK_ACTIONS: MarkAction[] = ['markRead', 'markUnread', 'flag', 'unflag'];
 
 function usePullToRefresh(accountIds: string[]) {
@@ -69,9 +70,9 @@ export default function MailboxScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const accounts = useAccounts();
   const mailboxes = useMailboxes();
-  const [unreadOnly, setUnreadOnly] = useState(false);
   const [query, setQuery] = useState('');
   const [searchActive, setSearchActive] = useState(false);
   const searching = searchActive || query.trim().length > 1;
@@ -80,7 +81,31 @@ export default function MailboxScreen() {
   const inboxFilter = useSettingsStore((state) => state.inboxFilter);
   const setInboxFilter = useSettingsStore((state) => state.setInboxFilter);
   const accountNames = useSettingsStore((state) => state.accountNames);
-  const threads = useThreads(scope, unreadOnly ? UNREAD_THREAD_FILTER : EMPTY_THREAD_FILTER, categorized ? categoryOf(inboxFilter) : undefined);
+  const filterEnabled = useSettingsStore((state) => state.filterEnabled);
+  const setFilterEnabled = useSettingsStore((state) => state.setFilterEnabled);
+  const filterCriteria = useSettingsStore((state) => state.filterCriteria);
+  const today = new Date().toDateString();
+  const filter = useMemo(
+    () => (filterEnabled ? coreFilter(filterCriteria, accounts.map((candidate) => candidate.id), unified, new Date(today)) : EMPTY_THREAD_FILTER),
+    [filterEnabled, filterCriteria, accounts, unified, today],
+  );
+  const filterKey = JSON.stringify(filter);
+  const kept = useRef({ filterKey, threadIds: [] as string[] });
+  if (kept.current.filterKey !== filterKey) kept.current = { filterKey, threadIds: [] };
+  const keep = useCallback(() => kept.current.threadIds, []);
+  useEffect(() => {
+    const current = kept.current;
+    return () => {
+      if (current.threadIds.length > 0) queryClient.invalidateQueries({ queryKey: ['threads', scope] });
+    };
+  }, [filterKey, scope]);
+  const markKept = useCallback(
+    (threadIds: string[]) => {
+      if (filterEnabled) kept.current.threadIds = [...new Set([...kept.current.threadIds, ...threadIds])];
+    },
+    [filterEnabled],
+  );
+  const threads = useThreads(scope, filter, categorized ? categoryOf(inboxFilter) : undefined, keep);
   const categoriesWithNewMail = useCategoriesWithNewMail(scope, categorized);
   const markCategorySeen = useSettingsStore((state) => state.markCategorySeen);
   const newestShown = threads.isPlaceholderData ? undefined : threads.data?.[0]?.lastReceivedAt;
@@ -119,12 +144,28 @@ export default function MailboxScreen() {
   const selection = useThreadSelection();
   const selectionActions = useSelectionActions([...selection.selected.values()], selection.end);
   const threadActions = useThreadActions(setMoving, setCategorizing);
-  const { run: runThreadAction, actionsFor } = threadActions;
+  const { actionsFor } = threadActions;
+  const runThreadAction = useCallback(
+    (action: ThreadActionId, thread: ThreadSummary) => {
+      markKept([thread.threadId]);
+      threadActions.run(action, thread);
+    },
+    [markKept, threadActions],
+  );
+  const toggleSelected = useCallback(
+    (thread: ThreadSummary) => {
+      markKept([thread.threadId]);
+      selection.toggle(thread);
+    },
+    [markKept, selection],
+  );
 
   const openThread = useCallback(
-    (thread: ThreadSummary) =>
-      router.push({ pathname: '/thread/[threadId]', params: { threadId: thread.threadId, mailboxId: thread.mailboxId } }),
-    [router],
+    (thread: ThreadSummary) => {
+      markKept([thread.threadId]);
+      router.push({ pathname: '/thread/[threadId]', params: { threadId: thread.threadId, mailboxId: thread.mailboxId } });
+    },
+    [markKept, router],
   );
 
   const renderItem = useCallback(
@@ -134,14 +175,14 @@ export default function MailboxScreen() {
         accountAccent={showAccountAccent ? accentByAccount.get(item.accountId) : undefined}
         canArchive={actionsFor(item).includes('archive')}
         menuActions={selection.active ? undefined : actionsFor(item)}
-        onOpen={selection.active ? selection.toggle : openThread}
+        onOpen={selection.active ? toggleSelected : openThread}
         onLongPress={setPreviewed}
         onAction={runThreadAction}
         onMore={setSheetThread}
         selected={selection.active ? selection.selected.has(item.key) : undefined}
       />
     ),
-    [showAccountAccent, accentByAccount, actionsFor, openThread, runThreadAction, selection.active, selection.selected, selection.toggle],
+    [showAccountAccent, accentByAccount, actionsFor, openThread, runThreadAction, selection.active, selection.selected, toggleSelected],
   );
 
   const title = unified ? t('mailboxes.allInboxes') : mailbox ? mailboxName(mailbox, t) : '';
@@ -189,17 +230,6 @@ export default function MailboxScreen() {
               <CategoryBar value={inboxFilter} withNewMail={categoriesWithNewMail.map(filterOf)} onChange={setInboxFilter} />
             </View>
           ) : null}
-          <View style={styles.filters}>
-            <SegmentedPicker
-              accessibilityLabel={t('threads.filter')}
-              value={unreadOnly ? 'unread' : 'all'}
-              onChange={(filter) => setUnreadOnly(filter === 'unread')}
-              options={[
-                { value: 'all', label: t('threads.filterAll') },
-                { value: 'unread', label: t('threads.filterUnread') },
-              ]}
-            />
-          </View>
         </View>
       }
       ListEmptyComponent={
@@ -208,15 +238,15 @@ export default function MailboxScreen() {
         ) : (
           <EmptyState
             icon={<Inbox />}
-            title={unreadOnly ? t('threads.emptyUnread') : t('threads.empty')}
-            description={unreadOnly ? undefined : t('threads.emptyHint')}
+            title={filterEnabled ? t('threads.filters.emptyFiltered') : t('threads.empty')}
+            description={filterEnabled ? undefined : t('threads.emptyHint')}
           />
         )
       }
       ListFooterComponent={
         threads.isFetchingNextPage ? (
           <Spinner style={styles.footer} />
-        ) : !threads.hasNextPage && data.length > 0 && !unreadOnly ? (
+        ) : !threads.hasNextPage && data.length > 0 && !filterEnabled ? (
           <View style={styles.footer}>
             <IconButton glass round size={40} label={t('threads.loadOlder')} onPress={loadOlder} />
           </View>
@@ -229,14 +259,14 @@ export default function MailboxScreen() {
       <ThreadPreview
         thread={previewed}
         actions={previewed ? threadActions.actionsFor(previewed) : []}
-        onAction={threadActions.run}
+        onAction={runThreadAction}
         onOpen={openThread}
         onClose={() => setPreviewed(null)}
       />
       <ThreadActionSheet
         thread={sheetThread}
         actions={sheetThread ? threadActions.actionsFor(sheetThread) : []}
-        onAction={threadActions.run}
+        onAction={runThreadAction}
         onClose={() => setSheetThread(null)}
       />
       <MailboxPicker
@@ -248,6 +278,16 @@ export default function MailboxScreen() {
       />
       <CategoryPicker sender={categorizing?.latest.from[0]} current={categorizing?.category} onClose={() => setCategorizing(null)} />
     </>
+  );
+
+  const filterPill = (bare?: boolean) => (
+    <FilterPill
+      bare={bare}
+      enabled={filterEnabled}
+      summary={filterSummary(filterCriteria, t)}
+      onToggle={() => setFilterEnabled(!filterEnabled)}
+      onOpen={() => router.push({ pathname: '/filters', params: unified ? { unified: '1' } : {} })}
+    />
   );
 
   if (NATIVE_CHROME) {
@@ -280,7 +320,12 @@ export default function MailboxScreen() {
         {selection.active ? (
           <>
             <Stack.Toolbar placement="left">
-              <Stack.Toolbar.Button onPress={() => selection.toggleAll(data)}>
+              <Stack.Toolbar.Button
+                onPress={() => {
+                  markKept(data.map((thread) => thread.threadId));
+                  selection.toggleAll(data);
+                }}
+              >
                 {allSelected ? t('threads.deselectAll') : t('threads.selectAll')}
               </Stack.Toolbar.Button>
             </Stack.Toolbar>
@@ -319,11 +364,16 @@ export default function MailboxScreen() {
             />
             {LIQUID_GLASS ? (
               <Stack.Toolbar placement="bottom">
+                <Stack.Toolbar.View>{filterPill(true)}</Stack.Toolbar.View>
                 <Stack.Toolbar.SearchBarSlot />
                 <Stack.Toolbar.Spacer />
                 <Stack.Toolbar.Button icon="square.and.pencil" accessibilityLabel={t('compose.newMessage')} onPress={compose} />
               </Stack.Toolbar>
-            ) : null}
+            ) : (
+              <View pointerEvents="box-none" style={[styles.floatingPill, { bottom: Math.max(insets.bottom, 12) }]}>
+                {filterPill()}
+              </View>
+            )}
           </>
         )}
       </>
@@ -351,7 +401,7 @@ export default function MailboxScreen() {
       {selection.active ? (
         <SelectionToolbar threads={[...selection.selected.values()]} onDone={selection.end} />
       ) : (
-        <BottomBar composeAccountId={account?.id} />
+        <BottomBar composeAccountId={account?.id} left={filterPill()} />
       )}
       {overlays}
     </ViewContainer>
@@ -363,7 +413,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 12 },
   subtitle: { marginTop: 2, fontSize: 13 },
   categories: { marginTop: 14, marginHorizontal: -20 },
-  filters: { marginTop: 14, width: 240 },
+  floatingPill: { position: 'absolute', left: 16 },
   listContent: { paddingBottom: 120 },
   footer: { marginVertical: 20, alignSelf: 'center' },
 });

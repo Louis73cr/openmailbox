@@ -228,10 +228,6 @@
     "deselectAll": "Deselect All",
     "empty": "No Mail",
     "emptyHint": "New messages will appear here.",
-    "emptyUnread": "No Unread Mail",
-    "filter": "Filter",
-    "filterAll": "All",
-    "filterUnread": "Unread",
     "filters": {
       "addressed": "Addressed",
       "allMail": "All Mail",

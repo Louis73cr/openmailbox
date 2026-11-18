@@ -228,10 +228,6 @@
     "deselectAll": "Deseleccionar todo",
     "empty": "No hay correo",
     "emptyHint": "Los mensajes nuevos aparecerán aquí.",
-    "emptyUnread": "No hay correo sin leer",
-    "filter": "Filtro",
-    "filterAll": "Todos",
-    "filterUnread": "Sin leer",
     "filters": {
       "addressed": "Destinatario",
       "allMail": "Todo el correo",

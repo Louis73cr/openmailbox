@@ -228,10 +228,6 @@
     "deselectAll": "Selectie opheffen",
     "empty": "Geen e-mail",
     "emptyHint": "Nieuwe berichten verschijnen hier.",
-    "emptyUnread": "Geen ongelezen e-mail",
-    "filter": "Filter",
-    "filterAll": "Alle",
-    "filterUnread": "Ongelezen",
     "filters": {
       "addressed": "Geadresseerd",
       "allMail": "Alle mail",

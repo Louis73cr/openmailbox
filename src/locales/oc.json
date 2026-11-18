@@ -228,10 +228,6 @@
     "deselectAll": "Tot deseleccionar",
     "empty": "Cap de messatge",
     "emptyHint": "Los messatges novèls apareisseràn aquí.",
-    "emptyUnread": "Cap de messatge pas legit",
-    "filter": "Filtre",
-    "filterAll": "Totes",
-    "filterUnread": "Pas legits",
     "filters": {
       "addressed": "Destinatari",
       "allMail": "Totes los corrièls",
