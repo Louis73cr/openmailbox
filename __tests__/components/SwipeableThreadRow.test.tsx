@@ -58,6 +58,21 @@ describe('SwipeableThreadRow', () => {
     ]);
   });
 
+  it('keeps the row mounted when selection mode toggles', () => {
+    const thread = makeThread();
+    const row = (selected?: boolean) => (
+      <SwipeableThreadRow thread={thread} canArchive onOpen={jest.fn()} onAction={jest.fn()} onMore={jest.fn()} selected={selected} />
+    );
+    const { rerender } = renderWithProviders(row());
+    const subject = screen.getByText('Lancement du projet Atlas');
+    rerender(row(false));
+    expect(screen.getByRole('checkbox')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Read' })).toBeNull();
+    expect(screen.getByText('Lancement du projet Atlas')).toBe(subject);
+    rerender(row());
+    expect(screen.getByText('Lancement du projet Atlas')).toBe(subject);
+  });
+
   it('says when the latest message was answered', () => {
     const thread = makeThread({ latest: makeEmail({ isAnswered: true }) });
     renderWithProviders(<SwipeableThreadRow thread={thread} canArchive onOpen={jest.fn()} onAction={jest.fn()} onMore={jest.fn()} />);

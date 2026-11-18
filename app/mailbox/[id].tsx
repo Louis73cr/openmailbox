@@ -29,7 +29,7 @@ import { THREAD_ACTION_PRESENTATION } from '@/features/threads/threadActions';
 import { FilterPill } from '@/features/threads/components/FilterPill';
 import { coreFilter, filterSummary } from '@/features/threads/threadFilter';
 import { useThreadActions } from '@/features/threads/useThreadActions';
-import { useThreadSelection } from '@/features/threads/useThreadSelection';
+import { everySelected, useThreadSelection } from '@/features/threads/useThreadSelection';
 import { accountColor } from '@/theme';
 import { EmptyState, IconButton, ScreenHeader, Spinner, Typography, ViewContainer } from '@/ui/components';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -201,6 +201,11 @@ export default function MailboxScreen() {
     .filter(Boolean)
     .join(' · ');
   const data = threads.data ?? [];
+  const allSelected = selection.active && everySelected(selection.selected, data);
+  const toggleAll = () => {
+    markKept(data.map((thread) => thread.threadId));
+    selection.toggleAll(data);
+  };
   const compose = () => router.push({ pathname: '/compose', params: account ? { accountId: account.id } : {} });
   const loadOlder = () => {
     for (const candidate of scopedMailboxes) mailCore().loadOlder(candidate.id).catch(() => undefined);
@@ -239,7 +244,14 @@ export default function MailboxScreen() {
           ) : null}
           {categorized ? (
             <View style={styles.categories}>
-              <CategoryBar value={inboxFilter} withNewMail={categoriesWithNewMail.map(filterOf)} onChange={setInboxFilter} />
+              <CategoryBar
+                value={inboxFilter}
+                withNewMail={categoriesWithNewMail.map(filterOf)}
+                onChange={(filter) => {
+                  selection.clear();
+                  setInboxFilter(filter);
+                }}
+              />
             </View>
           ) : null}
         </View>
@@ -309,7 +321,6 @@ export default function MailboxScreen() {
   ));
 
   if (NATIVE_CHROME) {
-    const allSelected = data.length > 0 && selection.selected.size === data.length;
     return (
       <>
         {list}
@@ -339,12 +350,7 @@ export default function MailboxScreen() {
         {selection.active ? (
           <>
             <Stack.Toolbar placement="left">
-              <Stack.Toolbar.Button
-                onPress={() => {
-                  markKept(data.map((thread) => thread.threadId));
-                  selection.toggleAll(data);
-                }}
-              >
+              <Stack.Toolbar.Button onPress={toggleAll}>
                 {allSelected ? t('threads.deselectAll') : t('threads.selectAll')}
               </Stack.Toolbar.Button>
             </Stack.Toolbar>
@@ -408,7 +414,18 @@ export default function MailboxScreen() {
     <ViewContainer>
       <SafeAreaView edges={['top']} style={styles.flex}>
         <ScreenHeader
-          onBack={goBack}
+          onBack={selection.active ? undefined : goBack}
+          left={
+            selection.active ? (
+              <IconButton
+                glass
+                round
+                size={40}
+                label={allSelected ? t('threads.deselectAll') : t('threads.selectAll')}
+                onPress={toggleAll}
+              />
+            ) : undefined
+          }
           right={
             <IconButton
               glass
