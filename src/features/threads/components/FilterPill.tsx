@@ -6,6 +6,9 @@ import { ChevronDown, ListFilter } from 'lucide-react-native';
 import { Typography } from '@/ui/components';
 import { haptic } from '@/utils/haptics';
 
+const BARE_SIZE = 50;
+const BARE_ENABLED_WIDTH = 180;
+
 interface FilterPillProps {
   enabled: boolean;
   summary: string;
@@ -20,7 +23,12 @@ export function FilterPill({ enabled, summary, onToggle, onOpen, bare = false }:
   const filteredBy = t('threads.filters.filteredBy');
 
   return (
-    <View style={[styles.pill, !bare && [styles.raised, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]]}>
+    <View
+      style={[
+        styles.pill,
+        bare ? { width: enabled ? BARE_ENABLED_WIDTH : BARE_SIZE, height: BARE_SIZE } : [styles.raised, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }],
+      ]}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t('threads.filters.toggle')}

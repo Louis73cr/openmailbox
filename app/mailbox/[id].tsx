@@ -364,7 +364,8 @@ export default function MailboxScreen() {
             />
             {LIQUID_GLASS ? (
               <Stack.Toolbar placement="bottom">
-                <Stack.Toolbar.View>{filterPill(true)}</Stack.Toolbar.View>
+                <Stack.Toolbar.View key={filterEnabled ? 'filtered' : 'unfiltered'}>{filterPill(true)}</Stack.Toolbar.View>
+                <Stack.Toolbar.Spacer />
                 <Stack.Toolbar.SearchBarSlot />
                 <Stack.Toolbar.Spacer />
                 <Stack.Toolbar.Button icon="square.and.pencil" accessibilityLabel={t('compose.newMessage')} onPress={compose} />
