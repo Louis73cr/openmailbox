@@ -244,7 +244,14 @@ export default function MailboxScreen() {
           ) : null}
           {categorized ? (
             <View style={styles.categories}>
-              <CategoryBar value={inboxFilter} withNewMail={categoriesWithNewMail.map(filterOf)} onChange={setInboxFilter} />
+              <CategoryBar
+                value={inboxFilter}
+                withNewMail={categoriesWithNewMail.map(filterOf)}
+                onChange={(filter) => {
+                  selection.clear();
+                  setInboxFilter(filter);
+                }}
+              />
             </View>
           ) : null}
         </View>

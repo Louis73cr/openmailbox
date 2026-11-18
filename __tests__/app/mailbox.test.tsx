@@ -261,7 +261,7 @@ describe('thread list', () => {
       expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     });
 
-    it('offers Select All again in a category whose threads are not selected', async () => {
+    it('clears the selection when switching category', async () => {
       const promotions = [1, 2, 3].map((n) =>
         makeThread({ latest: makeEmail({ id: `promo-email-${n}`, threadId: `promo-${n}`, subject: `Promo ${n}` }) }),
       );
@@ -274,6 +274,8 @@ describe('thread list', () => {
       fireEvent.press(screen.getByRole('button', { name: 'Select All' }));
       fireEvent.press(screen.getByRole('tab', { name: 'Promotions' }));
       await screen.findByText('Promo 1');
+      expect(screen.getByText('0 selected')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled();
 
       fireEvent.press(screen.getByRole('button', { name: 'Select All' }));
       expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(3);

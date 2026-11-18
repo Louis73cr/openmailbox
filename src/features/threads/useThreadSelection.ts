@@ -27,11 +27,13 @@ export function useThreadSelection() {
     setSelected(new Map());
   }, []);
 
+  const clear = useCallback(() => setSelected(new Map()), []);
+
   const toggleAll = useCallback((threads: ThreadSummary[]) => {
     setSelected((current) =>
       everySelected(current, threads) ? new Map() : new Map(threads.map((thread) => [thread.key, thread])),
     );
   }, []);
 
-  return { active, selected, toggle, toggleAll, start, end };
+  return { active, selected, toggle, toggleAll, clear, start, end };
 }
