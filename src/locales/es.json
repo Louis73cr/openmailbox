@@ -21,6 +21,8 @@
     "defaultAccount": "Cuenta predeterminada",
     "defaultAccountHint": "Los mensajes nuevos redactados desde Todas las bandejas o compartidos desde otra app se envían desde esta cuenta.",
     "senderName": "Remitente",
+    "sentFrom": "Enviado desde Open Mailbox",
+    "sentFromHint": "Añade esta línea con un enlace a openmailbox.eu debajo de tu firma. Puedes borrarla de cualquier mensaje.",
     "remove": "Eliminar cuenta",
     "removeMessage": "Los mensajes de {{email}} se eliminarán de este dispositivo. No se borra nada en el servidor.",
     "removeTitle": "¿Eliminar esta cuenta?",
@@ -65,6 +67,8 @@
       "welcomeHint": "Añade una cuenta de correo para empezar. Tus mensajes se guardan solo en este dispositivo.",
       "madeWith": "Hecho con ♥ para la comunidad · Código abierto"
     },
+    "addSignature": "Añadir firma",
+    "editSignature": "Editar firma",
     "signature": "Firma",
     "signatureHint": "Se añade a los mensajes nuevos, respuestas y reenvíos de esta cuenta.",
     "identities": "Identidades de remitente",
@@ -77,7 +81,6 @@
     "deleteIdentityTitle": "¿Eliminar esta identidad?",
     "invalidIdentityEmail": "Introduce una dirección de correo válida.",
     "identityExists": "Esta cuenta ya envía desde esta dirección.",
-    "signaturePlaceholder": "Sin firma",
     "syncNow": "Buscar correo nuevo",
     "updatePassword": "Actualizar contraseña"
   },
@@ -95,6 +98,8 @@
     "back": "Atrás",
     "cancel": "Cancelar",
     "close": "Cerrar",
+    "done": "OK",
+    "ok": "Aceptar",
     "retry": "Reintentar"
   },
   "compose": {
@@ -121,11 +126,13 @@
     "newMessage": "Nuevo mensaje",
     "noRecipient": "Añade al menos un destinatario.",
     "removeAttachment": "Quitar {{name}}",
+    "removeSignature": "Quitar firma",
     "removeRecipient": "Quitar a {{name}}",
     "reply": "Responder",
     "replyAll": "Responder a todos",
     "send": "Enviar",
     "sendFailed": "No se ha podido enviar el mensaje",
+    "sentFrom": "Enviado desde Open Mailbox",
     "sharedFilesFailed": "No se han podido adjuntar algunos archivos compartidos.",
     "messageSent": "Mensaje enviado",
     "subject": "Asunto:",
@@ -219,6 +226,39 @@
       "system": "Automático"
     },
     "title": "Ajustes"
+  },
+  "signature": {
+    "bold": "Negrita",
+    "clearFormatting": "Borrar formato",
+    "codePlaceholder": "Escribe el HTML aquí…",
+    "colors": {
+      "black": "Negro",
+      "grey": "Gris",
+      "red": "Rojo",
+      "orange": "Naranja",
+      "yellow": "Amarillo",
+      "green": "Verde",
+      "blue": "Azul",
+      "purple": "Morado",
+      "pink": "Rosa"
+    },
+    "highlight": "Resaltar",
+    "italic": "Cursiva",
+    "link": "Enlace",
+    "linkPlaceholder": "https://example.com",
+    "placeholder": "Escribe tu firma o pega su código HTML",
+    "removeLink": "Quitar enlace",
+    "sizes": {
+      "small": "Pequeño",
+      "normal": "Normal",
+      "large": "Grande",
+      "title": "Título"
+    },
+    "strikethrough": "Tachado",
+    "textColor": "Color del texto",
+    "textSize": "Tamaño del texto",
+    "tooLarge": "Esta firma es demasiado grande. Quita algunas imágenes o formatos.",
+    "underline": "Subrayado"
   },
   "sync": {
     "authFailed": "Se necesita la contraseña",

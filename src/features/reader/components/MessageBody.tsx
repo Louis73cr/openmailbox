@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -10,9 +10,11 @@ import { describeCoreError } from '@/features/accounts/coreErrors';
 import { AttachmentStack } from '@/features/attachments/AttachmentStack';
 import { openAttachment } from '@/features/attachments/openAttachment';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { splitLinks } from '@/utils/links';
 import { formatSize } from '@/utils/sizes';
 import { Button, Spinner, Typography } from '@/ui/components';
 
+import { confirmOpenLink } from '../openLink';
 import { HtmlBody } from './HtmlBody';
 import { UnsubscribeBanner } from './UnsubscribeBanner';
 
@@ -72,6 +74,7 @@ function MessageBodyImpl({ emailId }: { emailId: string }) {
   const loadRemoteImagesByDefault = useSettingsStore((state) => state.loadRemoteImages);
   const [remoteAllowed, setRemoteAllowed] = useState(loadRemoteImagesByDefault);
   const body = useBody(emailId);
+  const segments = useMemo(() => splitLinks(body.data?.text ?? ''), [body.data?.text]);
 
   if (body.isLoading) return <Spinner style={styles.loading} />;
   if (body.isError || !body.data) {
@@ -107,7 +110,15 @@ function MessageBodyImpl({ emailId }: { emailId: string }) {
         <HtmlBody html={html} allowRemoteContent={remoteAllowed} />
       ) : text.trim() ? (
         <Typography variant="body1" weight="400" selectable style={styles.text}>
-          {text}
+          {segments.map((segment, index) =>
+            segment.url ? (
+              <Typography key={index} variant="body1" weight="400" color="primary" onPress={() => confirmOpenLink(segment.url!, t)}>
+                {segment.text}
+              </Typography>
+            ) : (
+              segment.text
+            ),
+          )}
         </Typography>
       ) : null}
       {attachments.length > 0 ? (

@@ -23,7 +23,7 @@ describe('settings', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useSettingsStore.setState({ language: 'en', loadRemoteImages: false, contactPictures: true, accountNames: { 'account-1': 'Work' }, accountOrder: [], defaultAccountId: null });
+    useSettingsStore.setState({ language: 'en', loadRemoteImages: false, contactPictures: true, sentFromFooter: true, accountNames: { 'account-1': 'Work' }, accountOrder: [], defaultAccountId: null });
     useSyncStore.setState({ statuses: {}, authRequired: {} });
     queryClient.setQueryData(queryKeys.accounts, [
       makeAccount({ imap: { host: 'imap.gmail.com', port: 993, security: Security.Tls } }),
@@ -82,6 +82,14 @@ describe('settings', () => {
     queryClient.setQueryData(queryKeys.accounts, [makeAccount()]);
     renderWithProviders(<AccountsSettingsScreen />);
     expect(screen.queryByRole('button', { name: 'Default Account' })).toBeNull();
+  });
+
+  it('adds Sent from Open Mailbox until switched off', () => {
+    renderWithProviders(<AccountsSettingsScreen />);
+    const toggle = screen.getByRole('switch', { name: 'Sent from Open Mailbox' });
+    expect(toggle).toBeChecked();
+    fireEvent(toggle, 'valueChange', false);
+    expect(useSettingsStore.getState().sentFromFooter).toBe(false);
   });
 
   it('blocks remote images until switched on', () => {

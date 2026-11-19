@@ -25,12 +25,20 @@ jest.mock('@/features/composer/attachments', () => ({
   forwardedAttachments: jest.fn(async () => []),
 }));
 
+const sig = (text: string) => ({ html: text, text });
 const DEVIS = { path: '/cache/Devis.pdf', filename: 'Devis.pdf', mimeType: 'application/pdf', size: 52_224 };
 
 async function pickFiles(picked: typeof DEVIS[]) {
   (pickAttachments as jest.Mock).mockResolvedValueOnce(picked);
   fireEvent.press(screen.getByRole('button', { name: i18n.t('compose.attach') }));
   await act(async () => fireEvent.press(await screen.findByText(i18n.t('compose.attachFiles'))));
+}
+
+async function sendTo(address: string) {
+  fireEvent.changeText(screen.getByLabelText('To'), address);
+  await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
+  await waitFor(() => expect(core.send).toHaveBeenCalled());
+  return core.send.mock.calls[0][0];
 }
 
 describe('composer', () => {
@@ -40,7 +48,7 @@ describe('composer', () => {
     jest.clearAllMocks();
     mockParams = {};
     queryClient.clear();
-    useSettingsStore.setState({ defaultAccountId: null, signatures: {} });
+    useSettingsStore.setState({ defaultAccountId: null, signatures: {}, sentFromFooter: false });
     queryClient.setQueryData(queryKeys.accounts, [makeAccount()]);
   });
 
@@ -148,44 +156,72 @@ describe('composer', () => {
   });
 
   describe('signatures', () => {
-    it("starts a new message with the account's signature", () => {
-      useSettingsStore.setState({ signatures: { 'account-1': 'Charles' } });
+    const CHARLES = { html: '<b>Charles</b>', text: 'Charles' };
+    const FOOTER = 'Sent from Open Mailbox (https://openmailbox.eu)';
+    const FOOTER_LINK = 'Sent from <a href="https://openmailbox.eu">Open Mailbox</a>';
+
+    it('keeps the body for the message and sends the signature and the linked footer below it', async () => {
+      useSettingsStore.setState({ signatures: { 'account-1': CHARLES }, sentFromFooter: true });
       renderWithProviders(<ComposeScreen />);
-      expect(screen.getByPlaceholderText('Message').props.value).toBe('\n\n-- \nCharles');
+      expect(screen.getByPlaceholderText('Message').props.value).toBe('');
+      fireEvent.changeText(screen.getByPlaceholderText('Message'), 'Hi https://soluce.eu');
+      const draft = await sendTo('bob@example.org');
+      expect(draft.bodyText).toBe(`Hi https://soluce.eu\n\n-- \nCharles\n\n${FOOTER}`);
+      expect(draft.bodyHtml).toMatch(/^<div style="font-family: /);
+      expect(draft.bodyHtml).toContain('Hi <a href="https://soluce.eu">https://soluce.eu</a>');
+      expect(draft.bodyHtml).toContain('<b>Charles</b>');
+      expect(draft.bodyHtml).toContain(FOOTER_LINK);
     });
 
-    it('swaps an untouched signature when the sending account changes', async () => {
+    it('leaves the signature and the footer out once removed from the message', async () => {
+      useSettingsStore.setState({ signatures: { 'account-1': CHARLES }, sentFromFooter: true });
+      renderWithProviders(<ComposeScreen />);
+      fireEvent.changeText(screen.getByPlaceholderText('Message'), 'Hi');
+      fireEvent.press(await screen.findByRole('button', { name: 'Remove Signature' }));
+      const draft = await sendTo('bob@example.org');
+      expect(draft.bodyText).toBe('Hi');
+      expect(draft.bodyHtml).not.toContain('Charles');
+      expect(draft.bodyHtml).not.toContain('openmailbox.eu');
+    });
+
+    it("sends the new sender's signature after the sender changes", async () => {
       queryClient.setQueryData(queryKeys.accounts, [makeAccount(), makeAccount({ id: 'account-2', email: 'charles@soluce.example' })]);
-      useSettingsStore.setState({ signatures: { 'account-1': 'Alice', 'account-2': 'Charles, Soluce' } });
+      useSettingsStore.setState({ signatures: { 'account-1': sig('Alice'), 'account-2': sig('Charles, Soluce') } });
       renderWithProviders(<ComposeScreen />);
       fireEvent.press(screen.getByText(/Cc\/Bcc/));
       fireEvent.press(screen.getByRole('button', { name: 'From' }));
       fireEvent.press(await screen.findByText('charles@soluce.example'));
-      expect(screen.getByPlaceholderText('Message').props.value).toBe('\n\n-- \nCharles, Soluce');
+      expect((await sendTo('bob@example.org')).bodyText).toBe('\n\n-- \nCharles, Soluce');
+    });
+
+    it('puts the quote of a plain-text reply in the HTML part too', async () => {
+      mockParams = { mode: 'reply', emailId: 'email-1', threadId: 'thread-1', mailboxId: 'mailbox-inbox' };
+      core.threadEmails.mockResolvedValue([makeEmail()]);
+      core.body.mockResolvedValue({ text: 'Bonjour', hasRemoteContent: false, attachments: [] });
+      Object.assign(TextInput.prototype, { setSelection: jest.fn() });
+      renderWithProviders(<ComposeScreen />);
+      await screen.findByText(/> Bonjour/);
+      await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
+      await waitFor(() => expect(core.send).toHaveBeenCalled());
+      expect(core.send.mock.calls[0][0].bodyHtml).toContain('&gt; Bonjour');
     });
   });
 
   describe('identities', () => {
-    const support = { id: 'identity-1', name: 'Support', email: 'info@example.com', signature: 'Support team' };
+    const support = { id: 'identity-1', name: 'Support', email: 'info@example.com', signature: sig('Support team') };
 
     beforeEach(() => {
-      useSettingsStore.setState({ signatures: { 'account-1': 'Alice' }, identities: { 'account-1': [support] } });
+      useSettingsStore.setState({ signatures: { 'account-1': sig('Alice') }, identities: { 'account-1': [support] } });
     });
-
-    async function sendTo(address: string) {
-      fireEvent.changeText(screen.getByLabelText('To'), address);
-      await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
-      await waitFor(() => expect(core.send).toHaveBeenCalled());
-      return core.send.mock.calls[0][0];
-    }
 
     it('sends from the picked identity with its signature', async () => {
       renderWithProviders(<ComposeScreen />);
       fireEvent.press(screen.getByText(/Cc\/Bcc/));
       fireEvent.press(screen.getByRole('button', { name: 'From' }));
       fireEvent.press(await screen.findByText('info@example.com'));
-      expect(screen.getByPlaceholderText('Message').props.value).toBe('\n\n-- \nSupport team');
-      expect((await sendTo('bob@example.org')).from).toEqual({ name: 'Support', email: 'info@example.com' });
+      const draft = await sendTo('bob@example.org');
+      expect(draft.from).toEqual({ name: 'Support', email: 'info@example.com' });
+      expect(draft.bodyText).toBe('\n\n-- \nSupport team');
     });
 
     it("sends from the account's own address without a sender", async () => {
@@ -203,11 +239,11 @@ describe('composer', () => {
       renderWithProviders(<ComposeScreen />);
 
       expect(await screen.findByText('Cc/Bcc, From: info@example.com')).toBeOnTheScreen();
-      expect(screen.getByPlaceholderText('Message').props.value).toBe('\n\n-- \nSupport team');
       await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
       await waitFor(() => expect(core.send).toHaveBeenCalled());
       const draft = core.send.mock.calls[0][0];
       expect(draft.from).toEqual({ name: 'Support', email: 'info@example.com' });
+      expect(draft.bodyText).toContain('-- \nSupport team');
       expect(draft.to.map((address: { email: string }) => address.email)).toEqual(['claire@atlas.example', 'carol@example.org']);
     });
   });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,14 +21,16 @@ export function SettingsPage({ title, children }: Props) {
         <View style={styles.column}>
           <ScreenHeader title={title} onBack={goBack} />
         </View>
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          contentInsetAdjustmentBehavior="automatic"
-        >
-          <View style={[styles.column, styles.sections]}>{children}</View>
-        </ScrollView>
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+          <ScrollView
+            style={styles.flex}
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            contentInsetAdjustmentBehavior="automatic"
+          >
+            <View style={[styles.column, styles.sections]}>{children}</View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </ViewContainer>
   );

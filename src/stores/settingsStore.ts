@@ -4,15 +4,33 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { zustandStorage } from '@/storage';
 import type { InboxFilter } from '@/features/categories/categories';
 import { DEFAULT_FILTER_CRITERIA, type FilterCriteria } from '@/features/threads/threadFilter';
+import { linkedHtml } from '@/features/composer/prefill';
 import { getInitialLanguage, type AppLanguage } from '@/utils/i18n';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
-export type Identity = { id: string; name: string; email: string; signature: string };
+export type Signature = { html: string; text: string };
+
+export type Identity = { id: string; name: string; email: string; signature: Signature };
+
+export function isBlankSignature(signature: Signature): boolean {
+  return !signature.text.trim() && !/<img|url\(/i.test(signature.html);
+}
 
 function withIdentities(identities: Record<string, Identity[]>, accountId: string, list: Identity[]): Record<string, Identity[]> {
   const { [accountId]: _previous, ...others } = identities;
   return list.length > 0 ? { ...others, [accountId]: list } : others;
+}
+
+function withSignature(signatures: Record<string, Signature>, accountId: string, signature: Signature | null): Record<string, Signature> {
+  const { [accountId]: _previous, ...others } = signatures;
+  return signature && !isBlankSignature(signature) ? { ...others, [accountId]: signature } : others;
+}
+
+type LegacySignatures = { signatures?: Record<string, string>; identities?: Record<string, (Omit<Identity, 'signature'> & { signature: string })[]> };
+
+function fromText(text: string): Signature {
+  return { html: linkedHtml(text), text };
 }
 
 function withText(texts: Record<string, string>, accountId: string, text: string): Record<string, string> {
@@ -27,8 +45,9 @@ interface SettingsState {
   reduceMotion: boolean;
   loadRemoteImages: boolean;
   contactPictures: boolean;
+  sentFromFooter: boolean;
   defaultAccountId: string | null;
-  signatures: Record<string, string>;
+  signatures: Record<string, Signature>;
   accountNames: Record<string, string>;
   identities: Record<string, Identity[]>;
   notificationsEnabled: boolean;
@@ -44,8 +63,9 @@ interface SettingsState {
   setHapticsEnabled: (enabled: boolean) => void;
   setLoadRemoteImages: (enabled: boolean) => void;
   setContactPictures: (enabled: boolean) => void;
+  setSentFromFooter: (enabled: boolean) => void;
   setDefaultAccountId: (accountId: string | null) => void;
-  setSignature: (accountId: string, signature: string) => void;
+  setSignature: (accountId: string, signature: Signature) => void;
   setAccountName: (accountId: string, name: string) => void;
   saveIdentity: (accountId: string, identity: Identity) => void;
   removeIdentity: (accountId: string, identityId: string) => void;
@@ -69,6 +89,7 @@ export const useSettingsStore = create<SettingsState>()(
       reduceMotion: false,
       loadRemoteImages: false,
       contactPictures: true,
+      sentFromFooter: true,
       defaultAccountId: null,
       signatures: {},
       accountNames: {},
@@ -86,6 +107,7 @@ export const useSettingsStore = create<SettingsState>()(
       setHapticsEnabled: (hapticsEnabled) => set({ hapticsEnabled }),
       setLoadRemoteImages: (loadRemoteImages) => set({ loadRemoteImages }),
       setContactPictures: (contactPictures) => set({ contactPictures }),
+      setSentFromFooter: (sentFromFooter) => set({ sentFromFooter }),
       setDefaultAccountId: (defaultAccountId) => set({ defaultAccountId }),
       setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
       setInboxFilter: (inboxFilter) => set({ inboxFilter }),
@@ -101,7 +123,7 @@ export const useSettingsStore = create<SettingsState>()(
             ? silencedAccountIds.filter((silenced) => silenced !== accountId)
             : [...new Set([...silencedAccountIds, accountId])],
         })),
-      setSignature: (accountId, signature) => set(({ signatures }) => ({ signatures: withText(signatures, accountId, signature) })),
+      setSignature: (accountId, signature) => set(({ signatures }) => ({ signatures: withSignature(signatures, accountId, signature) })),
       setAccountOrder: (accountOrder) => set({ accountOrder }),
       markCategorySeen: (filter, receivedAt) =>
         set(({ categorySeenAt }) =>
@@ -122,7 +144,7 @@ export const useSettingsStore = create<SettingsState>()(
         })),
       forgetAccount: (accountId) =>
         set(({ signatures, accountNames, identities, silencedAccountIds, collapsedIds, accountOrder, filterCriteria }) => ({
-          signatures: withText(signatures, accountId, ''),
+          signatures: withSignature(signatures, accountId, null),
           accountNames: withText(accountNames, accountId, ''),
           identities: withIdentities(identities, accountId, []),
           silencedAccountIds: silencedAccountIds.filter((silenced) => silenced !== accountId),
@@ -136,6 +158,17 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-store',
+      version: 1,
+      migrate: (persisted) => {
+        const { signatures = {}, identities = {}, ...rest } = persisted as LegacySignatures;
+        return {
+          ...rest,
+          signatures: Object.fromEntries(Object.entries(signatures).map(([accountId, text]) => [accountId, fromText(text)])),
+          identities: Object.fromEntries(
+            Object.entries(identities).map(([accountId, list]) => [accountId, list.map((identity) => ({ ...identity, signature: fromText(identity.signature) }))]),
+          ),
+        } as unknown as SettingsState;
+      },
       storage: createJSONStorage(() => zustandStorage),
       partialize: ({
         themePreference,
@@ -144,6 +177,7 @@ export const useSettingsStore = create<SettingsState>()(
         reduceMotion,
         loadRemoteImages,
         contactPictures,
+        sentFromFooter,
         defaultAccountId,
         signatures,
         accountNames,
@@ -163,6 +197,7 @@ export const useSettingsStore = create<SettingsState>()(
         reduceMotion,
         loadRemoteImages,
         contactPictures,
+        sentFromFooter,
         defaultAccountId,
         signatures,
         accountNames,

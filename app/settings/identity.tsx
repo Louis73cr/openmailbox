@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, TextInput } from 'react-native';
-import { useLocalSearchParams, useTheme } from 'expo-router';
+import { Alert } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { useAccounts } from '@/core/hooks';
 import { SettingsPage } from '@/features/settings/components/SettingsPage';
+import { SignatureSection } from '@/features/signatures/SignatureSection';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { Button, FormField, FormSection, ListRow } from '@/ui/components';
 import { isEmail } from '@/utils/addresses';
@@ -13,7 +14,6 @@ import { goBack } from '@/utils/navigation';
 export default function IdentityScreen() {
   const { accountId, identityId } = useLocalSearchParams<{ accountId: string; identityId?: string }>();
   const { t } = useTranslation();
-  const { colors } = useTheme();
   const account = useAccounts().find((candidate) => candidate.id === accountId);
   const identities = useSettingsStore((state) => state.identities[accountId]) ?? [];
   const saveIdentity = useSettingsStore((state) => state.saveIdentity);
@@ -21,7 +21,7 @@ export default function IdentityScreen() {
   const identity = identities.find((candidate) => candidate.id === identityId);
   const [name, setName] = useState(identity?.name ?? '');
   const [email, setEmail] = useState(identity?.email ?? '');
-  const [signature, setSignature] = useState(identity?.signature ?? '');
+  const [signature, setSignature] = useState(identity?.signature ?? { html: '', text: '' });
 
   if (!account) return <SettingsPage title="">{null}</SettingsPage>;
 
@@ -69,18 +69,7 @@ export default function IdentityScreen() {
         />
       </FormSection>
 
-      <FormSection title={t('accounts.signature')} footer={t('accounts.identitySignatureHint')}>
-        <TextInput
-          value={signature}
-          onChangeText={setSignature}
-          accessibilityLabel={t('accounts.signature')}
-          placeholder={t('accounts.signaturePlaceholder')}
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          textAlignVertical="top"
-          style={[styles.signature, { color: colors.text }]}
-        />
-      </FormSection>
+      <SignatureSection value={signature} footer={t('accounts.identitySignatureHint')} onChange={setSignature} />
 
       <Button title={t('accounts.saveIdentity')} disabled={!email.trim()} onPress={save} />
 
@@ -92,7 +81,3 @@ export default function IdentityScreen() {
     </SettingsPage>
   );
 }
-
-const styles = StyleSheet.create({
-  signature: { minHeight: 96, fontSize: 16, lineHeight: 22, paddingHorizontal: 16, paddingVertical: 12 },
-});

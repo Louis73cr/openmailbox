@@ -1,6 +1,7 @@
 import type { EmailSummary } from '@openmailbox/mail-core';
 
 import { displayName, withoutAddresses, type MailAddress } from '@/utils/addresses';
+import { splitLinks } from '@/utils/links';
 
 export type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward';
 
@@ -46,6 +47,13 @@ export function escapeHtml(text: string): string {
 
 export function textToHtml(text: string): string {
   return escapeHtml(text).replace(/\n/g, '<br>');
+}
+
+export function linkedHtml(text: string): string {
+  return splitLinks(text)
+    .map(({ text: part, url }) => (url ? `<a href="${escapeHtml(url)}">${escapeHtml(part)}</a>` : escapeHtml(part)))
+    .join('')
+    .replace(/\n/g, '<br>');
 }
 
 export function quoteHtml(mode: ComposeMode, quoteText: string, originalHtml: string): string {
