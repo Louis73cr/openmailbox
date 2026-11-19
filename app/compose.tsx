@@ -12,11 +12,11 @@ import { useAccounts, useBody, useThreadEmails } from '@/core/hooks';
 import { canAdd, forwardedAttachments, pickAttachments, type ComposerAttachment } from '@/features/composer/attachments';
 import { AttachmentList } from '@/features/composer/components/AttachmentList';
 import { RecipientField } from '@/features/composer/components/RecipientField';
-import { composeTitleKey, prefill, quoteHtml, textToHtml, type ComposeMode } from '@/features/composer/prefill';
+import { composeTitleKey, linkedHtml, prefill, quoteHtml, type ComposeMode } from '@/features/composer/prefill';
 import { replySender, sendersOf } from '@/features/composer/senders';
 import { readSharedContent } from '@/features/composer/shared';
 import { HtmlBody } from '@/features/reader/components/HtmlBody';
-import { replaceSignature, withSignature } from '@/features/composer/signature';
+import { mailHtml, signatureHtml, signatureText } from '@/features/composer/signature';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useUndoStore } from '@/stores/undoStore';
 import { ActionList, IconButton, Select, Sheet, Typography, ViewContainer } from '@/ui/components';
@@ -70,6 +70,7 @@ export default function ComposeScreen() {
   }, [accounts]);
   const signatures = useSettingsStore((state) => state.signatures);
   const identities = useSettingsStore((state) => state.identities);
+  const footer = useSettingsStore((state) => state.sentFromFooter) ? t('compose.sentFrom') : '';
   const senders = useMemo(() => sendersOf(accounts, identities, signatures), [accounts, identities, signatures]);
   const sender = senders.find((candidate) => candidate.key === identityId) ?? senders.find((candidate) => candidate.key === accountId);
   const [to, setTo] = useState<MailAddress[]>(() => (params.to ? [{ email: params.to }] : []));
@@ -80,7 +81,9 @@ export default function ComposeScreen() {
   const [bccText, setBccText] = useState('');
   const [subject, setSubject] = useState('');
   const loadRemoteImages = useSettingsStore((state) => state.loadRemoteImages);
-  const [body, setBody] = useState(() => (mode === 'new' ? withSignature('', sender?.signature ?? '') : ''));
+  const [body, setBody] = useState('');
+  const [signatureRemoved, setSignatureRemoved] = useState(false);
+  const [signatureReady, setSignatureReady] = useState(false);
   const [showCopies, setShowCopies] = useState(false);
   const [prefilled, setPrefilled] = useState(mode === 'new');
   const [sending, setSending] = useState(false);
@@ -89,7 +92,12 @@ export default function ComposeScreen() {
   const [quote, setQuote] = useState('');
   const [attachMenuVisible, setAttachMenuVisible] = useState(false);
   const bodyInput = useRef<TextInput>(null);
-  const [initialContent, setInitialContent] = useState(() => snapshot('', '', '', '', body));
+  const [initialContent, setInitialContent] = useState(() => snapshot('', '', '', '', ''));
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSignatureReady(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (prefilled || !original || originalBody.isLoading) return;
@@ -109,10 +117,8 @@ export default function ComposeScreen() {
     setCc(content.cc);
     setShowCopies(content.cc.length > 0);
     setSubject(content.subject);
-    const signed = withSignature('', (replyFrom ?? senders.find((candidate) => candidate.key === original.accountId))?.signature ?? '');
     setQuote(content.body);
-    setBody(signed);
-    setInitialContent(snapshot(formatAddressList(content.to), formatAddressList(content.cc), '', content.subject, signed));
+    setInitialContent(snapshot(formatAddressList(content.to), formatAddressList(content.cc), '', content.subject, ''));
     setPrefilled(true);
     const originalAttachments = originalBody.data?.attachments ?? [];
     if (mode === 'forward' && params.emailId && originalAttachments.length > 0) {
@@ -163,8 +169,6 @@ export default function ComposeScreen() {
   const changeSender = (key: string) => {
     const next = senders.find((candidate) => candidate.key === key);
     if (!next) return;
-    const replaced = replaceSignature(body, sender?.signature ?? '', next.signature);
-    if (replaced !== null) setBody(replaced);
     setAccountId(next.accountId);
     setIdentityId(next.identity?.id);
   };
@@ -206,6 +210,9 @@ export default function ComposeScreen() {
       Alert.alert(t('compose.noRecipient'));
       return;
     }
+    const signature = signatureRemoved || !sender ? { html: '', text: '' } : sender.signature;
+    const signatureFooter = signatureRemoved ? '' : footer;
+    const signatureMarkup = signatureHtml(signature, signatureFooter);
     setSending(true);
     try {
       await sendDraft({
@@ -214,8 +221,12 @@ export default function ComposeScreen() {
         cc: ccAddresses,
         bcc: bccAddresses,
         subject: subject.trim(),
-        bodyText: body + quote,
-        bodyHtml: originalHtml ? textToHtml(body) + quoteHtml(mode, quote, originalHtml) : undefined,
+        bodyText: body + signatureText(signature, signatureFooter) + quote,
+        bodyHtml: mailHtml(
+          linkedHtml(body) +
+            (signatureMarkup ? `<br><br>${signatureMarkup}` : '') +
+            (originalHtml ? quoteHtml(mode, quote, originalHtml) : linkedHtml(quote)),
+        ),
         inReplyToEmailId: mode === 'reply' || mode === 'replyAll' ? params.emailId : undefined,
         attachments: attachments.map(({ path, filename, mimeType }) => ({ path, filename, mimeType })),
         from: sender?.identity ? { name: sender.name, email: sender.email } : undefined,
@@ -229,6 +240,7 @@ export default function ComposeScreen() {
   };
 
   const title = t(composeTitleKey(mode));
+  const previewHtml = useMemo(() => (sender ? signatureHtml(sender.signature, footer) : ''), [sender, footer]);
 
   return (
     <ViewContainer>
@@ -342,6 +354,16 @@ export default function ComposeScreen() {
               placeholderTextColor={colors.textTertiary}
               style={[styles.body, { color: colors.text }]}
             />
+            {signatureReady && !signatureRemoved && previewHtml ? (
+              <View style={styles.signature}>
+                <View style={styles.flex}>
+                  <HtmlBody html={previewHtml} allowRemoteContent background={colors.background} />
+                </View>
+                <IconButton round size={32} accessibilityLabel={t('compose.removeSignature')} onPress={() => setSignatureRemoved(true)}>
+                  <X size={16} color={colors.textSecondary} />
+                </IconButton>
+              </View>
+            ) : null}
             {quote ? (
               originalHtml ? (
                 <View style={styles.quote}>
@@ -409,6 +431,7 @@ const styles = StyleSheet.create({
   senderEmail: { flexShrink: 1 },
   senderPicker: { width: '100%' },
   body: { fontSize: 16, lineHeight: 22, minHeight: 160, paddingTop: 16 },
+  signature: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, paddingBottom: 16 },
   quote: { gap: 8, paddingBottom: 16 },
   quoted: { borderLeftWidth: 2, paddingLeft: 8 },
 });

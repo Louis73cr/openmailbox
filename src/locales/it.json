@@ -21,6 +21,8 @@
     "defaultAccount": "Account predefinito",
     "defaultAccountHint": "I nuovi messaggi scritti da Tutte le caselle o condivisi da un’altra app vengono inviati da questo account.",
     "senderName": "Mittente",
+    "sentFrom": "Inviato da Open Mailbox",
+    "sentFromHint": "Aggiunge questa riga con un link a openmailbox.eu sotto la tua firma. Puoi comunque eliminarla da un messaggio.",
     "remove": "Rimuovi account",
     "removeMessage": "I messaggi di {{email}} verranno rimossi da questo dispositivo. Nulla viene eliminato sul server.",
     "removeTitle": "Rimuovere questo account?",
@@ -65,6 +67,8 @@
       "welcomeHint": "Aggiungi un account di posta per iniziare. I tuoi messaggi sono salvati solo su questo dispositivo.",
       "madeWith": "Fatto con ♥ per la comunità · Open Source"
     },
+    "addSignature": "Aggiungi firma",
+    "editSignature": "Modifica firma",
     "signature": "Firma",
     "signatureHint": "Aggiunta ai nuovi messaggi, alle risposte e agli inoltri inviati da questo account.",
     "identities": "Identità mittente",
@@ -77,7 +81,6 @@
     "deleteIdentityTitle": "Eliminare questa identità?",
     "invalidIdentityEmail": "Inserisci un indirizzo email valido.",
     "identityExists": "Questo account invia già da questo indirizzo.",
-    "signaturePlaceholder": "Nessuna firma",
     "syncNow": "Controlla nuova posta",
     "updatePassword": "Aggiorna password"
   },
@@ -95,6 +98,8 @@
     "back": "Indietro",
     "cancel": "Annulla",
     "close": "Chiudi",
+    "done": "Fine",
+    "ok": "OK",
     "retry": "Riprova"
   },
   "compose": {
@@ -121,11 +126,13 @@
     "newMessage": "Nuovo messaggio",
     "noRecipient": "Aggiungi almeno un destinatario.",
     "removeAttachment": "Rimuovi {{name}}",
+    "removeSignature": "Rimuovi firma",
     "removeRecipient": "Rimuovi {{name}}",
     "reply": "Rispondi",
     "replyAll": "Rispondi a tutti",
     "send": "Invia",
     "sendFailed": "Impossibile inviare il messaggio",
+    "sentFrom": "Inviato da Open Mailbox",
     "sharedFilesFailed": "Non è stato possibile allegare alcuni file condivisi.",
     "messageSent": "Messaggio inviato",
     "subject": "Oggetto:",
@@ -219,6 +226,39 @@
       "system": "Automatico"
     },
     "title": "Impostazioni"
+  },
+  "signature": {
+    "bold": "Grassetto",
+    "clearFormatting": "Cancella formattazione",
+    "codePlaceholder": "Scrivi qui l’HTML…",
+    "colors": {
+      "black": "Nero",
+      "grey": "Grigio",
+      "red": "Rosso",
+      "orange": "Arancione",
+      "yellow": "Giallo",
+      "green": "Verde",
+      "blue": "Blu",
+      "purple": "Viola",
+      "pink": "Rosa"
+    },
+    "highlight": "Evidenzia",
+    "italic": "Corsivo",
+    "link": "Link",
+    "linkPlaceholder": "https://example.com",
+    "placeholder": "Scrivi la tua firma o incolla il suo codice HTML",
+    "removeLink": "Rimuovi link",
+    "sizes": {
+      "small": "Piccolo",
+      "normal": "Normale",
+      "large": "Grande",
+      "title": "Titolo"
+    },
+    "strikethrough": "Barrato",
+    "textColor": "Colore testo",
+    "textSize": "Dimensione testo",
+    "tooLarge": "Questa firma è troppo grande. Rimuovi alcune immagini o formattazioni.",
+    "underline": "Sottolineato"
   },
   "sync": {
     "authFailed": "Password richiesta",

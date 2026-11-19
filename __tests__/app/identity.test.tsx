@@ -1,8 +1,9 @@
 import { Alert } from 'react-native';
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 
 import IdentityScreen from '../../app/settings/identity';
 import { queryClient, queryKeys } from '@/core/queryClient';
+import { useSignatureEditor } from '@/features/signatures/signatureEditorStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import i18n from '@/utils/i18n';
 
@@ -18,7 +19,7 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 
-const support = { id: 'identity-1', name: 'Support', email: 'info@example.com', signature: '' };
+const support = { id: 'identity-1', name: 'Support', email: 'info@example.com', signature: { html: '', text: '' } };
 
 describe('identity settings', () => {
   beforeAll(() => i18n.changeLanguage('en'));
@@ -34,11 +35,19 @@ describe('identity settings', () => {
     renderWithProviders(<IdentityScreen />);
     fireEvent.changeText(screen.getByLabelText('Sender Name'), 'Support');
     fireEvent.changeText(screen.getByLabelText('Email'), ' Info@Domain.com ');
-    fireEvent.changeText(screen.getByLabelText('Signature'), 'The support team');
+    fireEvent.press(screen.getByRole('button', { name: 'Add Signature' }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/signature');
+    act(() => useSignatureEditor.getState().onDone!({ html: '<b>The support team</b>', text: 'The support team' }));
+    expect(useSettingsStore.getState().identities).toEqual({});
     fireEvent.press(screen.getByRole('button', { name: 'Save' }));
 
     expect(useSettingsStore.getState().identities['account-1']).toEqual([
-      { id: expect.any(String), name: 'Support', email: 'Info@Domain.com', signature: 'The support team' },
+      {
+        id: expect.any(String),
+        name: 'Support',
+        email: 'Info@Domain.com',
+        signature: { html: '<b>The support team</b>', text: 'The support team' },
+      },
     ]);
     expect(mockRouter.back).toHaveBeenCalled();
   });

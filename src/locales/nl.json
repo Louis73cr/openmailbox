@@ -21,6 +21,8 @@
     "defaultAccount": "Standaardaccount",
     "defaultAccountHint": "Nieuwe berichten die je vanuit Alle inkomende schrijft of vanuit een andere app deelt, worden vanaf dit account verstuurd.",
     "senderName": "Afzender",
+    "sentFrom": "Verzonden met Open Mailbox",
+    "sentFromHint": "Voegt deze regel met een link naar openmailbox.eu toe onder je handtekening. Je kunt hem nog steeds uit een bericht verwijderen.",
     "remove": "Verwijder account",
     "removeMessage": "De berichten van {{email}} worden van dit apparaat verwijderd. Er wordt niets verwijderd op de server.",
     "removeTitle": "Deze account verwijderen?",
@@ -65,6 +67,8 @@
       "welcomeHint": "Voeg een e-mailaccount toe om te beginnen. Je berichten worden alleen op dit apparaat bewaard.",
       "madeWith": "Gemaakt met ♥ voor de community · Open source"
     },
+    "addSignature": "Handtekening toevoegen",
+    "editSignature": "Handtekening bewerken",
     "signature": "Handtekening",
     "signatureHint": "Toegevoegd aan nieuwe berichten, antwoorden en doorgestuurde berichten van dit account.",
     "identities": "Afzenderidentiteiten",
@@ -77,7 +81,6 @@
     "deleteIdentityTitle": "Deze identiteit verwijderen?",
     "invalidIdentityEmail": "Voer een geldig e-mailadres in.",
     "identityExists": "Dit account verstuurt al vanaf dit adres.",
-    "signaturePlaceholder": "Geen handtekening",
     "syncNow": "Haal nieuwe e-mail op",
     "updatePassword": "Werk wachtwoord bij"
   },
@@ -95,6 +98,8 @@
     "back": "Terug",
     "cancel": "Annuleer",
     "close": "Sluit",
+    "done": "Gereed",
+    "ok": "OK",
     "retry": "Probeer opnieuw"
   },
   "compose": {
@@ -121,11 +126,13 @@
     "newMessage": "Nieuw bericht",
     "noRecipient": "Voeg minstens één ontvanger toe.",
     "removeAttachment": "{{name}} verwijderen",
+    "removeSignature": "Handtekening verwijderen",
     "removeRecipient": "{{name}} verwijderen",
     "reply": "Beantwoord",
     "replyAll": "Beantwoord allen",
     "send": "Verstuur",
     "sendFailed": "Het bericht kon niet worden verstuurd",
+    "sentFrom": "Verzonden met Open Mailbox",
     "sharedFilesFailed": "Sommige gedeelde bestanden konden niet worden bijgevoegd.",
     "messageSent": "Bericht verstuurd",
     "subject": "Onderwerp:",
@@ -219,6 +226,39 @@
       "system": "Automatisch"
     },
     "title": "Instellingen"
+  },
+  "signature": {
+    "bold": "Vet",
+    "clearFormatting": "Opmaak wissen",
+    "codePlaceholder": "Typ hier HTML…",
+    "colors": {
+      "black": "Zwart",
+      "grey": "Grijs",
+      "red": "Rood",
+      "orange": "Oranje",
+      "yellow": "Geel",
+      "green": "Groen",
+      "blue": "Blauw",
+      "purple": "Paars",
+      "pink": "Roze"
+    },
+    "highlight": "Markeren",
+    "italic": "Cursief",
+    "link": "Link",
+    "linkPlaceholder": "https://example.com",
+    "placeholder": "Schrijf je handtekening of plak de HTML-code",
+    "removeLink": "Link verwijderen",
+    "sizes": {
+      "small": "Klein",
+      "normal": "Normaal",
+      "large": "Groot",
+      "title": "Titel"
+    },
+    "strikethrough": "Doorhalen",
+    "textColor": "Tekstkleur",
+    "textSize": "Tekstgrootte",
+    "tooLarge": "Deze handtekening is te groot. Verwijder wat afbeeldingen of opmaak.",
+    "underline": "Onderstrepen"
   },
   "sync": {
     "authFailed": "Wachtwoord vereist",

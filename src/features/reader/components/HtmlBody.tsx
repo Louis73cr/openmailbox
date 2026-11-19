@@ -1,9 +1,12 @@
 import { memo, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Alert, Linking, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+
+import { confirmOpenLink } from '../openLink';
+import { PAGE, READER_FONT } from '../readerPage';
 
 const INITIAL_HEIGHT = 120;
 const BROKEN_IMAGE_MESSAGE = 'broken-image:';
@@ -109,11 +112,6 @@ const fitAndMeasure = (availableWidth: number, dark: boolean) => `
 true;
 `;
 
-const PAGE = {
-  light: { background: '#ffffff', text: '#1a1a1a', quote: '#555555', rule: '#d0d0d0', link: '#0b6bcb' },
-  dark: { background: '#1c1c1e', text: '#f1f1f1', quote: '#aaaaaa', rule: '#48484a', link: '#4ea5ff' },
-};
-
 export async function fetchImageAsDataUri(url: string): Promise<string | null> {
   if (!/^https?:\/\//i.test(url)) return null;
   try {
@@ -147,7 +145,7 @@ function documentFor(html: string, allowRemoteContent: boolean, page: (typeof PA
 <style>
 html, body { margin: 0; padding: 0; background: ${page.background}; color: ${page.text}; }
 a { color: ${page.link}; }
-body { padding: 4px 2px; font: 15px/1.45 -apple-system, Roboto, 'Helvetica Neue', sans-serif; overflow-wrap: break-word; }
+body { padding: 4px 2px; font: 15px/1.45 ${READER_FONT}; overflow-wrap: break-word; }
 img { max-width: 100%; height: auto; }
 pre { white-space: pre-wrap; }
 blockquote { margin: 0 0 0 8px; padding-left: 10px; border-left: 3px solid ${page.rule}; color: ${page.quote}; }
@@ -157,12 +155,14 @@ blockquote { margin: 0 0 0 8px; padding-left: 10px; border-left: 3px solid ${pag
 interface HtmlBodyProps {
   html: string;
   allowRemoteContent: boolean;
+  background?: string;
 }
 
-function HtmlBodyImpl({ html, allowRemoteContent }: HtmlBodyProps) {
+function HtmlBodyImpl({ html, allowRemoteContent, background }: HtmlBodyProps) {
   const { t } = useTranslation();
   const { dark } = useTheme();
-  const page = dark ? PAGE.dark : PAGE.light;
+  const base = dark ? PAGE.dark : PAGE.light;
+  const page = useMemo(() => (background ? { ...base, background } : base), [base, background]);
   const [height, setHeight] = useState(INITIAL_HEIGHT);
   const [width, setWidth] = useState(0);
   const webViewRef = useRef<ComponentRef<typeof WebView>>(null);
@@ -185,14 +185,7 @@ function HtmlBodyImpl({ html, allowRemoteContent }: HtmlBodyProps) {
   const onShouldStartLoadWithRequest = (request: ShouldStartLoadRequest) => {
     if (request.url === 'about:blank' || request.url.startsWith('data:')) return true;
     if (!request.isTopFrame) return false;
-    let target = request.url;
-    try {
-      target = new URL(request.url).host || request.url;
-    } catch {}
-    Alert.alert(t('reader.openLinkTitle'), target, [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('reader.openLink'), onPress: () => Linking.openURL(request.url).catch(() => undefined) },
-    ]);
+    confirmOpenLink(request.url, t);
     return false;
   };
 

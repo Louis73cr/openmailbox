@@ -21,6 +21,8 @@
     "defaultAccount": "Compte per defaut",
     "defaultAccountHint": "Los messatges novèls redigits dempuèi Totas las bóstias o partejats dempuèi una autra aplicacion son mandats dempuèi aqueste compte.",
     "senderName": "Expeditor",
+    "sentFrom": "Mandat dempuèi Open Mailbox",
+    "sentFromHint": "Apond aquesta linha amb un ligam cap a openmailbox.eu jos vòstra signatura. Podètz totjorn la suprimir d’un messatge.",
     "remove": "Suprimir lo compte",
     "removeMessage": "Los messatges de {{email}} seràn suprimits d'aqueste aparelh. Res es pas suprimit sul servidor.",
     "removeTitle": "Suprimir aqueste compte ?",
@@ -65,6 +67,8 @@
       "welcomeHint": "Apondètz un compte de messatjariá per començar. Vòstres messatges son gardats sonque sus aqueste aparelh.",
       "madeWith": "Fach amb ♥ per la comunautat · Open Source"
     },
+    "addSignature": "Apondre una signatura",
+    "editSignature": "Modificar la signatura",
     "signature": "Signatura",
     "signatureHint": "Aponduda als messatges novèls, responsas e transferiments mandats dempuèi aqueste compte.",
     "identities": "Identitats d’expeditor",
@@ -77,7 +81,6 @@
     "deleteIdentityTitle": "Suprimir aquesta identitat ?",
     "invalidIdentityEmail": "Picatz una adreça electronica valida.",
     "identityExists": "Aqueste compte manda ja dempuèi aquesta adreça.",
-    "signaturePlaceholder": "Cap de signatura",
     "syncNow": "Relevar los messatges",
     "updatePassword": "Metre a jorn lo senhal"
   },
@@ -95,6 +98,8 @@
     "back": "Tornar",
     "cancel": "Anullar",
     "close": "Tampar",
+    "done": "Acabat",
+    "ok": "D’acòrdi",
     "retry": "Tornar ensajar"
   },
   "compose": {
@@ -121,11 +126,13 @@
     "newMessage": "Messatge novèl",
     "noRecipient": "Apondètz almens un destinatari.",
     "removeAttachment": "Levar {{name}}",
+    "removeSignature": "Levar la signatura",
     "removeRecipient": "Levar {{name}}",
     "reply": "Respondre",
     "replyAll": "Respondre a totes",
     "send": "Mandar",
     "sendFailed": "Lo messatge a pas pogut èsser mandat",
+    "sentFrom": "Mandat dempuèi Open Mailbox",
     "sharedFilesFailed": "D’unes fichièrs partejats an pas pogut èsser junts.",
     "messageSent": "Messatge mandat",
     "subject": "Objècte :",
@@ -219,6 +226,39 @@
       "system": "Automatic"
     },
     "title": "Paramètres"
+  },
+  "signature": {
+    "bold": "Gras",
+    "clearFormatting": "Escafar la mesa en forma",
+    "codePlaceholder": "Picatz l’HTML aquí…",
+    "colors": {
+      "black": "Negre",
+      "grey": "Gris",
+      "red": "Roge",
+      "orange": "Irange",
+      "yellow": "Jaune",
+      "green": "Verd",
+      "blue": "Blau",
+      "purple": "Violet",
+      "pink": "Ròse"
+    },
+    "highlight": "Evidenciar",
+    "italic": "Italica",
+    "link": "Ligam",
+    "linkPlaceholder": "https://example.com",
+    "placeholder": "Escrivètz vòstra signatura o pegatz son còdi HTML",
+    "removeLink": "Levar lo ligam",
+    "sizes": {
+      "small": "Pichon",
+      "normal": "Normal",
+      "large": "Grand",
+      "title": "Títol"
+    },
+    "strikethrough": "Barrat",
+    "textColor": "Color del tèxte",
+    "textSize": "Talha del tèxte",
+    "tooLarge": "Aquesta signatura es tròp voluminosa. Levatz d’imatges o de mesa en forma.",
+    "underline": "Soslinhat"
   },
   "sync": {
     "authFailed": "Senhal requerit",

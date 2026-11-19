@@ -21,6 +21,8 @@
     "defaultAccount": "Default Account",
     "defaultAccountHint": "New messages written from All Inboxes or shared from another app are sent from this account.",
     "senderName": "Sender Name",
+    "sentFrom": "Sent from Open Mailbox",
+    "sentFromHint": "Adds this line with a link to openmailbox.eu under your signature. You can still delete it from a message.",
     "remove": "Remove Account",
     "removeMessage": "Messages from {{email}} will be removed from this device. Nothing is deleted on the server.",
     "removeTitle": "Remove this account?",
@@ -65,6 +67,8 @@
       "welcomeHint": "Add a mail account to get started. Your messages are stored on this device only.",
       "madeWith": "Made with ♥ for the community · Open Source"
     },
+    "addSignature": "Add Signature",
+    "editSignature": "Edit Signature",
     "signature": "Signature",
     "signatureHint": "Added to new messages, replies and forwards sent from this account.",
     "identities": "Sender Identities",
@@ -77,7 +81,6 @@
     "deleteIdentityTitle": "Delete this identity?",
     "invalidIdentityEmail": "Enter a valid email address.",
     "identityExists": "This account already sends from this address.",
-    "signaturePlaceholder": "No signature",
     "syncNow": "Check for New Mail",
     "updatePassword": "Update Password"
   },
@@ -95,6 +98,8 @@
     "back": "Back",
     "cancel": "Cancel",
     "close": "Close",
+    "done": "Done",
+    "ok": "OK",
     "retry": "Try Again"
   },
   "compose": {
@@ -121,11 +126,13 @@
     "newMessage": "New Message",
     "noRecipient": "Add at least one recipient.",
     "removeAttachment": "Remove {{name}}",
+    "removeSignature": "Remove Signature",
     "removeRecipient": "Remove {{name}}",
     "reply": "Reply",
     "replyAll": "Reply All",
     "send": "Send",
     "sendFailed": "The message couldn't be sent",
+    "sentFrom": "Sent from Open Mailbox",
     "sharedFilesFailed": "Some shared files couldn't be attached.",
     "messageSent": "Message sent",
     "subject": "Subject:",
@@ -219,6 +226,39 @@
       "system": "Automatic"
     },
     "title": "Settings"
+  },
+  "signature": {
+    "bold": "Bold",
+    "clearFormatting": "Clear Formatting",
+    "codePlaceholder": "Type HTML here…",
+    "colors": {
+      "black": "Black",
+      "grey": "Grey",
+      "red": "Red",
+      "orange": "Orange",
+      "yellow": "Yellow",
+      "green": "Green",
+      "blue": "Blue",
+      "purple": "Purple",
+      "pink": "Pink"
+    },
+    "highlight": "Highlight",
+    "italic": "Italic",
+    "link": "Link",
+    "linkPlaceholder": "https://example.com",
+    "placeholder": "Write your signature or paste its HTML code",
+    "removeLink": "Remove Link",
+    "sizes": {
+      "small": "Small",
+      "normal": "Normal",
+      "large": "Large",
+      "title": "Title"
+    },
+    "strikethrough": "Strikethrough",
+    "textColor": "Text Color",
+    "textSize": "Text Size",
+    "tooLarge": "This signature is too large. Remove some images or formatting.",
+    "underline": "Underline"
   },
   "sync": {
     "authFailed": "Password required",

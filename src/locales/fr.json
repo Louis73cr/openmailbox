@@ -21,6 +21,8 @@
     "defaultAccount": "Compte par défaut",
     "defaultAccountHint": "Les nouveaux messages rédigés depuis Toutes les boîtes ou partagés depuis une autre app sont envoyés depuis ce compte.",
     "senderName": "Expéditeur",
+    "sentFrom": "Envoyé depuis Open Mailbox",
+    "sentFromHint": "Ajoute cette ligne avec un lien vers openmailbox.eu sous votre signature. Vous pouvez toujours la retirer d’un message.",
     "remove": "Supprimer le compte",
     "removeMessage": "Les messages de {{email}} seront supprimés de cet appareil. Rien n'est supprimé sur le serveur.",
     "removeTitle": "Supprimer ce compte ?",
@@ -65,6 +67,8 @@
       "welcomeHint": "Ajoutez un compte de messagerie pour commencer. Vos messages sont stockés uniquement sur cet appareil.",
       "madeWith": "Fait avec ♥ pour la communauté · Open Source"
     },
+    "addSignature": "Ajouter une signature",
+    "editSignature": "Modifier la signature",
     "signature": "Signature",
     "signatureHint": "Ajoutée aux nouveaux messages, réponses et transferts envoyés depuis ce compte.",
     "identities": "Identités d’expéditeur",
@@ -77,7 +81,6 @@
     "deleteIdentityTitle": "Supprimer cette identité ?",
     "invalidIdentityEmail": "Saisissez une adresse e-mail valide.",
     "identityExists": "Ce compte envoie déjà depuis cette adresse.",
-    "signaturePlaceholder": "Aucune signature",
     "syncNow": "Relever les messages",
     "updatePassword": "Mettre à jour le mot de passe"
   },
@@ -95,6 +98,8 @@
     "back": "Retour",
     "cancel": "Annuler",
     "close": "Fermer",
+    "done": "OK",
+    "ok": "OK",
     "retry": "Réessayer"
   },
   "compose": {
@@ -121,11 +126,13 @@
     "newMessage": "Nouveau message",
     "noRecipient": "Ajoutez au moins un destinataire.",
     "removeAttachment": "Retirer {{name}}",
+    "removeSignature": "Retirer la signature",
     "removeRecipient": "Retirer {{name}}",
     "reply": "Répondre",
     "replyAll": "Répondre à tous",
     "send": "Envoyer",
     "sendFailed": "Le message n'a pas pu être envoyé",
+    "sentFrom": "Envoyé depuis Open Mailbox",
     "sharedFilesFailed": "Certains fichiers partagés n'ont pas pu être joints.",
     "messageSent": "Message envoyé",
     "subject": "Objet :",
@@ -219,6 +226,39 @@
       "system": "Automatique"
     },
     "title": "Réglages"
+  },
+  "signature": {
+    "bold": "Gras",
+    "clearFormatting": "Effacer la mise en forme",
+    "codePlaceholder": "Saisissez le HTML ici…",
+    "colors": {
+      "black": "Noir",
+      "grey": "Gris",
+      "red": "Rouge",
+      "orange": "Orange",
+      "yellow": "Jaune",
+      "green": "Vert",
+      "blue": "Bleu",
+      "purple": "Violet",
+      "pink": "Rose"
+    },
+    "highlight": "Surligner",
+    "italic": "Italique",
+    "link": "Lien",
+    "linkPlaceholder": "https://example.com",
+    "placeholder": "Écrivez votre signature ou collez son code HTML",
+    "removeLink": "Retirer le lien",
+    "sizes": {
+      "small": "Petit",
+      "normal": "Normal",
+      "large": "Grand",
+      "title": "Titre"
+    },
+    "strikethrough": "Barré",
+    "textColor": "Couleur du texte",
+    "textSize": "Taille du texte",
+    "tooLarge": "Cette signature est trop volumineuse. Retirez des images ou de la mise en forme.",
+    "underline": "Souligné"
   },
   "sync": {
     "authFailed": "Mot de passe requis",

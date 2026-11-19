@@ -1,12 +1,14 @@
 import type { Account, EmailSummary } from '@openmailbox/mail-core';
 
-import type { Identity } from '@/stores/settingsStore';
+import type { Identity, Signature } from '@/stores/settingsStore';
 
-export type Sender = { key: string; accountId: string; name: string; email: string; signature: string; identity?: Identity };
+export type Sender = { key: string; accountId: string; name: string; email: string; signature: Signature; identity?: Identity };
 
-export function sendersOf(accounts: Account[], identities: Record<string, Identity[]>, signatures: Record<string, string>): Sender[] {
+const NO_SIGNATURE: Signature = { html: '', text: '' };
+
+export function sendersOf(accounts: Account[], identities: Record<string, Identity[]>, signatures: Record<string, Signature>): Sender[] {
   return accounts.flatMap((account) => [
-    { key: account.id, accountId: account.id, name: account.displayName, email: account.email, signature: signatures[account.id] ?? '' },
+    { key: account.id, accountId: account.id, name: account.displayName, email: account.email, signature: signatures[account.id] ?? NO_SIGNATURE },
     ...(identities[account.id] ?? []).map((identity) => ({
       key: identity.id,
       accountId: account.id,
