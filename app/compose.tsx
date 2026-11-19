@@ -3,16 +3,18 @@ import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInp
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { HStack, Host, Image, Menu, Picker, Text } from '@expo/ui/swift-ui';
+import { HStack, Host, Image, Menu, Picker, Section, Text } from '@expo/ui/swift-ui';
 import { foregroundStyle, frame, lineLimit, tag } from '@expo/ui/swift-ui/modifiers';
 import { ArrowUp, ChevronDown, FolderOpen, Images, Paperclip, X } from 'lucide-react-native';
 
 import { sendDraft } from '@/core/actions';
 import { useAccounts, useBody, useThreadEmails } from '@/core/hooks';
+import { accountName } from '@/features/accounts/accountName';
 import { canAdd, forwardedAttachments, pickAttachments, type ComposerAttachment } from '@/features/composer/attachments';
 import { AttachmentList } from '@/features/composer/components/AttachmentList';
 import { RecipientField } from '@/features/composer/components/RecipientField';
 import { composeTitleKey, prefill, quoteHtml, textToHtml, type ComposeMode } from '@/features/composer/prefill';
+import { replySender, sendersOf, type Sender } from '@/features/composer/senders';
 import { readSharedContent } from '@/features/composer/shared';
 import { HtmlBody } from '@/features/reader/components/HtmlBody';
 import { replaceSignature, withSignature } from '@/features/composer/signature';
@@ -63,9 +65,15 @@ export default function ComposeScreen() {
   const initialAccountId = params.accountId ?? defaultAccountId ?? accounts[0]?.id;
   const pickAccountId = () => (accounts.some((account) => account.id === initialAccountId) ? initialAccountId : accounts[0]?.id);
   const [accountId, setAccountId] = useState(pickAccountId);
+  const [identityId, setIdentityId] = useState<string>();
   useEffect(() => {
     if (!accountId && accounts.length > 0) setAccountId(pickAccountId());
   }, [accounts]);
+  const signatures = useSettingsStore((state) => state.signatures);
+  const identities = useSettingsStore((state) => state.identities);
+  const accountNames = useSettingsStore((state) => state.accountNames);
+  const senders = useMemo(() => sendersOf(accounts, identities, signatures), [accounts, identities, signatures]);
+  const sender = senders.find((candidate) => candidate.key === identityId) ?? senders.find((candidate) => candidate.key === accountId);
   const [to, setTo] = useState<MailAddress[]>(() => (params.to ? [{ email: params.to }] : []));
   const [cc, setCc] = useState<MailAddress[]>([]);
   const [bcc, setBcc] = useState<MailAddress[]>([]);
@@ -73,10 +81,8 @@ export default function ComposeScreen() {
   const [ccText, setCcText] = useState('');
   const [bccText, setBccText] = useState('');
   const [subject, setSubject] = useState('');
-  const signatures = useSettingsStore((state) => state.signatures);
   const loadRemoteImages = useSettingsStore((state) => state.loadRemoteImages);
-  const signatureOf = (id: string | undefined) => (id ? (signatures[id] ?? '') : '');
-  const [body, setBody] = useState(() => (mode === 'new' ? withSignature('', signatureOf(accountId)) : ''));
+  const [body, setBody] = useState(() => (mode === 'new' ? withSignature('', sender?.signature ?? '') : ''));
   const [showCopies, setShowCopies] = useState(false);
   const [prefilled, setPrefilled] = useState(mode === 'new');
   const [sending, setSending] = useState(false);
@@ -89,7 +95,7 @@ export default function ComposeScreen() {
 
   useEffect(() => {
     if (prefilled || !original || originalBody.isLoading) return;
-    const ownAddresses = accounts.map((account) => account.email);
+    const ownAddresses = senders.map((candidate) => candidate.email);
     const content = prefill(mode, original, originalBody.data?.text ?? original.preview ?? '', ownAddresses, formatFullDate(original.receivedAt), {
       wrote: (date, author) => t('compose.wrote', { date, author }),
       forwardedHeader: t('compose.forwardedHeader'),
@@ -98,12 +104,14 @@ export default function ComposeScreen() {
       subject: t('compose.headerSubject'),
       to: t('compose.headerTo'),
     });
+    const replyFrom = replySender(senders, original);
     setAccountId(original.accountId);
+    setIdentityId(replyFrom?.key);
     setTo(content.to);
     setCc(content.cc);
     setShowCopies(content.cc.length > 0);
     setSubject(content.subject);
-    const signed = withSignature('', signatureOf(original.accountId));
+    const signed = withSignature('', (replyFrom ?? senders.find((candidate) => candidate.key === original.accountId))?.signature ?? '');
     setQuote(content.body);
     setBody(signed);
     setInitialContent(snapshot(formatAddressList(content.to), formatAddressList(content.cc), '', content.subject, signed));
@@ -116,7 +124,7 @@ export default function ComposeScreen() {
         .catch(() => Alert.alert(t('compose.forwardedAttachmentsFailed')))
         .finally(() => setForwarding(false));
     }
-  }, [prefilled, original, originalBody.isLoading, originalBody.data, accounts, mode, t, params.emailId]);
+  }, [prefilled, original, originalBody.isLoading, originalBody.data, senders, mode, t, params.emailId]);
 
   useEffect(() => {
     if (!params.shared) return;
@@ -143,11 +151,15 @@ export default function ComposeScreen() {
     return () => clearTimeout(timer);
   }, [prefilled, mode]);
 
-  const accountOptions = useMemo(
-    () => accounts.map((account) => ({ value: account.id, label: account.email, description: account.displayName })),
-    [accounts],
+  const senderOptions = useMemo(
+    () => senders.map((candidate) => ({ value: candidate.key, label: candidate.email, description: candidate.name })),
+    [senders],
   );
-  const sender = accounts.find((account) => account.id === accountId);
+  const senderItem = (candidate: Sender) => (
+    <Text key={candidate.key} modifiers={[tag(candidate.key)]}>
+      {candidate.email}
+    </Text>
+  );
   const recipientsText = (addresses: MailAddress[], text: string) => [formatAddressList(addresses), text].filter(Boolean).join(', ');
   const dirty =
     prefilled &&
@@ -155,10 +167,13 @@ export default function ComposeScreen() {
       (mode !== 'forward' && attachments.length > 0));
   const hasRecipient = to.length + cc.length + bcc.length > 0 || (toText + ccText + bccText).trim().length > 0;
 
-  const changeAccount = (next: string) => {
-    const replaced = replaceSignature(body, signatureOf(accountId), signatureOf(next));
+  const changeSender = (key: string) => {
+    const next = senders.find((candidate) => candidate.key === key);
+    if (!next) return;
+    const replaced = replaceSignature(body, sender?.signature ?? '', next.signature);
     if (replaced !== null) setBody(replaced);
-    setAccountId(next);
+    setAccountId(next.accountId);
+    setIdentityId(next.identity?.id);
   };
 
   const attach = async (source: 'photos' | 'files') => {
@@ -210,6 +225,7 @@ export default function ComposeScreen() {
         bodyHtml: originalHtml ? textToHtml(body) + quoteHtml(mode, quote, originalHtml) : undefined,
         inReplyToEmailId: mode === 'reply' || mode === 'replyAll' ? params.emailId : undefined,
         attachments: attachments.map(({ path, filename, mimeType }) => ({ path, filename, mimeType })),
+        from: sender?.identity ? { name: sender.name, email: sender.email } : undefined,
       });
       goBack();
       showToast({ label: t('compose.messageSent'), moves: [] });
@@ -277,20 +293,22 @@ export default function ComposeScreen() {
                           </HStack>
                         }
                       >
-                        <Picker selection={accountId} onSelectionChange={(next) => changeAccount(next as string)}>
-                          {accountOptions.map((option) => (
-                            <Text key={option.value} modifiers={[tag(option.value)]}>
-                              {option.label}
-                            </Text>
-                          ))}
+                        <Picker selection={sender?.key} onSelectionChange={(next) => changeSender(next as string)}>
+                          {senders.length > accounts.length
+                            ? accounts.map((account) => (
+                                <Section key={account.id} title={accountName(account, accountNames)}>
+                                  {senders.filter((candidate) => candidate.accountId === account.id).map(senderItem)}
+                                </Section>
+                              ))
+                            : senders.map(senderItem)}
                         </Picker>
                       </Menu>
                     </Host>
                   ) : (
                     <Select
-                      value={accountId}
-                      options={accountOptions}
-                      onChange={changeAccount}
+                      value={sender?.key ?? accountId}
+                      options={senderOptions}
+                      onChange={changeSender}
                       accessibilityLabel={fieldName(t('compose.from'))}
                       trigger={
                         <View style={styles.sender}>

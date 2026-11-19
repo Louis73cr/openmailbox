@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, TextInput } from 'react-native';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import ComposeScreen from '../../app/compose';
@@ -162,6 +162,53 @@ describe('composer', () => {
       fireEvent.press(screen.getByRole('button', { name: 'From' }));
       fireEvent.press(await screen.findByText('charles@soluce.example'));
       expect(screen.getByPlaceholderText('Message').props.value).toBe('\n\n-- \nCharles, Soluce');
+    });
+  });
+
+  describe('identities', () => {
+    const support = { id: 'identity-1', name: 'Support', email: 'info@example.com', signature: 'Support team' };
+
+    beforeEach(() => {
+      useSettingsStore.setState({ signatures: { 'account-1': 'Alice' }, identities: { 'account-1': [support] } });
+    });
+
+    async function sendTo(address: string) {
+      fireEvent.changeText(screen.getByLabelText('To'), address);
+      await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
+      await waitFor(() => expect(core.send).toHaveBeenCalled());
+      return core.send.mock.calls[0][0];
+    }
+
+    it('sends from the picked identity with its signature', async () => {
+      renderWithProviders(<ComposeScreen />);
+      fireEvent.press(screen.getByText(/Cc\/Bcc/));
+      fireEvent.press(screen.getByRole('button', { name: 'From' }));
+      fireEvent.press(await screen.findByText('info@example.com'));
+      expect(screen.getByPlaceholderText('Message').props.value).toBe('\n\n-- \nSupport team');
+      expect((await sendTo('bob@example.org')).from).toEqual({ name: 'Support', email: 'info@example.com' });
+    });
+
+    it("sends from the account's own address without a sender", async () => {
+      renderWithProviders(<ComposeScreen />);
+      expect((await sendTo('bob@example.org')).from).toBeUndefined();
+    });
+
+    it('replies from the identity the original was sent to, leaving it out of the recipients', async () => {
+      mockParams = { mode: 'replyAll', emailId: 'email-1', threadId: 'thread-1', mailboxId: 'mailbox-inbox' };
+      core.threadEmails.mockResolvedValue([
+        makeEmail({ to: [{ name: undefined, email: 'INFO@example.com' }, { name: 'Carol', email: 'carol@example.org' }] }),
+      ]);
+      core.body.mockResolvedValue({ text: 'Bonjour', hasRemoteContent: false, attachments: [] });
+      Object.assign(TextInput.prototype, { setSelection: jest.fn() });
+      renderWithProviders(<ComposeScreen />);
+
+      expect(await screen.findByText('Cc/Bcc, From: info@example.com')).toBeOnTheScreen();
+      expect(screen.getByPlaceholderText('Message').props.value).toBe('\n\n-- \nSupport team');
+      await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
+      await waitFor(() => expect(core.send).toHaveBeenCalled());
+      const draft = core.send.mock.calls[0][0];
+      expect(draft.from).toEqual({ name: 'Support', email: 'info@example.com' });
+      expect(draft.to.map((address: { email: string }) => address.email)).toEqual(['claire@atlas.example', 'carol@example.org']);
     });
   });
 });
