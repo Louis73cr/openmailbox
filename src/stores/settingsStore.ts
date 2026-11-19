@@ -8,6 +8,13 @@ import { getInitialLanguage, type AppLanguage } from '@/utils/i18n';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
+export type Identity = { id: string; name: string; email: string; signature: string };
+
+function withIdentities(identities: Record<string, Identity[]>, accountId: string, list: Identity[]): Record<string, Identity[]> {
+  const { [accountId]: _previous, ...others } = identities;
+  return list.length > 0 ? { ...others, [accountId]: list } : others;
+}
+
 function withText(texts: Record<string, string>, accountId: string, text: string): Record<string, string> {
   const { [accountId]: _previous, ...others } = texts;
   return text.trim() ? { ...others, [accountId]: text } : others;
@@ -23,6 +30,7 @@ interface SettingsState {
   defaultAccountId: string | null;
   signatures: Record<string, string>;
   accountNames: Record<string, string>;
+  identities: Record<string, Identity[]>;
   notificationsEnabled: boolean;
   silencedAccountIds: string[];
   inboxFilter: InboxFilter;
@@ -39,6 +47,8 @@ interface SettingsState {
   setDefaultAccountId: (accountId: string | null) => void;
   setSignature: (accountId: string, signature: string) => void;
   setAccountName: (accountId: string, name: string) => void;
+  saveIdentity: (accountId: string, identity: Identity) => void;
+  removeIdentity: (accountId: string, identityId: string) => void;
   forgetAccount: (accountId: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   setAccountNotified: (accountId: string, notified: boolean) => void;
@@ -62,6 +72,7 @@ export const useSettingsStore = create<SettingsState>()(
       defaultAccountId: null,
       signatures: {},
       accountNames: {},
+      identities: {},
       notificationsEnabled: true,
       silencedAccountIds: [],
       inboxFilter: 'primary',
@@ -97,10 +108,23 @@ export const useSettingsStore = create<SettingsState>()(
           receivedAt > (categorySeenAt[filter] ?? 0) ? { categorySeenAt: { ...categorySeenAt, [filter]: receivedAt } } : {},
         ),
       setAccountName: (accountId, name) => set(({ accountNames }) => ({ accountNames: withText(accountNames, accountId, name) })),
+      saveIdentity: (accountId, identity) =>
+        set(({ identities }) => {
+          const list = identities[accountId] ?? [];
+          const saved = list.some((existing) => existing.id === identity.id)
+            ? list.map((existing) => (existing.id === identity.id ? identity : existing))
+            : [...list, identity];
+          return { identities: withIdentities(identities, accountId, saved) };
+        }),
+      removeIdentity: (accountId, identityId) =>
+        set(({ identities }) => ({
+          identities: withIdentities(identities, accountId, (identities[accountId] ?? []).filter((identity) => identity.id !== identityId)),
+        })),
       forgetAccount: (accountId) =>
-        set(({ signatures, accountNames, silencedAccountIds, collapsedIds, accountOrder, filterCriteria }) => ({
+        set(({ signatures, accountNames, identities, silencedAccountIds, collapsedIds, accountOrder, filterCriteria }) => ({
           signatures: withText(signatures, accountId, ''),
           accountNames: withText(accountNames, accountId, ''),
+          identities: withIdentities(identities, accountId, []),
           silencedAccountIds: silencedAccountIds.filter((silenced) => silenced !== accountId),
           collapsedIds: collapsedIds.filter((collapsed) => collapsed !== accountId),
           accountOrder: accountOrder.filter((ordered) => ordered !== accountId),
@@ -123,6 +147,7 @@ export const useSettingsStore = create<SettingsState>()(
         defaultAccountId,
         signatures,
         accountNames,
+        identities,
         notificationsEnabled,
         silencedAccountIds,
         inboxFilter,
@@ -141,6 +166,7 @@ export const useSettingsStore = create<SettingsState>()(
         defaultAccountId,
         signatures,
         accountNames,
+        identities,
         notificationsEnabled,
         silencedAccountIds,
         inboxFilter,

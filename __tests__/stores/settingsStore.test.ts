@@ -25,6 +25,25 @@ describe('settings store', () => {
     });
   });
 
+  it('persists identities and forgets them with their account', () => {
+    const support = { id: 'identity-1', name: 'Support', email: 'info@example.com', signature: '' };
+    const contact = { id: 'identity-2', name: '', email: 'contact@example.com', signature: 'Contact' };
+    const { saveIdentity, removeIdentity, forgetAccount } = useSettingsStore.getState();
+    saveIdentity('account-1', support);
+    saveIdentity('account-1', contact);
+    saveIdentity('account-1', { ...support, name: 'Help Desk' });
+    removeIdentity('account-1', 'identity-2');
+    const saved = () => JSON.parse(storage.getString('settings-store') ?? '{}').state.identities;
+    expect(saved()).toEqual({ 'account-1': [{ ...support, name: 'Help Desk' }] });
+
+    removeIdentity('account-1', 'identity-1');
+    expect(saved()).toEqual({});
+
+    saveIdentity('account-1', contact);
+    forgetAccount('account-1');
+    expect(saved()).toEqual({});
+  });
+
   it('keeps the mailbox filter off with unread mail as its criterion', () => {
     expect(useSettingsStore.getState().filterEnabled).toBe(false);
     expect(useSettingsStore.getState().filterCriteria.unread).toBe(true);

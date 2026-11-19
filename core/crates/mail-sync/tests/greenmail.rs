@@ -38,6 +38,7 @@ fn draft(
         body_html: None,
         in_reply_to_email_id,
         attachments: vec![],
+        from: None,
     }
 }
 

@@ -414,7 +414,8 @@ export type Draft = {
     bodyText: string,
     bodyHtml?: string,
     inReplyToEmailId?: string,
-    attachments: Array<OutgoingAttachment>
+    attachments: Array<OutgoingAttachment>,
+    from?: Address
 }
 
 /**
@@ -446,7 +447,8 @@ const FfiConverterTypeDraft = (() => {
                 bodyText: FfiConverterString.readFromCursor(c), 
                 bodyHtml: FfiConverterOptionalString.readFromCursor(c), 
                 inReplyToEmailId: FfiConverterOptionalString.readFromCursor(c), 
-                attachments: FfiConverterSequenceTypeOutgoingAttachment.readFromCursor(c)
+                attachments: FfiConverterSequenceTypeOutgoingAttachment.readFromCursor(c), 
+                from: FfiConverterOptionalTypeAddress.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -459,6 +461,7 @@ const FfiConverterTypeDraft = (() => {
             FfiConverterOptionalString.writeIntoCursor(value.bodyHtml, c);
             FfiConverterOptionalString.writeIntoCursor(value.inReplyToEmailId, c);
             FfiConverterSequenceTypeOutgoingAttachment.writeIntoCursor(value.attachments, c);
+            FfiConverterOptionalTypeAddress.writeIntoCursor(value.from, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.accountId) +
@@ -469,7 +472,8 @@ const FfiConverterTypeDraft = (() => {
              FfiConverterString.allocationSize(value.bodyText) +
              FfiConverterOptionalString.allocationSize(value.bodyHtml) +
              FfiConverterOptionalString.allocationSize(value.inReplyToEmailId) +
-             FfiConverterSequenceTypeOutgoingAttachment.allocationSize(value.attachments);
+             FfiConverterSequenceTypeOutgoingAttachment.allocationSize(value.attachments) +
+             FfiConverterOptionalTypeAddress.allocationSize(value.from);
             
         }
     };
@@ -3708,6 +3712,9 @@ const FfiConverterSequenceTypeAddress = new FfiConverterArray(FfiConverterTypeAd
 
 // FfiConverter for Array<OutgoingAttachment>
 const FfiConverterSequenceTypeOutgoingAttachment = new FfiConverterArray(FfiConverterTypeOutgoingAttachment);
+
+// FfiConverter for Address | undefined
+const FfiConverterOptionalTypeAddress = new FfiConverterOptional(FfiConverterTypeAddress);
 
 // FfiConverter for MailboxRole | undefined
 const FfiConverterOptionalTypeMailboxRole = new FfiConverterOptional(FfiConverterTypeMailboxRole);

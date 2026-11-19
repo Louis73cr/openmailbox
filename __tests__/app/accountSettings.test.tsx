@@ -47,6 +47,18 @@ describe('account settings', () => {
     expect(core.renameAccount).not.toHaveBeenCalled();
   });
 
+  it('lists sender identities and opens them', () => {
+    useSettingsStore.setState({ identities: { 'account-1': [{ id: 'identity-1', name: 'Support', email: 'info@example.com', signature: '' }] } });
+    renderWithProviders(<AccountSettingsScreen />);
+    fireEvent.press(screen.getByText('info@example.com'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith({
+      pathname: '/settings/identity',
+      params: { accountId: 'account-1', identityId: 'identity-1' },
+    });
+    fireEvent.press(screen.getByText('Add Identity'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/settings/identity', params: { accountId: 'account-1' } });
+  });
+
   it('changes the sender name when its field is left', () => {
     renderWithProviders(<AccountSettingsScreen />);
     const name = screen.getByLabelText('Sender Name');
