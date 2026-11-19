@@ -15,6 +15,20 @@ describe('highlightParts', () => {
   it('leaves words matching inside, not at their start', () => {
     expect(highlightParts('contest', 'test')).toEqual([{ text: 'contest', match: false }]);
   });
+
+  it('highlights a word anywhere in text written without spaces', () => {
+    expect(highlightParts('会議のお知らせ、ＰＤＦ資料', 'お知らせ pdf')).toEqual([
+      { text: '会議の', match: false },
+      { text: 'お知らせ', match: true },
+      { text: '、', match: false },
+      { text: 'ＰＤＦ', match: true },
+      { text: '資料', match: false },
+    ]);
+    expect(highlightParts('สวัสดีชาวโลก', 'โลก')).toEqual([
+      { text: 'สวัสดีชาว', match: false },
+      { text: 'โลก', match: true },
+    ]);
+  });
 });
 
 describe('snippetAround', () => {

@@ -81,6 +81,12 @@ impl Engine {
             .map_err(|error| Error::Storage(error.to_string()))?;
         let store = Arc::new(Store::open(&data_directory.join("mail.db"))?);
         store.reset_in_flight_operations(None)?;
+        let indexer = store.clone();
+        runtime.spawn_blocking(move || {
+            while indexer.index_text_without_spaces().unwrap_or(false) {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        });
         let engine = Arc::new(Engine {
             store,
             runtime,
