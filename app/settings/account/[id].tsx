@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Alert, StyleSheet, TextInput, View } from 'react-native';
-import { useLocalSearchParams, useTheme } from 'expo-router';
+import { useLocalSearchParams, useRouter, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw } from 'lucide-react-native';
+import { Plus, RefreshCw } from 'lucide-react-native';
 import { Security, type ServerEndpoint } from '@openmailbox/mail-core';
 
 import { useAccounts } from '@/core/hooks';
@@ -28,6 +28,7 @@ export default function AccountSettingsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const router = useRouter();
   const account = useAccounts().find((candidate) => candidate.id === id);
   const authRequired = useSyncStore((state) => state.authRequired[id] === true);
   const syncLabel = useSyncLabel([id]);
@@ -36,6 +37,7 @@ export default function AccountSettingsScreen() {
   const [password, setPassword] = useState('');
   const signature = useSettingsStore((state) => state.signatures[id] ?? '');
   const setSignature = useSettingsStore((state) => state.setSignature);
+  const identities = useSettingsStore((state) => state.identities[id]) ?? [];
   const accountNames = useSettingsStore((state) => state.accountNames);
   const setAccountName = useSettingsStore((state) => state.setAccountName);
   const [updating, setUpdating] = useState(false);
@@ -138,6 +140,23 @@ export default function AccountSettingsScreen() {
           multiline
           textAlignVertical="top"
           style={[styles.signature, { color: colors.text }]}
+        />
+      </FormSection>
+
+      <FormSection title={t('accounts.identities')} footer={t('accounts.identitiesHint')}>
+        {identities.map((identity) => (
+          <ListRow
+            key={identity.id}
+            title={identity.email}
+            subtitle={identity.name || undefined}
+            onPress={() => router.push({ pathname: '/settings/identity', params: { accountId: account.id, identityId: identity.id } })}
+          />
+        ))}
+        <ListRow
+          title={t('accounts.addIdentity')}
+          leading={<Plus size={20} color={colors.primary} />}
+          chevron={false}
+          onPress={() => router.push({ pathname: '/settings/identity', params: { accountId: account.id } })}
         />
       </FormSection>
 
