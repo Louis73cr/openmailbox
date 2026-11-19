@@ -56,20 +56,22 @@ search, menus and long-press previews, in light and dark mode.
 ## 📥 Download
 
 <p>
-  <a href="https://github.com/SoluceTechnologies/openmailbox/releases/latest">
-    <img src="https://img.shields.io/badge/Download-APK-3DDC84?logo=android&logoColor=white&style=for-the-badge" alt="Download the latest APK" height="28" />
+  <a href="https://apps.apple.com/fr/app/open-mailbox/id6833550138">
+    <img src="https://img.shields.io/badge/App%20Store-Download-414141?logo=apple&logoColor=white&style=for-the-badge" alt="Get it on App Store" height="28" />
   </a>
   &nbsp;
-  <img src="https://img.shields.io/badge/App%20Store-Coming%20soon-lightgrey?logo=apple&logoColor=white&style=for-the-badge" alt="App Store: coming soon" height="28" />
-  &nbsp;
-  <a href="https://play.google.com/store/apps/details?id=com.soluce.openmailbox">
+    <a href="https://play.google.com/store/apps/details?id=com.soluce.openmailbox">
     <img src="https://img.shields.io/badge/Google%20Play-Download-414141?logo=googleplay&logoColor=white&style=for-the-badge" alt="Get it on Google Play" height="28" />
+  </a>
+  &nbsp;
+   <a href="https://github.com/SoluceTechnologies/openmailbox/releases/latest">
+    <img src="https://img.shields.io/badge/Download-APK-3DDC84?logo=android&logoColor=white&style=for-the-badge" alt="Download the latest APK" height="28" />
   </a>
 </p>
 
 - **Android**: on [Google Play](https://play.google.com/store/apps/details?id=com.soluce.openmailbox), or the APK
   attached to the [latest release](https://github.com/SoluceTechnologies/openmailbox/releases/latest).
-- **iOS**: coming soon.
+- **iOS**: on [App Store](https://apps.apple.com/fr/app/open-mailbox/id6833550138).
 
 Want early access? Beta builds are available, reach out at
 [contact@soluce-technologies.com](mailto:contact@soluce-technologies.com).
