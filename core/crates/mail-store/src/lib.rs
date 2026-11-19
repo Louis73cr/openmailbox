@@ -84,7 +84,6 @@ fn migrate(connection: &Connection) -> Result<()> {
     emails::refetch_undecoded(connection)
 }
 
-/// 0005 first shipped without `notified_email_id`; databases created then are at version 5 too.
 fn add_notified_email_id(connection: &Connection) -> Result<()> {
     let present: bool = connection
         .query_row(
