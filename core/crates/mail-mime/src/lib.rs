@@ -12,6 +12,7 @@ use mail_model::{
 use mail_parser::{AddressList, Message};
 
 mod charsets;
+mod code_pages;
 
 const PREVIEW_LENGTH: usize = 180;
 const INLINE_IMAGE_LIMIT: usize = 2 * 1024 * 1024;
