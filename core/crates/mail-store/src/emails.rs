@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 use mail_model::{
@@ -427,11 +428,19 @@ impl Store {
                     [email_id],
                 )
                 .storage()?;
+            let subject: Option<String> = transaction
+                .query_row("SELECT subject FROM email WHERE id = ?1", [email_id], |row| row.get(0))
+                .storage()?;
             transaction
                 .execute(
                     "INSERT INTO email_fts (rowid, subject, participants, body)
-                     SELECT search_key, subject, ?2, ?3 FROM email WHERE id = ?1",
-                    params![email_id, participants_of_email(transaction, email_id)?, indexed_body],
+                     SELECT search_key, ?2, ?3, ?4 FROM email WHERE id = ?1",
+                    params![
+                        email_id,
+                        subject.as_deref().map(searchable),
+                        searchable(&participants_of_email(transaction, email_id)?),
+                        searchable(&indexed_body)
+                    ],
                 )
                 .storage()?;
             Ok(())
@@ -628,9 +637,9 @@ fn insert_email(
         .storage()?
         .execute(params![
             search_key,
-            headers.subject,
-            participants,
-            headers.preview
+            headers.subject.as_deref().map(searchable),
+            searchable(&participants),
+            headers.preview.as_deref().map(searchable)
         ])
         .storage()?;
     Ok((email_id, thread_id))
@@ -767,9 +776,103 @@ fn adjust_counts(
 fn fts_query(query: &str) -> String {
     query
         .split_whitespace()
-        .map(|term| term.replace('"', ""))
+        .map(|term| searchable(&term.replace('"', "")).trim().to_owned())
         .filter(|term| !term.is_empty())
         .map(|term| format!("\"{term}\"*"))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn written_without_spaces(character: char) -> bool {
+    matches!(
+        character,
+        '\u{0E00}'..='\u{0EFF}'
+            | '\u{1000}'..='\u{109F}'
+            | '\u{1780}'..='\u{17FF}'
+            | '\u{3040}'..='\u{30FF}'
+            | '\u{31F0}'..='\u{31FF}'
+            | '\u{3400}'..='\u{4DBF}'
+            | '\u{4E00}'..='\u{9FFF}'
+            | '\u{AC00}'..='\u{D7AF}'
+            | '\u{F900}'..='\u{FAFF}'
+            | '\u{FF66}'..='\u{FF9F}'
+            | '\u{20000}'..='\u{3134F}'
+    )
+}
+
+const UNSPACED_GLOB: &str = "*[\u{0E00}-\u{0EFF}\u{1000}-\u{109F}\u{1780}-\u{17FF}\u{3040}-\u{30FF}\u{31F0}-\u{31FF}\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{AC00}-\u{D7AF}\u{F900}-\u{FAFF}\u{FF01}-\u{FF5E}\u{FF66}-\u{FF9F}\u{20000}-\u{3134F}]*";
+
+fn searchable(text: &str) -> Cow<'_, str> {
+    let full_width = |character: char| ('\u{FF01}'..='\u{FF5E}').contains(&character);
+    if !text
+        .chars()
+        .any(|character| written_without_spaces(character) || full_width(character))
+    {
+        return Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len() * 2);
+    for character in text.chars() {
+        if written_without_spaces(character) {
+            out.push(' ');
+            out.push(character);
+            out.push(' ');
+        } else if full_width(character) {
+            out.push(char::from_u32(character as u32 - 0xFEE0).unwrap_or(character));
+        } else {
+            out.push(character);
+        }
+    }
+    Cow::Owned(out)
+}
+
+pub(crate) fn index_text_without_spaces(connection: &Connection) -> Result<()> {
+    let done: bool = connection
+        .query_row(
+            "SELECT count(*) > 0 FROM store_setting WHERE key = 'search_text'",
+            [],
+            |row| row.get(0),
+        )
+        .storage()?;
+    if done {
+        return Ok(());
+    }
+    let transaction = connection.unchecked_transaction().storage()?;
+    let rows: Vec<(i64, i64, Option<String>, Option<String>)> = transaction
+        .prepare(
+            "SELECT e.id, e.search_key, e.subject, COALESCE(substr(b.text, 1, ?2), e.preview)
+             FROM email e LEFT JOIN email_body b ON b.email_id = e.id
+             WHERE e.search_key IS NOT NULL
+               AND (e.subject GLOB ?1 OR e.from_json GLOB ?1 OR e.to_json GLOB ?1
+                    OR e.cc_json GLOB ?1 OR COALESCE(b.text, e.preview) GLOB ?1)",
+        )
+        .storage()?
+        .query_map(params![UNSPACED_GLOB, INDEXED_BODY_LIMIT as i64], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .storage()?
+        .collect::<rusqlite::Result<_>>()
+        .storage()?;
+    for (email_id, search_key, subject, body) in rows {
+        transaction
+            .execute("DELETE FROM email_fts WHERE rowid = ?1", [search_key])
+            .storage()?;
+        transaction
+            .execute(
+                "INSERT INTO email_fts (rowid, subject, participants, body) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    search_key,
+                    subject.as_deref().map(searchable),
+                    searchable(&participants_of_email(&transaction, email_id)?),
+                    body.as_deref().map(searchable)
+                ],
+            )
+            .storage()?;
+    }
+    transaction
+        .execute(
+            "INSERT INTO store_setting (key, value) VALUES ('search_text', 1)",
+            [],
+        )
+        .storage()?;
+    transaction.commit().storage()
 }

@@ -234,7 +234,7 @@ impl Store {
 mod tests {
     use mail_model::{
         Address, FetchedMessage, Flags, Keyword, MailboxRole, ParsedHeaders, RemoteMailbox,
-        ThreadFilter,
+        RenderedBody, ThreadFilter,
     };
 
     use super::*;
@@ -497,6 +497,71 @@ mod tests {
         let in_inbox = store.search("subj", 10, &[inbox]).unwrap();
         assert_eq!(in_inbox.len(), 1);
         assert_eq!(in_inbox[0].mailbox_id, inbox);
+    }
+
+    #[test]
+    fn search_finds_words_inside_text_written_without_spaces() {
+        let (store, _directory, inbox, _) = setup();
+        let with = |uid: u32, subject: &str, name: &str, preview: &str| {
+            let mut message = message(uid, &format!("{uid}@x"), &[], uid as i64 * 1_000, false);
+            message.headers.subject = Some(subject.into());
+            message.headers.from[0].name = Some(name.into());
+            message.headers.preview = Some(preview.into());
+            message
+        };
+        store
+            .insert_messages(
+                "alice",
+                inbox,
+                &[
+                    with(1, "会議のお知らせ", "山田太郎", "明日は10時です"),
+                    with(2, "你好，世界。会议通知", "王伟", "ＰＤＦ資料を送ります"),
+                    with(3, "다음 회의를 시작합니다", "김민수", "안녕하세요"),
+                    with(4, "สวัสดีชาวโลก", "Somchai", "Résumé du projet"),
+                ],
+            )
+            .unwrap();
+        let found = |query: &str| -> Vec<u32> {
+            let mut uids: Vec<u32> = store
+                .search(query, 10, &[])
+                .unwrap()
+                .iter()
+                .map(|hit| hit.email.received_at as u32 / 1_000)
+                .collect();
+            uids.sort_unstable();
+            uids
+        };
+        assert_eq!(found("お知らせ"), [1]);
+        assert_eq!(found("会議"), [1]);
+        assert_eq!(found("太郎"), [1]);
+        assert_eq!(found("10時"), [1]);
+        assert_eq!(found("知会"), [0u32; 0]);
+        assert_eq!(found("会议通知"), [2]);
+        assert_eq!(found("世界"), [2]);
+        assert_eq!(found("pdf"), [2]);
+        assert_eq!(found("資料"), [2]);
+        assert_eq!(found("의를"), [3]);
+        assert_eq!(found("회의"), [3]);
+        assert_eq!(found("ชาวโลก"), [4]);
+        assert_eq!(found("โลก"), [4]);
+        assert_eq!(found("resu proj"), [4]);
+        assert_eq!(found("bob@ex"), [1, 2, 3, 4]);
+
+        let id = store.search("お知らせ", 1, &[]).unwrap()[0].email.id;
+        store
+            .save_body(
+                id,
+                &RenderedBody {
+                    html: None,
+                    text: "年末年始の営業日についてご案内します".into(),
+                    has_remote_content: false,
+                    attachments: Vec::new(),
+                    unsubscribe: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(found("営業日"), [1]);
+        assert_eq!(found("お知らせ"), [1]);
     }
 
     fn unread_only() -> ThreadFilter {
