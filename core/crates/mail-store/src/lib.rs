@@ -81,8 +81,7 @@ fn migrate(connection: &Connection) -> Result<()> {
     migrate_with(connection, MIGRATIONS)?;
     add_notified_email_id(connection)?;
     categories::classify_again(connection)?;
-    emails::refetch_undecoded(connection)?;
-    emails::index_text_without_spaces(connection)
+    emails::refetch_undecoded(connection)
 }
 
 fn add_notified_email_id(connection: &Connection) -> Result<()> {
@@ -302,6 +301,9 @@ mod search_text_tests {
                 .unwrap();
         }
         let store = Store::open(&path).unwrap();
+        assert!(store.search("お知らせ", 10, &[]).unwrap().is_empty());
+        while store.index_text_without_spaces().unwrap() {}
+        assert!(!store.index_text_without_spaces().unwrap());
         assert_eq!(store.search("お知らせ", 10, &[]).unwrap()[0].email.id, 7);
         assert_eq!(store.search("太郎", 10, &[]).unwrap()[0].email.id, 7);
         assert_eq!(store.search("10時", 10, &[]).unwrap()[0].email.id, 7);
