@@ -4,7 +4,7 @@ use mail_model::{
     Address, Category, Error, FetchedMessage, Flags, Keyword, NewMessage, RenderedBody, Result,
     SearchHit, now_millis,
 };
-use rusqlite::{OptionalExtension, Transaction, params, params_from_iter};
+use rusqlite::{Connection, OptionalExtension, Transaction, params, params_from_iter};
 
 use crate::categories::category_of;
 use crate::correspondents::record_received;
@@ -698,6 +698,53 @@ fn remove_orphans(transaction: &Transaction, email_ids: &[i64]) -> Result<()> {
         delete.execute([email_id]).storage()?;
     }
     refresh_threads(transaction, &touched_threads)
+}
+
+pub(crate) fn refetch_undecoded(connection: &Connection) -> Result<()> {
+    let done: bool = connection
+        .query_row(
+            "SELECT count(*) > 0 FROM store_setting WHERE key = 'decoder'",
+            [],
+            |row| row.get(0),
+        )
+        .storage()?;
+    if done {
+        return Ok(());
+    }
+    let transaction = connection.unchecked_transaction().storage()?;
+    let unlinked: Vec<(i64, i64)> = transaction
+        .prepare(
+            r"DELETE FROM email_mailbox WHERE email_id IN (
+                SELECT id FROM email WHERE
+                  instr(subject, char(65533)) OR instr(subject, char(27))
+                  OR instr(preview, char(65533)) OR instr(preview, char(27))
+                  OR instr(from_json, char(65533)) OR instr(from_json, '\u001b')
+                  OR instr(to_json, char(65533)) OR instr(to_json, '\u001b'))
+              RETURNING email_id, mailbox_id",
+        )
+        .storage()?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .storage()?
+        .collect::<rusqlite::Result<_>>()
+        .storage()?;
+    let mut email_ids: Vec<i64> = unlinked.iter().map(|(email_id, _)| *email_id).collect();
+    email_ids.sort_unstable();
+    email_ids.dedup();
+    remove_orphans(&transaction, &email_ids)?;
+    let mut unsynced = transaction
+        .prepare("UPDATE mailbox SET synced_at = NULL WHERE id = ?1")
+        .storage()?;
+    for (_, mailbox_id) in &unlinked {
+        unsynced.execute([mailbox_id]).storage()?;
+    }
+    drop(unsynced);
+    transaction
+        .execute(
+            "INSERT INTO store_setting (key, value) VALUES ('decoder', 1)",
+            [],
+        )
+        .storage()?;
+    transaction.commit().storage()
 }
 
 fn adjust_counts(

@@ -9,7 +9,10 @@ use lettre::message::{
 use mail_model::{
     Address, Attachment, Error, ParsedHeaders, RenderedBody, Result, SendingSignals, Unsubscribe,
 };
-use mail_parser::{AddressList, Message, MessageParser};
+use mail_parser::{AddressList, Message};
+
+mod charsets;
+mod code_pages;
 
 const PREVIEW_LENGTH: usize = 180;
 const INLINE_IMAGE_LIMIT: usize = 2 * 1024 * 1024;
@@ -51,7 +54,7 @@ pub fn parse_summary(header: &[u8], partial_text: &[u8]) -> ParsedHeaders {
         raw.extend_from_slice(b"\r\n");
     }
     raw.extend_from_slice(partial_text);
-    let Some(message) = MessageParser::default().parse(&raw) else {
+    let Some(message) = charsets::parse(&raw) else {
         return ParsedHeaders::default();
     };
     let is_mixed = message.content_type().is_some_and(|content_type| {
@@ -76,9 +79,9 @@ pub fn parse_summary(header: &[u8], partial_text: &[u8]) -> ParsedHeaders {
         reply_to: addresses(message.reply_to()),
         date: message.date().map(|date| date.to_timestamp() * 1000),
         has_attachment: is_mixed || (!partial_text.is_empty() && message.has_attachments()),
-        preview: message
-            .body_preview(PREVIEW_LENGTH * 2)
-            .map(|preview| normalize_whitespace(&preview, PREVIEW_LENGTH)),
+        preview: message.body_preview(PREVIEW_LENGTH * 2).map(|preview| {
+            normalize_whitespace(preview.trim_end_matches('\u{fffd}'), PREVIEW_LENGTH)
+        }),
         signals: sending_signals(&message),
     }
 }
@@ -162,9 +165,7 @@ fn normalize_whitespace(text: &str, max_characters: usize) -> String {
 }
 
 pub fn render(raw: &[u8]) -> Result<RenderedBody> {
-    let message = MessageParser::default()
-        .parse(raw)
-        .ok_or_else(|| Error::Server("unreadable message".into()))?;
+    let message = charsets::parse(raw).ok_or_else(|| Error::Server("unreadable message".into()))?;
     let has_html = message
         .html_body()
         .any(|part| part.is_content_type("text", "html"));
@@ -284,7 +285,7 @@ fn references_remote_content(html: &str) -> bool {
 }
 
 pub fn attachment(raw: &[u8], index: u32) -> Option<(String, Vec<u8>)> {
-    let message = MessageParser::default().parse(raw)?;
+    let message = charsets::parse(raw)?;
     let part = message.attachments().nth(index as usize)?;
     let filename = part
         .attachment_name()
@@ -411,6 +412,33 @@ Content-Type: multipart/alternative; boundary=\"b\"\r\n\r\n";
         assert_eq!(headers.in_reply_to.as_deref(), Some("middle@example.com"));
         assert_eq!(headers.preview.as_deref(), Some("Bonjour Bob, voici le"));
         assert!(!headers.has_attachment);
+    }
+
+    #[test]
+    fn summary_decodes_multi_byte_charsets() {
+        let header =
+            b"From: =?ISO-2022-JP?B?GyRCOzNFRBsoQiAbJEJCQE86GyhC?= <yamada@example.jp>\r\n\
+Subject: =?ISO-2022-JP?B?GyRCMnE1RCROJCpDTiRpJDsbKEI=?=\r\n\
+Content-Type: text/plain; charset=ISO-2022-JP\r\n\r\n";
+        let headers = parse_summary(header, b"\x1b$BL@F|$O\x1b(B10\x1b$B;~$G$9!#\x1b(B");
+        assert_eq!(headers.from[0].name.as_deref(), Some("山田 太郎"));
+        assert_eq!(headers.subject.as_deref(), Some("会議のお知らせ"));
+        assert_eq!(headers.preview.as_deref(), Some("明日は10時です。"));
+
+        let header = b"Content-Type: text/plain; charset=Shift_JIS\r\n\r\n";
+        let headers = parse_summary(
+            header,
+            b"\x90\xbf\x8b\x81\x8f\x91\x82\xcc\x82\xb2\x88\xc4\x93\xe0",
+        );
+        assert_eq!(headers.preview.as_deref(), Some("請求書のご案内"));
+
+        let header = b"Content-Type: text/plain; charset=ks_c_5601-1987\r\nContent-Transfer-Encoding: base64\r\n\r\n";
+        let headers = parse_summary(header, b"yLjAxyDAz8GkIL7Is7s=");
+        assert_eq!(headers.preview.as_deref(), Some("회의 일정 안내"));
+
+        let header = b"Content-Type: text/plain; charset=gbk\r\n\r\n";
+        let headers = parse_summary(header, b"\xc4\xe3\xba\xc3\xc4");
+        assert_eq!(headers.preview.as_deref(), Some("你好"));
     }
 
     #[test]
