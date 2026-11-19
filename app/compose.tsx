@@ -3,18 +3,17 @@ import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInp
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { HStack, Host, Image, Menu, Picker, Section, Text } from '@expo/ui/swift-ui';
+import { HStack, Host, Image, Menu, Picker, Text } from '@expo/ui/swift-ui';
 import { foregroundStyle, frame, lineLimit, tag } from '@expo/ui/swift-ui/modifiers';
 import { ArrowUp, ChevronDown, FolderOpen, Images, Paperclip, X } from 'lucide-react-native';
 
 import { sendDraft } from '@/core/actions';
 import { useAccounts, useBody, useThreadEmails } from '@/core/hooks';
-import { accountName } from '@/features/accounts/accountName';
 import { canAdd, forwardedAttachments, pickAttachments, type ComposerAttachment } from '@/features/composer/attachments';
 import { AttachmentList } from '@/features/composer/components/AttachmentList';
 import { RecipientField } from '@/features/composer/components/RecipientField';
 import { composeTitleKey, prefill, quoteHtml, textToHtml, type ComposeMode } from '@/features/composer/prefill';
-import { replySender, sendersOf, type Sender } from '@/features/composer/senders';
+import { replySender, sendersOf } from '@/features/composer/senders';
 import { readSharedContent } from '@/features/composer/shared';
 import { HtmlBody } from '@/features/reader/components/HtmlBody';
 import { replaceSignature, withSignature } from '@/features/composer/signature';
@@ -71,7 +70,6 @@ export default function ComposeScreen() {
   }, [accounts]);
   const signatures = useSettingsStore((state) => state.signatures);
   const identities = useSettingsStore((state) => state.identities);
-  const accountNames = useSettingsStore((state) => state.accountNames);
   const senders = useMemo(() => sendersOf(accounts, identities, signatures), [accounts, identities, signatures]);
   const sender = senders.find((candidate) => candidate.key === identityId) ?? senders.find((candidate) => candidate.key === accountId);
   const [to, setTo] = useState<MailAddress[]>(() => (params.to ? [{ email: params.to }] : []));
@@ -154,11 +152,6 @@ export default function ComposeScreen() {
   const senderOptions = useMemo(
     () => senders.map((candidate) => ({ value: candidate.key, label: candidate.email, description: candidate.name })),
     [senders],
-  );
-  const senderItem = (candidate: Sender) => (
-    <Text key={candidate.key} modifiers={[tag(candidate.key)]}>
-      {candidate.email}
-    </Text>
   );
   const recipientsText = (addresses: MailAddress[], text: string) => [formatAddressList(addresses), text].filter(Boolean).join(', ');
   const dirty =
@@ -294,13 +287,11 @@ export default function ComposeScreen() {
                         }
                       >
                         <Picker selection={sender?.key} onSelectionChange={(next) => changeSender(next as string)}>
-                          {senders.length > accounts.length
-                            ? accounts.map((account) => (
-                                <Section key={account.id} title={accountName(account, accountNames)}>
-                                  {senders.filter((candidate) => candidate.accountId === account.id).map(senderItem)}
-                                </Section>
-                              ))
-                            : senders.map(senderItem)}
+                          {senders.map((candidate) => (
+                            <Text key={candidate.key} modifiers={[tag(candidate.key)]}>
+                              {candidate.email}
+                            </Text>
+                          ))}
                         </Picker>
                       </Menu>
                     </Host>
