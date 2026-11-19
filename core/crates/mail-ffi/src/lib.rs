@@ -242,6 +242,7 @@ pub struct Draft {
     pub body_html: Option<String>,
     pub in_reply_to_email_id: Option<String>,
     pub attachments: Vec<OutgoingAttachment>,
+    pub from: Option<Address>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -947,6 +948,7 @@ impl MailCore {
                     mime_type: attachment.mime_type,
                 })
                 .collect(),
+            from: draft.from.map(Into::into),
         };
         self.blocking(move |engine| engine.send(draft)).await
     }

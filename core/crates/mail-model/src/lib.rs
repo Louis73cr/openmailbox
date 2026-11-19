@@ -318,6 +318,7 @@ pub struct Draft {
     pub body_html: Option<String>,
     pub in_reply_to_email_id: Option<i64>,
     pub attachments: Vec<OutgoingAttachment>,
+    pub from: Option<Address>,
 }
 
 #[derive(Debug, Clone)]

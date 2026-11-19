@@ -465,7 +465,11 @@ impl Engine {
             .in_reply_to_email_id
             .map(|email_id| self.store.reply_context(email_id))
             .transpose()?;
-        let domain = account
+        let from = draft.from.clone().unwrap_or_else(|| Address {
+            name: Some(account.display_name.clone()),
+            email: account.email.clone(),
+        });
+        let domain = from
             .email
             .rsplit_once('@')
             .map(|(_, domain)| domain)
@@ -480,10 +484,6 @@ impl Engine {
                 .as_ref()
                 .and_then(|context| context.message_id.clone()),
         );
-        let from = Address {
-            name: Some(account.display_name.clone()),
-            email: account.email.clone(),
-        };
         let built = mail_mime::build_message(OutgoingMessage {
             message_id: &message_id,
             from: &from,
@@ -572,6 +572,7 @@ impl Engine {
             body_html: None,
             in_reply_to_email_id: None,
             attachments: vec![],
+            from: None,
         })
     }
 
@@ -1140,6 +1141,7 @@ mod tests {
             body_html: None,
             in_reply_to_email_id: None,
             attachments,
+            from: None,
         }
     }
 
@@ -1207,6 +1209,34 @@ mod tests {
         let rendered = mail_mime::render(raw.as_bytes()).unwrap();
         assert_eq!(rendered.attachments[0].filename, "plan.pdf");
         assert_eq!(rendered.attachments[0].size, 2_048);
+    }
+
+    #[test]
+    fn send_from_an_identity_uses_it_as_sender_and_envelope() {
+        let fixture = Fixture::new(STANDARD);
+        let mut draft = draft_with(vec![]);
+        draft.from = Some(Address {
+            name: Some("Support".into()),
+            email: "info@shop.example".into(),
+        });
+        fixture.engine.send(draft).unwrap();
+        let queued = fixture
+            .engine
+            .store
+            .waiting_operations("alice", "send")
+            .unwrap();
+        let Operation::Send {
+            raw, envelope_from, ..
+        } = serde_json::from_str(&queued[0].payload).unwrap()
+        else {
+            panic!("not a send");
+        };
+        assert_eq!(envelope_from, "info@shop.example");
+        assert!(raw.contains("From: Support <info@shop.example>"));
+        assert!(
+            raw.lines()
+                .any(|line| line.starts_with("Message-ID:") && line.ends_with("@shop.example>"))
+        );
     }
 
     fn newsletter(fixture: &Fixture, unsubscribe: Unsubscribe) -> i64 {
