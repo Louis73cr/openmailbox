@@ -16,6 +16,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   router: { back: () => mockRouter.back(), replace: (href: string) => mockRouter.replace(href), canGoBack: () => true },
   useLocalSearchParams: () => mockParams,
+  useFocusEffect: (effect: () => void) => jest.requireActual('react').useEffect(effect, [effect]),
 }));
 
 const FIRST = makeEmail({ id: 'email-1', isSeen: true, receivedAt: NOW - 7_200_000, preview: 'Bonjour à tous.' });

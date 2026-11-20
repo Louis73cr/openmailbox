@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useIsPreview, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
+import { Stack, useFocusEffect, useIsPreview, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ellipsis, Flag, FolderInput, Forward, Reply, ReplyAll, Trash2 } from 'lucide-react-native';
 import { Category, Keyword, type ThreadSummary } from '@openmailbox/mail-core';
@@ -80,11 +80,13 @@ export default function ThreadScreen() {
     }
   }, [emails, expanded]);
 
-  useEffect(() => {
-    if (unreadIds.length === 0 || isPreview) return;
-    const markRead = reference ? setThreadRead(reference, true) : mailCore().setKeywords(unreadIds, [Keyword.Seen], []);
-    markRead.catch(() => undefined);
-  }, [unreadKey]);
+  useFocusEffect(
+    useCallback(() => {
+      if (unreadIds.length === 0 || isPreview) return;
+      const markRead = reference ? setThreadRead(reference, true) : mailCore().setKeywords(unreadIds, [Keyword.Seen], []);
+      markRead.catch(() => undefined);
+    }, [unreadKey, isPreview]),
+  );
 
   const toggle = useCallback((emailId: string) => {
     setExpanded((current) => {
