@@ -15,6 +15,7 @@ import { CategoryPicker } from '@/features/categories/CategoryPicker';
 import { MailboxPicker } from '@/features/mailboxes/components/MailboxPicker';
 import { mailboxName } from '@/features/mailboxes/mailboxPresentation';
 import { MessageCard } from '@/features/reader/components/MessageCard';
+import { SubjectTitle } from '@/features/reader/components/SubjectTitle';
 import type { ComposeMode } from '@/features/composer/prefill';
 import { ThreadActionSheet } from '@/features/threads/components/ThreadActionSheet';
 import { THREAD_ACTION_PRESENTATION, type ThreadActionId } from '@/features/threads/threadActions';
@@ -43,7 +44,6 @@ export default function ThreadScreen() {
   const emails = useMemo(() => emailsQuery.data ?? [], [emailsQuery.data]);
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
   const [replyMenuVisible, setReplyMenuVisible] = useState(false);
-  const [fullSubject, setFullSubject] = useState(false);
   const [sheetVisible, setSheetVisible] = useState(false);
   const [moving, setMoving] = useState<ThreadSummary | null>(null);
   const [categorizing, setCategorizing] = useState<ThreadSummary | null>(null);
@@ -186,14 +186,7 @@ export default function ThreadScreen() {
             contentContainerStyle={[styles.content, { backgroundColor: colors.card }]}
           >
             <View style={styles.titleBlock}>
-              <Typography
-                variant="h4"
-                numberOfLines={fullSubject ? undefined : 3}
-                accessibilityState={{ expanded: fullSubject }}
-                onPress={() => setFullSubject((full) => !full)}
-              >
-                {latest?.subject || t('reader.noSubject')}
-              </Typography>
+              <SubjectTitle subject={latest?.subject || t('reader.noSubject')} />
               {mailbox ? (
                 <Typography variant="caption" color={colors.textSecondary} style={styles.mailbox}>
                   {mailboxName(mailbox, t)}
