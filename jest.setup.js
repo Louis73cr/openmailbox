@@ -157,10 +157,12 @@ jest.mock('react-native-webview', () => {
 jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
   const React = require('react');
   const { View } = require('react-native');
+  const translation = { value: 0 };
   return {
     __esModule: true,
+    SwipeDirection: { LEFT: 'left', RIGHT: 'right' },
     default: React.forwardRef(function Swipeable({ children, renderLeftActions, renderRightActions }, _reference) {
-      return React.createElement(View, null, renderLeftActions?.(), children, renderRightActions?.());
+      return React.createElement(View, null, renderLeftActions?.(translation, translation), children, renderRightActions?.(translation, translation));
     }),
   };
 });
