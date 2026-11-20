@@ -137,7 +137,9 @@
     "messageSent": "Nachricht gesendet",
     "subject": "Betreff:",
     "to": "An:",
-    "wrote": "Am {{date}} schrieb {{author}}:"
+    "wrote": "Am {{date}} schrieb {{author}}:",
+    "formatting": "Formatierung",
+    "hideFormatting": "Formatierung ausblenden"
   },
   "dates": {
     "yesterday": "Gestern"
@@ -229,6 +231,7 @@
   },
   "signature": {
     "bold": "Fett",
+    "bulletList": "Aufzählung",
     "clearFormatting": "Formatierung entfernen",
     "codePlaceholder": "HTML hier eingeben…",
     "colors": {
@@ -246,6 +249,7 @@
     "italic": "Kursiv",
     "link": "Link",
     "linkPlaceholder": "https://example.com",
+    "numberedList": "Nummerierte Liste",
     "placeholder": "Schreib deine Signatur oder füge ihren HTML-Code ein",
     "removeLink": "Link entfernen",
     "sizes": {

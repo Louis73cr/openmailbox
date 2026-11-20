@@ -18,11 +18,13 @@ const { injectJavaScript } = jest.requireMock('react-native-webview') as { injec
 const injected = () => injectJavaScript.mock.calls.map(([code]) => code).join('\n');
 const state = (patch: Record<string, unknown>) =>
   fireEvent(screen.getByTestId('web-view'), 'message', {
-    nativeEvent: { data: JSON.stringify({ type: 'state', bold: false, italic: false, underline: false, strike: false, link: null, empty: false, ...patch }) },
+    nativeEvent: { data: JSON.stringify({ type: 'state', bold: false, italic: false, underline: false, strike: false, link: null, ...patch }) },
   });
 
 const finish = (html: string, text: string) =>
   fireEvent(screen.getByTestId('web-view'), 'message', { nativeEvent: { data: JSON.stringify({ type: 'done', html, text }) } });
+const focus = (focused = true) =>
+  fireEvent(screen.getByTestId('web-view'), 'message', { nativeEvent: { data: JSON.stringify({ type: 'focus', focused }) } });
 
 describe('signature editor', () => {
   const onDone = jest.fn();
@@ -58,8 +60,18 @@ describe('signature editor', () => {
     expect(mockRouter.back).toHaveBeenCalled();
   });
 
+  it('shows the format bar only while the editor has focus', () => {
+    renderWithProviders(<SignatureScreen />);
+    expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull();
+    focus();
+    expect(screen.getByRole('button', { name: 'Bold' })).toBeOnTheScreen();
+    focus(false);
+    expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull();
+  });
+
   it('switches to the HTML code view and back, hiding the format bar while editing code', () => {
     renderWithProviders(<SignatureScreen />);
+    focus();
     fireEvent.press(screen.getByRole('button', { name: 'HTML' }));
     expect(injected()).toContain('window.editor.setMode("code")');
     expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull();
@@ -70,6 +82,7 @@ describe('signature editor', () => {
 
   it('lights up the tools for the text under the cursor', () => {
     renderWithProviders(<SignatureScreen />);
+    focus();
     expect(screen.getByRole('button', { name: 'Bold' })).not.toBeSelected();
     state({ bold: true, strike: true });
     expect(screen.getByRole('button', { name: 'Bold' })).toBeSelected();
@@ -77,8 +90,18 @@ describe('signature editor', () => {
     expect(screen.getByRole('button', { name: 'Italic' })).not.toBeSelected();
   });
 
+  it('asks for a link address in a card', () => {
+    renderWithProviders(<SignatureScreen />);
+    focus();
+    fireEvent.press(screen.getByRole('button', { name: 'Link' }));
+    fireEvent.changeText(screen.getByTestId('link-url'), 'soluce.eu');
+    fireEvent.press(screen.getByRole('button', { name: 'OK' }));
+    expect(injected()).toContain('window.editor.run("createLink", "https://soluce.eu")');
+  });
+
   it('edits or removes the link under the cursor', () => {
     renderWithProviders(<SignatureScreen />);
+    focus();
     state({ link: 'https://a.eu' });
     fireEvent.press(screen.getByRole('button', { name: 'Link' }));
     expect(screen.getByDisplayValue('https://a.eu')).toBeOnTheScreen();
@@ -88,6 +111,7 @@ describe('signature editor', () => {
 
   it('sets the text size from a sheet, the title in bold', () => {
     renderWithProviders(<SignatureScreen />);
+    focus();
     fireEvent.press(screen.getByRole('button', { name: 'Text Size' }));
     fireEvent.press(screen.getByText('Large'));
     expect(injected()).toContain('window.editor.run("size", 18)');
@@ -98,6 +122,7 @@ describe('signature editor', () => {
 
   it('colours and highlights text from the palette', () => {
     renderWithProviders(<SignatureScreen />);
+    focus();
     fireEvent.press(screen.getByRole('button', { name: 'Text Color' }));
     fireEvent.press(screen.getByRole('button', { name: 'Black' }));
     expect(injected()).toContain('window.editor.run("foreColor", "#1a1a1a")');

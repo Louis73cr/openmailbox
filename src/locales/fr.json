@@ -137,7 +137,9 @@
     "messageSent": "Message envoyé",
     "subject": "Objet :",
     "to": "À :",
-    "wrote": "Le {{date}}, {{author}} a écrit :"
+    "wrote": "Le {{date}}, {{author}} a écrit :",
+    "formatting": "Mise en forme",
+    "hideFormatting": "Masquer la mise en forme"
   },
   "dates": {
     "yesterday": "Hier"
@@ -229,6 +231,7 @@
   },
   "signature": {
     "bold": "Gras",
+    "bulletList": "Liste à puces",
     "clearFormatting": "Effacer la mise en forme",
     "codePlaceholder": "Saisissez le HTML ici…",
     "colors": {
@@ -246,6 +249,7 @@
     "italic": "Italique",
     "link": "Lien",
     "linkPlaceholder": "https://example.com",
+    "numberedList": "Liste numérotée",
     "placeholder": "Écrivez votre signature ou collez son code HTML",
     "removeLink": "Retirer le lien",
     "sizes": {

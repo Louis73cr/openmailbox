@@ -137,7 +137,9 @@
     "messageSent": "Mensaje enviado",
     "subject": "Asunto:",
     "to": "Para:",
-    "wrote": "El {{date}}, {{author}} escribió:"
+    "wrote": "El {{date}}, {{author}} escribió:",
+    "formatting": "Formato",
+    "hideFormatting": "Ocultar formato"
   },
   "dates": {
     "yesterday": "Ayer"
@@ -229,6 +231,7 @@
   },
   "signature": {
     "bold": "Negrita",
+    "bulletList": "Lista con viñetas",
     "clearFormatting": "Borrar formato",
     "codePlaceholder": "Escribe el HTML aquí…",
     "colors": {
@@ -246,6 +249,7 @@
     "italic": "Cursiva",
     "link": "Enlace",
     "linkPlaceholder": "https://example.com",
+    "numberedList": "Lista numerada",
     "placeholder": "Escribe tu firma o pega su código HTML",
     "removeLink": "Quitar enlace",
     "sizes": {

@@ -1,5 +1,5 @@
-import { Alert, TextInput } from 'react-native';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { Alert, BackHandler, InputAccessoryView, Platform } from 'react-native';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 
 import ComposeScreen from '../../app/compose';
 import { queryClient, queryKeys } from '@/core/queryClient';
@@ -25,6 +25,13 @@ jest.mock('@/features/composer/attachments', () => ({
   forwardedAttachments: jest.fn(async () => []),
 }));
 
+const { enriched } = jest.requireMock('react-native-enriched-html') as { enriched: Record<string, jest.Mock> };
+const type = (text: string) => fireEvent(screen.getByTestId('rich-body'), 'changeText', { nativeEvent: { value: text } });
+const bodyEvent = (name: string, nativeEvent?: object) => fireEvent(screen.getByTestId('rich-body'), name, nativeEvent && { nativeEvent });
+const styles = (active: string[]) =>
+  Object.fromEntries(
+    ['bold', 'italic', 'underline', 'strikeThrough', 'unorderedList', 'orderedList', 'link'].map((key) => [key, { isActive: active.includes(key), isConflicting: false, isBlocking: false }]),
+  );
 const sig = (text: string) => ({ html: text, text });
 const DEVIS = { path: '/cache/Devis.pdf', filename: 'Devis.pdf', mimeType: 'application/pdf', size: 52_224 };
 
@@ -50,6 +57,7 @@ describe('composer', () => {
     queryClient.clear();
     useSettingsStore.setState({ defaultAccountId: null, signatures: {}, sentFromFooter: false });
     queryClient.setQueryData(queryKeys.accounts, [makeAccount()]);
+    enriched.getHTML.mockResolvedValue('<html></html>');
   });
 
   describe('attachments', () => {
@@ -163,20 +171,20 @@ describe('composer', () => {
     it('keeps the body for the message and sends the signature and the linked footer below it', async () => {
       useSettingsStore.setState({ signatures: { 'account-1': CHARLES }, sentFromFooter: true });
       renderWithProviders(<ComposeScreen />);
-      expect(screen.getByPlaceholderText('Message').props.value).toBe('');
-      fireEvent.changeText(screen.getByPlaceholderText('Message'), 'Hi https://soluce.eu');
+      type('Hi https://soluce.eu');
+      enriched.getHTML.mockResolvedValue('<html>\n<p>Hi <a href="https://soluce.eu">https://soluce.eu</a></p>\n</html>');
       const draft = await sendTo('bob@example.org');
       expect(draft.bodyText).toBe(`Hi https://soluce.eu\n\n-- \nCharles\n\n${FOOTER}`);
       expect(draft.bodyHtml).toMatch(/^<div style="font-family: /);
-      expect(draft.bodyHtml).toContain('Hi <a href="https://soluce.eu">https://soluce.eu</a>');
-      expect(draft.bodyHtml).toContain('<b>Charles</b>');
+      expect(draft.bodyHtml).toContain('<p style="margin: 0">Hi <a href="https://soluce.eu">https://soluce.eu</a></p><br><br><div><b>Charles</b></div>');
       expect(draft.bodyHtml).toContain(FOOTER_LINK);
     });
 
     it('leaves the signature and the footer out once removed from the message', async () => {
       useSettingsStore.setState({ signatures: { 'account-1': CHARLES }, sentFromFooter: true });
       renderWithProviders(<ComposeScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Message'), 'Hi');
+      type('Hi');
+      enriched.getHTML.mockResolvedValue('<html><p>Hi</p></html>');
       fireEvent.press(await screen.findByRole('button', { name: 'Remove Signature' }));
       const draft = await sendTo('bob@example.org');
       expect(draft.bodyText).toBe('Hi');
@@ -198,12 +206,252 @@ describe('composer', () => {
       mockParams = { mode: 'reply', emailId: 'email-1', threadId: 'thread-1', mailboxId: 'mailbox-inbox' };
       core.threadEmails.mockResolvedValue([makeEmail()]);
       core.body.mockResolvedValue({ text: 'Bonjour', hasRemoteContent: false, attachments: [] });
-      Object.assign(TextInput.prototype, { setSelection: jest.fn() });
       renderWithProviders(<ComposeScreen />);
       await screen.findByText(/> Bonjour/);
       await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
       await waitFor(() => expect(core.send).toHaveBeenCalled());
       expect(core.send.mock.calls[0][0].bodyHtml).toContain('&gt; Bonjour');
+    });
+  });
+
+  describe('body', () => {
+    it('focuses the start of the body when replying', async () => {
+      mockParams = { mode: 'reply', emailId: 'email-1', threadId: 'thread-1', mailboxId: 'mailbox-inbox' };
+      core.threadEmails.mockResolvedValue([makeEmail()]);
+      core.body.mockResolvedValue({ text: 'Bonjour', hasRemoteContent: false, attachments: [] });
+      renderWithProviders(<ComposeScreen />);
+      await screen.findByText(/> Bonjour/);
+      await waitFor(() => expect(enriched.setSelection).toHaveBeenCalledWith(0, 0));
+      expect(enriched.focus).toHaveBeenCalled();
+    });
+
+    it('sends what was just typed', async () => {
+      renderWithProviders(<ComposeScreen />);
+      type('Hello');
+      enriched.getHTML.mockResolvedValue('<html><p>Hello</p></html>');
+      const draft = await sendTo('bob@example.org');
+      expect(draft.bodyText).toBe('Hello');
+      expect(draft.bodyHtml).toContain('<p style="margin: 0">Hello</p>');
+    });
+
+    it('asks before discarding typed text', () => {
+      const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      renderWithProviders(<ComposeScreen />);
+      type('Hi');
+      fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+      expect(alert).toHaveBeenCalledWith(i18n.t('compose.discardTitle'), undefined, expect.any(Array));
+    });
+
+    it('closes without asking once the body is emptied again', () => {
+      const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      renderWithProviders(<ComposeScreen />);
+      type('Hi');
+      type('');
+      fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+      expect(alert).not.toHaveBeenCalled();
+      expect(mockRouter.back).toHaveBeenCalled();
+    });
+  });
+
+  describe('formatting on iOS', () => {
+    it('rides on the keyboard of the body', () => {
+      renderWithProviders(<ComposeScreen />);
+      const accessory = screen.UNSAFE_getByType(InputAccessoryView);
+      expect(accessory.props.nativeID).toBe(screen.getByTestId('rich-body').props.nativeID);
+      expect(within(accessory).getByTestId('format-bar', { includeHiddenElements: true })).toBeOnTheScreen();
+    });
+
+    it('shares one keyboard accessory across the fields so the keyboard is not rebuilt', () => {
+      renderWithProviders(<ComposeScreen />);
+      const shared = screen.getByLabelText('To').props.inputAccessoryViewID;
+      expect(shared.startsWith(`${screen.getByTestId('rich-body').props.nativeID}.`)).toBe(true);
+      expect(screen.getByLabelText('Subject').props.inputAccessoryViewID).toBe(shared);
+      fireEvent.press(screen.getByText(/Cc\/Bcc/));
+      expect(screen.getByLabelText('Cc').props.inputAccessoryViewID).toBe(shared);
+      expect(screen.getByLabelText('Bcc').props.inputAccessoryViewID).toBe(shared);
+    });
+
+    it('gives each compose its own field accessory id so recycled native inputs pick it up', () => {
+      const first = renderWithProviders(<ComposeScreen />);
+      const before = screen.getByLabelText('Subject').props.inputAccessoryViewID;
+      first.unmount();
+      renderWithProviders(<ComposeScreen />);
+      expect(screen.getByLabelText('Subject').props.inputAccessoryViewID).not.toBe(before);
+    });
+
+    it('edits the link in a card that keeps the keyboard bar, hidden', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      bodyEvent('changeSelection', { start: 0, end: 5, text: 'Hello' });
+      fireEvent.press(screen.getByRole('button', { name: 'Link' }));
+      bodyEvent('blur');
+      const fields = screen.getByLabelText('Subject').props.inputAccessoryViewID;
+      const first = screen.getByTestId('link-url').props.inputAccessoryViewID;
+      expect(first.startsWith(`${fields}.`)).toBe(true);
+      expect(screen.getByTestId('format-bar', { includeHiddenElements: true })).toHaveProp('pointerEvents', 'none');
+      fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Link' }));
+      expect(screen.getByTestId('link-url').props.inputAccessoryViewID).not.toBe(first);
+      fireEvent.changeText(screen.getByTestId('link-url'), 'soluce.eu');
+      fireEvent.press(screen.getByRole('button', { name: 'OK' }));
+      expect(enriched.setLink).toHaveBeenCalledWith(0, 5, 'Hello', 'https://soluce.eu');
+      expect(enriched.focus).toHaveBeenCalled();
+    });
+
+    it('hides the bar while another field has the keyboard', () => {
+      renderWithProviders(<ComposeScreen />);
+      const bar = () => screen.getByTestId('format-bar', { includeHiddenElements: true });
+      expect(bar()).toHaveProp('pointerEvents', 'none');
+      bodyEvent('focus');
+      expect(bar()).toHaveProp('pointerEvents', 'box-none');
+      bodyEvent('blur');
+      expect(bar()).toHaveProp('pointerEvents', 'none');
+    });
+  });
+
+  describe('formatting', () => {
+    beforeEach(() => jest.replaceProperty(Platform, 'OS', 'android'));
+
+    it('shows the format button only while writing the body', () => {
+      renderWithProviders(<ComposeScreen />);
+      expect(screen.queryByRole('button', { name: 'Formatting' })).toBeNull();
+      bodyEvent('focus');
+      expect(screen.getByRole('button', { name: 'Formatting' })).toBeOnTheScreen();
+      bodyEvent('blur');
+      expect(screen.queryByRole('button', { name: 'Formatting' })).toBeNull();
+    });
+
+    it('expands and collapses the tools', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull();
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      expect(screen.getByRole('button', { name: 'Bold' })).toBeOnTheScreen();
+      fireEvent.press(screen.getByRole('button', { name: 'Hide Formatting' }));
+      expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull();
+    });
+
+    it('lights up the tools for the text under the cursor', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      bodyEvent('changeState', styles(['bold', 'unorderedList']));
+      expect(screen.getByRole('button', { name: 'Bold' })).toHaveProp('accessibilityState', { selected: true });
+      expect(screen.getByRole('button', { name: 'Bulleted List' })).toHaveProp('accessibilityState', { selected: true });
+      expect(screen.getByRole('button', { name: 'Italic' })).toHaveProp('accessibilityState', { selected: false });
+    });
+
+    it('formats through the native editor', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Bold' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Bulleted List' }));
+      expect(enriched.toggleBold).toHaveBeenCalled();
+      expect(enriched.toggleUnorderedList).toHaveBeenCalled();
+      fireEvent.press(screen.getByRole('button', { name: 'Text Color' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Red' }));
+      expect(enriched.setStyle).toHaveBeenCalledWith({ foregroundColor: '#dc2626' });
+      fireEvent.press(screen.getByRole('button', { name: 'Highlight' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Yellow' }));
+      expect(enriched.setStyle).toHaveBeenCalledWith({ backgroundColor: '#fef08a' });
+      enriched.toggleBold.mockClear();
+      fireEvent.press(screen.getByRole('button', { name: 'Text Size' }));
+      fireEvent.press(screen.getByText('Title'));
+      expect(enriched.setStyle).toHaveBeenCalledWith({ fontSize: 22 });
+      expect(enriched.toggleBold).toHaveBeenCalledTimes(1);
+    });
+
+    it('clears colours, size and the active styles', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      bodyEvent('changeState', styles(['bold', 'underline']));
+      fireEvent.press(screen.getByRole('button', { name: 'Clear Formatting' }));
+      expect(enriched.setStyle).toHaveBeenCalledWith({ foregroundColor: null, backgroundColor: null, fontSize: null });
+      expect(enriched.toggleBold).toHaveBeenCalled();
+      expect(enriched.toggleUnderline).toHaveBeenCalled();
+      expect(enriched.toggleItalic).not.toHaveBeenCalled();
+    });
+
+    it('links the selected text', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      bodyEvent('changeSelection', { start: 0, end: 5, text: 'Hello' });
+      fireEvent.press(screen.getByRole('button', { name: 'Link' }));
+      fireEvent.changeText(screen.getByTestId('link-url'), 'soluce.eu');
+      fireEvent.press(screen.getByRole('button', { name: 'OK' }));
+      expect(enriched.setLink).toHaveBeenCalledWith(0, 5, 'Hello', 'https://soluce.eu');
+    });
+
+    it('edits or removes the link under the cursor', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      bodyEvent('changeSelection', { start: 4, end: 4, text: '' });
+      fireEvent(screen.getByTestId('rich-body'), 'linkDetected', { text: 'site', url: 'https://a.eu', start: 3, end: 7 });
+      bodyEvent('changeState', styles(['link']));
+      fireEvent.press(screen.getByRole('button', { name: 'Link' }));
+      expect(screen.getByDisplayValue('https://a.eu')).toBeOnTheScreen();
+      fireEvent.changeText(screen.getByTestId('link-url'), 'b.eu');
+      fireEvent.press(screen.getByRole('button', { name: 'OK' }));
+      expect(enriched.setLink).toHaveBeenCalledWith(3, 7, 'site', 'https://b.eu');
+      fireEvent.press(screen.getByRole('button', { name: 'Link' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Remove Link' }));
+      expect(enriched.removeLink).toHaveBeenCalledWith(3, 7);
+    });
+
+    it('closes the link card with the back button and goes back to the body', () => {
+      const back = jest.spyOn(BackHandler, 'addEventListener');
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      bodyEvent('changeSelection', { start: 0, end: 5, text: 'Hello' });
+      fireEvent.press(screen.getByRole('button', { name: 'Link' }));
+      expect(screen.getByTestId('link-url')).toBeOnTheScreen();
+      const handler = back.mock.calls.find(([event]) => event === 'hardwareBackPress')?.[1];
+      act(() => {
+        expect((handler as () => boolean)()).toBe(true);
+      });
+      expect(screen.queryByTestId('link-url')).toBeNull();
+      expect(enriched.setLink).not.toHaveBeenCalled();
+      expect(enriched.setSelection).toHaveBeenCalledWith(0, 5);
+    });
+
+    it('keeps quotes out of a typed link address', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      bodyEvent('changeSelection', { start: 0, end: 2, text: 'Hi' });
+      fireEvent.press(screen.getByRole('button', { name: 'Link' }));
+      fireEvent.changeText(screen.getByTestId('link-url'), 'https://x.eu/" onclick="a');
+      fireEvent.press(screen.getByRole('button', { name: 'OK' }));
+      expect(enriched.setLink).toHaveBeenCalledWith(0, 2, 'Hi', 'https://x.eu/%22%20onclick=%22a');
+    });
+
+    it('goes back to the body where it was before applying a colour', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      bodyEvent('changeSelection', { start: 2, end: 2, text: '' });
+      fireEvent.press(screen.getByRole('button', { name: 'Text Color' }));
+      bodyEvent('blur');
+      fireEvent.press(screen.getByRole('button', { name: 'Red' }));
+      expect(enriched.focus).toHaveBeenCalled();
+      expect(enriched.setSelection).toHaveBeenCalledWith(2, 2);
+      expect(enriched.setSelection.mock.invocationCallOrder[0]).toBeLessThan(enriched.setStyle.mock.invocationCallOrder[0]);
+    });
+
+    it('keeps the bar while a sheet from it is open', () => {
+      renderWithProviders(<ComposeScreen />);
+      bodyEvent('focus');
+      fireEvent.press(screen.getByRole('button', { name: 'Formatting' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Text Color' }));
+      bodyEvent('blur');
+      expect(screen.getByRole('button', { name: 'Hide Formatting' })).toBeOnTheScreen();
     });
   });
 
@@ -235,7 +483,6 @@ describe('composer', () => {
         makeEmail({ to: [{ name: undefined, email: 'INFO@example.com' }, { name: 'Carol', email: 'carol@example.org' }] }),
       ]);
       core.body.mockResolvedValue({ text: 'Bonjour', hasRemoteContent: false, attachments: [] });
-      Object.assign(TextInput.prototype, { setSelection: jest.fn() });
       renderWithProviders(<ComposeScreen />);
 
       expect(await screen.findByText('Cc/Bcc, From: info@example.com')).toBeOnTheScreen();

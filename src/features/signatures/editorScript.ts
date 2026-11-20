@@ -240,7 +240,7 @@ export const EDITOR_SCRIPT = `
     var node = selection.rangeCount ? selection.anchorNode : null;
     var element = node && (node.nodeType === 1 ? node : node.parentElement);
     var link = element && rich.contains(element) ? element.closest('a') : null;
-    post({ type: 'state', bold: command('bold'), italic: command('italic'), underline: command('underline'), strike: command('strikeThrough'), link: link ? link.getAttribute('href') : null, empty: isEmpty() });
+    post({ type: 'state', bold: command('bold'), italic: command('italic'), underline: command('underline'), strike: command('strikeThrough'), link: link ? link.getAttribute('href') : null });
   }
   function scheduleState() {
     if (!stateTimer) stateTimer = setTimeout(postState, 100);
@@ -265,6 +265,8 @@ export const EDITOR_SCRIPT = `
     }
   }
   document.addEventListener('selectionchange', rememberSelection);
+  rich.addEventListener('focus', function () { post({ type: 'focus', focused: true }); });
+  rich.addEventListener('blur', function () { post({ type: 'focus', focused: false }); });
   rich.addEventListener('keyup', rememberSelection);
   rich.addEventListener('compositionend', rememberSelection);
   rich.addEventListener('paste', function (event) {

@@ -117,10 +117,26 @@ jest.mock('react-native-reanimated', () => {
     withDelay: (_delay, value) => value,
     cancelAnimation: () => undefined,
     Easing: { out: (easing) => easing, quad: (progress) => progress },
-    FadeIn: {},
-    FadeOut: {},
+    FadeIn: { duration: () => ({}) },
+    FadeOut: { duration: () => ({}) },
     LinearTransition: {},
     runOnJS: (fn) => (...args) => fn(...args),
+  };
+});
+
+jest.mock('react-native-enriched-html', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const methods = ['focus', 'blur', 'setValue', 'setSelection', 'toggleBold', 'toggleItalic', 'toggleUnderline', 'toggleStrikeThrough', 'toggleUnorderedList', 'toggleOrderedList', 'setStyle', 'setLink', 'removeLink'];
+  const enriched = Object.fromEntries(methods.map((name) => [name, jest.fn()]));
+  enriched.getHTML = jest.fn(async () => '<html></html>');
+  return {
+    __esModule: true,
+    enriched,
+    EnrichedTextInput: React.forwardRef(function EnrichedTextInput(props, reference) {
+      React.useImperativeHandle(reference, () => enriched);
+      return React.createElement(View, props);
+    }),
   };
 });
 

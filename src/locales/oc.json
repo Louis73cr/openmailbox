@@ -137,7 +137,9 @@
     "messageSent": "Messatge mandat",
     "subject": "Objècte :",
     "to": "A :",
-    "wrote": "Lo {{date}}, {{author}} a escrich :"
+    "wrote": "Lo {{date}}, {{author}} a escrich :",
+    "formatting": "Mesa en forma",
+    "hideFormatting": "Amagar la mesa en forma"
   },
   "dates": {
     "yesterday": "Ièr"
@@ -229,6 +231,7 @@
   },
   "signature": {
     "bold": "Gras",
+    "bulletList": "Lista amb piuses",
     "clearFormatting": "Escafar la mesa en forma",
     "codePlaceholder": "Picatz l’HTML aquí…",
     "colors": {
@@ -246,6 +249,7 @@
     "italic": "Italica",
     "link": "Ligam",
     "linkPlaceholder": "https://example.com",
+    "numberedList": "Lista numerotada",
     "placeholder": "Escrivètz vòstra signatura o pegatz son còdi HTML",
     "removeLink": "Levar lo ligam",
     "sizes": {

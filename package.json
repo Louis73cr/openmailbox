@@ -60,6 +60,7 @@
     "react-dom": "19.2.3",
     "react-i18next": "^17.0.8",
     "react-native": "0.86.0",
+    "react-native-enriched-html": "1.2.0",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-mmkv": "^4.3.2",
     "react-native-nitro-modules": "^0.36.1",

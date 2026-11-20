@@ -1,0 +1,50 @@
+diff --git a/node_modules/react-native-enriched-html/ios/enrichedInputTextView/EnrichedInputTextView.mm b/node_modules/react-native-enriched-html/ios/enrichedInputTextView/EnrichedInputTextView.mm
+index 4dcba8b..5d020ad 100644
+--- a/node_modules/react-native-enriched-html/ios/enrichedInputTextView/EnrichedInputTextView.mm
++++ b/node_modules/react-native-enriched-html/ios/enrichedInputTextView/EnrichedInputTextView.mm
+@@ -9,6 +9,45 @@
+ 
+ @implementation EnrichedInputTextView
+ 
++- (NSString *)inputAccessoryViewID {
++  return ((EnrichedTextInputView *)_input).nativeId;
++}
++
++- (void)setInputAccessoryView:(UIView *)inputAccessoryView {
++  [super setInputAccessoryView:inputAccessoryView];
++  [self shareInputAccessoryView];
++}
++
++- (BOOL)resignFirstResponder {
++  if (self.isFirstResponder) {
++    [self shareInputAccessoryView];
++  }
++  return [super resignFirstResponder];
++}
++
++- (void)shareInputAccessoryView {
++  NSString *identifier = self.inputAccessoryViewID;
++  if (self.inputAccessoryView != nil && identifier != nil && self.window != nil) {
++    [self shareInputAccessoryView:self.inputAccessoryView prefix:[identifier stringByAppendingString:@"."] inView:self.window];
++  }
++}
++
++- (void)shareInputAccessoryView:(UIView *)accessory prefix:(NSString *)prefix inView:(UIView *)view {
++  if (view != self && [view respondsToSelector:@selector(inputAccessoryViewID)] &&
++      [view respondsToSelector:@selector(setInputAccessoryView:)] && view.inputAccessoryView != accessory) {
++    id identifier = [view performSelector:@selector(inputAccessoryViewID)];
++    if ([identifier isKindOfClass:[NSString class]] && [identifier hasPrefix:prefix]) {
++      [view performSelector:@selector(setInputAccessoryView:) withObject:accessory];
++      if (view.isFirstResponder) {
++        [view reloadInputViews];
++      }
++    }
++  }
++  for (UIView *subview in view.subviews) {
++    [self shareInputAccessoryView:accessory prefix:prefix inView:subview];
++  }
++}
++
+ - (void)layoutSubviews {
+   [super layoutSubviews];
+   // UITextView resets contentSize during its own layout pass (triggered when

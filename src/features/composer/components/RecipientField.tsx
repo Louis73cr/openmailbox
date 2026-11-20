@@ -19,10 +19,11 @@ interface RecipientFieldProps {
   onChange: (addresses: MailAddress[]) => void;
   text: string;
   onTextChange: (text: string) => void;
+  inputAccessoryViewID?: string;
   autoFocus?: boolean;
 }
 
-export function RecipientField({ label, value, onChange, text, onTextChange, autoFocus }: RecipientFieldProps) {
+export function RecipientField({ label, value, onChange, text, onTextChange, autoFocus, inputAccessoryViewID }: RecipientFieldProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const name = label.replace(/\s*:$/, '');
@@ -88,6 +89,7 @@ export function RecipientField({ label, value, onChange, text, onTextChange, aut
             keyboardType="email-address"
             textContentType="emailAddress"
             blurOnSubmit={false}
+            inputAccessoryViewID={inputAccessoryViewID}
             style={[styles.input, { color: colors.text }]}
           />
         </View>
