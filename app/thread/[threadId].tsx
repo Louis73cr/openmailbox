@@ -187,7 +187,7 @@ export default function ThreadScreen() {
           >
             <View style={styles.titleBlock}>
               <Typography
-                variant="h3"
+                variant="h4"
                 numberOfLines={fullSubject ? undefined : 3}
                 accessibilityState={{ expanded: fullSubject }}
                 onPress={() => setFullSubject((full) => !full)}
