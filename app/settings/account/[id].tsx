@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
-import { useLocalSearchParams, useTheme } from 'expo-router';
+import { Alert, StyleSheet, View } from 'react-native';
+import { useLocalSearchParams, useRouter, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw } from 'lucide-react-native';
+import { Plus, RefreshCw } from 'lucide-react-native';
 import { Security, type ServerEndpoint } from '@openmailbox/mail-core';
 
 import { useAccounts } from '@/core/hooks';
@@ -14,11 +14,14 @@ import { describeCoreError } from '@/features/accounts/coreErrors';
 import { ProviderMark } from '@/features/accounts/components/ProviderMark';
 import { providerForAccount, providerName } from '@/features/accounts/providers';
 import { SettingsPage } from '@/features/settings/components/SettingsPage';
+import { SignatureSection } from '@/features/signatures/SignatureSection';
 import { useSyncFailureMessage, useSyncLabel } from '@/features/sync/useSyncLabel';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { Button, FormField, FormSection, ListRow, Typography } from '@/ui/components';
 import { goBack } from '@/utils/navigation';
+
+const NO_SIGNATURE = { html: '', text: '' };
 
 function describeEndpoint(endpoint: ServerEndpoint): string {
   return `${endpoint.host}:${endpoint.port} · ${endpoint.security === Security.Tls ? 'SSL/TLS' : 'STARTTLS'}`;
@@ -28,14 +31,16 @@ export default function AccountSettingsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const router = useRouter();
   const account = useAccounts().find((candidate) => candidate.id === id);
   const authRequired = useSyncStore((state) => state.authRequired[id] === true);
   const syncLabel = useSyncLabel([id]);
   const syncFailure = useSyncFailureMessage(id);
   const [displayName, setDisplayName] = useState(account?.displayName ?? '');
   const [password, setPassword] = useState('');
-  const signature = useSettingsStore((state) => state.signatures[id] ?? '');
+  const signature = useSettingsStore((state) => state.signatures[id]) ?? NO_SIGNATURE;
   const setSignature = useSettingsStore((state) => state.setSignature);
+  const identities = useSettingsStore((state) => state.identities[id]) ?? [];
   const accountNames = useSettingsStore((state) => state.accountNames);
   const setAccountName = useSettingsStore((state) => state.setAccountName);
   const [updating, setUpdating] = useState(false);
@@ -128,16 +133,22 @@ export default function AccountSettingsScreen() {
         <ListRow title={t('accounts.setup.username')} subtitle={account.username} />
       </FormSection>
 
-      <FormSection title={t('accounts.signature')} footer={t('accounts.signatureHint')}>
-        <TextInput
-          value={signature}
-          onChangeText={(text) => setSignature(account.id, text)}
-          accessibilityLabel={t('accounts.signature')}
-          placeholder={t('accounts.signaturePlaceholder')}
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          textAlignVertical="top"
-          style={[styles.signature, { color: colors.text }]}
+      <SignatureSection value={signature} footer={t('accounts.signatureHint')} onChange={(next) => setSignature(account.id, next)} />
+
+      <FormSection title={t('accounts.identities')} footer={t('accounts.identitiesHint')}>
+        {identities.map((identity) => (
+          <ListRow
+            key={identity.id}
+            title={identity.email}
+            subtitle={identity.name || undefined}
+            onPress={() => router.push({ pathname: '/settings/identity', params: { accountId: account.id, identityId: identity.id } })}
+          />
+        ))}
+        <ListRow
+          title={t('accounts.addIdentity')}
+          leading={<Plus size={20} color={colors.primary} />}
+          chevron={false}
+          onPress={() => router.push({ pathname: '/settings/identity', params: { accountId: account.id } })}
         />
       </FormSection>
 
@@ -174,5 +185,4 @@ export default function AccountSettingsScreen() {
 const styles = StyleSheet.create({
   group: { gap: 12 },
   message: { marginHorizontal: 16 },
-  signature: { minHeight: 96, fontSize: 16, lineHeight: 22, paddingHorizontal: 16, paddingVertical: 12 },
 });

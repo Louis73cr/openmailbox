@@ -12,6 +12,20 @@ jest.mock('@/features/attachments/openAttachment', () => ({ openAttachment: jest
 
 const PDF = { index: 0, filename: 'Facture.pdf', mimeType: 'application/pdf', size: 245_760 };
 
+describe('MessageBody links', () => {
+  beforeAll(() => i18n.changeLanguage('en'));
+
+  it('opens links of plain-text mail after asking', async () => {
+    core.body.mockResolvedValue({ text: 'Docs: https://openmailbox.eu/help.', hasRemoteContent: false, attachments: [] });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    renderWithProviders(<MessageBody emailId="email-links" />);
+
+    fireEvent.press(await screen.findByText('https://openmailbox.eu/help'));
+
+    expect(alert).toHaveBeenCalledWith('Open this link?', 'openmailbox.eu', expect.any(Array));
+  });
+});
+
 describe('MessageBody attachments', () => {
   beforeAll(() => i18n.changeLanguage('en'));
   beforeEach(() => {

@@ -1,21 +1,24 @@
-export const SIGNATURE_SEPARATOR = '-- ';
+import { isBlankSignature, type Signature } from '@/stores/settingsStore';
 
-function block(signature: string): string {
-  return signature.trim() ? `\n\n${SIGNATURE_SEPARATOR}\n${signature}` : '';
+import { escapeHtml } from './prefill';
+
+export const MAIL_FONT = '-apple-system, Roboto, Helvetica, Arial, sans-serif';
+
+const APP_NAME = 'Open Mailbox';
+const APP_URL = 'https://openmailbox.eu';
+
+export function signatureText(signature: Signature, footer: string): string {
+  const parts = [signature.text, footer.trim() ? `${footer} (${APP_URL})` : ''].filter((part) => part.trim());
+  return parts.length > 0 ? `\n\n-- \n${parts.join('\n\n')}` : '';
 }
 
-export function withSignature(body: string, signature: string): string {
-  return block(signature) + body;
+export function signatureHtml(signature: Signature, footer: string): string {
+  const own = isBlankSignature(signature) ? '' : `<div>${signature.html}</div>`;
+  const footerStyle = own ? ' style="margin-top: 16px"' : '';
+  const linkedFooter = escapeHtml(footer).replace(APP_NAME, `<a href="${APP_URL}">${APP_NAME}</a>`);
+  return own + (footer.trim() ? `<div${footerStyle}>${linkedFooter}</div>` : '');
 }
 
-export function replaceSignature(body: string, previous: string, next: string, quote = ''): string | null {
-  const previousBlock = block(previous);
-  if (previousBlock) {
-    const start = body.indexOf(previousBlock);
-    const after = start === -1 ? null : body.slice(start + previousBlock.length);
-    if (after === null || (after !== '' && !after.startsWith('\n\n'))) return null;
-    return body.slice(0, start) + block(next) + after;
-  }
-  const quoteStart = quote ? body.lastIndexOf(quote) : -1;
-  return quoteStart === -1 ? body + block(next) : body.slice(0, quoteStart) + block(next) + body.slice(quoteStart);
+export function mailHtml(inner: string): string {
+  return `<div style="font-family: ${MAIL_FONT}; font-size: 15px">${inner}</div>`;
 }

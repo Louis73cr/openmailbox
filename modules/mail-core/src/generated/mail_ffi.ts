@@ -414,7 +414,8 @@ export type Draft = {
     bodyText: string,
     bodyHtml?: string,
     inReplyToEmailId?: string,
-    attachments: Array<OutgoingAttachment>
+    attachments: Array<OutgoingAttachment>,
+    from?: Address
 }
 
 /**
@@ -446,7 +447,8 @@ const FfiConverterTypeDraft = (() => {
                 bodyText: FfiConverterString.readFromCursor(c), 
                 bodyHtml: FfiConverterOptionalString.readFromCursor(c), 
                 inReplyToEmailId: FfiConverterOptionalString.readFromCursor(c), 
-                attachments: FfiConverterSequenceTypeOutgoingAttachment.readFromCursor(c)
+                attachments: FfiConverterSequenceTypeOutgoingAttachment.readFromCursor(c), 
+                from: FfiConverterOptionalTypeAddress.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -459,6 +461,7 @@ const FfiConverterTypeDraft = (() => {
             FfiConverterOptionalString.writeIntoCursor(value.bodyHtml, c);
             FfiConverterOptionalString.writeIntoCursor(value.inReplyToEmailId, c);
             FfiConverterSequenceTypeOutgoingAttachment.writeIntoCursor(value.attachments, c);
+            FfiConverterOptionalTypeAddress.writeIntoCursor(value.from, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.accountId) +
@@ -469,7 +472,8 @@ const FfiConverterTypeDraft = (() => {
              FfiConverterString.allocationSize(value.bodyText) +
              FfiConverterOptionalString.allocationSize(value.bodyHtml) +
              FfiConverterOptionalString.allocationSize(value.inReplyToEmailId) +
-             FfiConverterSequenceTypeOutgoingAttachment.allocationSize(value.attachments);
+             FfiConverterSequenceTypeOutgoingAttachment.allocationSize(value.attachments) +
+             FfiConverterOptionalTypeAddress.allocationSize(value.from);
             
         }
     };
@@ -955,6 +959,73 @@ const FfiConverterTypeServerConfig = (() => {
             return FfiConverterTypeServerEndpoint.allocationSize(value.imap) +
              FfiConverterTypeServerEndpoint.allocationSize(value.smtp) +
              FfiConverterString.allocationSize(value.username);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+export type ThreadFilter = {
+    unread: boolean,
+    flagged: boolean,
+    toMe: boolean,
+    ccMe: boolean,
+    withAttachment: boolean,
+    since?: number,
+    accountIds: Array<string>,
+    keepThreadIds: Array<string>
+}
+
+/**
+ * Generated factory for {@link ThreadFilter} record objects.
+ */
+export const ThreadFilter = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<ThreadFilter, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<ThreadFilter>,
+    });
+})();
+
+const FfiConverterTypeThreadFilter = (() => {
+    type TypeName = ThreadFilter;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                unread: FfiConverterBool.readFromCursor(c), 
+                flagged: FfiConverterBool.readFromCursor(c), 
+                toMe: FfiConverterBool.readFromCursor(c), 
+                ccMe: FfiConverterBool.readFromCursor(c), 
+                withAttachment: FfiConverterBool.readFromCursor(c), 
+                since: FfiConverterOptionalFloat64.readFromCursor(c), 
+                accountIds: FfiConverterSequenceString.readFromCursor(c), 
+                keepThreadIds: FfiConverterSequenceString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterBool.writeIntoCursor(value.unread, c);
+            FfiConverterBool.writeIntoCursor(value.flagged, c);
+            FfiConverterBool.writeIntoCursor(value.toMe, c);
+            FfiConverterBool.writeIntoCursor(value.ccMe, c);
+            FfiConverterBool.writeIntoCursor(value.withAttachment, c);
+            FfiConverterOptionalFloat64.writeIntoCursor(value.since, c);
+            FfiConverterSequenceString.writeIntoCursor(value.accountIds, c);
+            FfiConverterSequenceString.writeIntoCursor(value.keepThreadIds, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterBool.allocationSize(value.unread) +
+             FfiConverterBool.allocationSize(value.flagged) +
+             FfiConverterBool.allocationSize(value.toMe) +
+             FfiConverterBool.allocationSize(value.ccMe) +
+             FfiConverterBool.allocationSize(value.withAttachment) +
+             FfiConverterOptionalFloat64.allocationSize(value.since) +
+             FfiConverterSequenceString.allocationSize(value.accountIds) +
+             FfiConverterSequenceString.allocationSize(value.keepThreadIds);
             
         }
     };
@@ -2623,7 +2694,7 @@ export interface MailCoreLike {
 /**
  * `category` keeps the threads of that category only; `None` lists them all.
  */
-    listThreads(scope: ThreadScope, unreadOnly: boolean, category: Category | undefined, cursor: string | undefined, limit: number, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<ThreadPage>;
+    listThreads(scope: ThreadScope, filter: ThreadFilter, category: Category | undefined, cursor: string | undefined, limit: number, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<ThreadPage>;
     loadOlder(mailboxId: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
     moveEmails(emailIds: Array<string>, fromMailboxId: string, destination: Destination, holdMs: number, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<Relocation>;
     moveThread(mailboxId: string, threadId: string, destination: Destination, holdMs: number, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<Relocation>;
@@ -2937,14 +3008,14 @@ private constructor(pointer: UniffiHandle) {
 /**
  * `category` keeps the threads of that category only; `None` lists them all.
  */
-    async listThreads(scope: ThreadScope, unreadOnly: boolean, category: Category | undefined, cursor: string | undefined, limit: number, asyncOpts_?: { signal: AbortSignal }): Promise<ThreadPage> /*throws*/ {
+    async listThreads(scope: ThreadScope, filter: ThreadFilter, category: Category | undefined, cursor: string | undefined, limit: number, asyncOpts_?: { signal: AbortSignal }): Promise<ThreadPage> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
                 return nativeModule().ubrn_uniffi_mail_ffi_fn_method_mailcore_list_threads(
-                    uniffiTypeMailCoreObjectFactory.clonePointer(this),FfiConverterTypeThreadScope.lower(scope, nativeModule().rustbuffer_alloc),FfiConverterBool.lower(unreadOnly, nativeModule().rustbuffer_alloc),FfiConverterOptionalTypeCategory.lower(category, nativeModule().rustbuffer_alloc),FfiConverterOptionalString.lower(cursor, nativeModule().rustbuffer_alloc),FfiConverterUInt32.lower(limit, nativeModule().rustbuffer_alloc)
+                    uniffiTypeMailCoreObjectFactory.clonePointer(this),FfiConverterTypeThreadScope.lower(scope, nativeModule().rustbuffer_alloc),FfiConverterTypeThreadFilter.lower(filter, nativeModule().rustbuffer_alloc),FfiConverterOptionalTypeCategory.lower(category, nativeModule().rustbuffer_alloc),FfiConverterOptionalString.lower(cursor, nativeModule().rustbuffer_alloc),FfiConverterUInt32.lower(limit, nativeModule().rustbuffer_alloc)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_poll_rust_buffer,
@@ -3642,6 +3713,9 @@ const FfiConverterSequenceTypeAddress = new FfiConverterArray(FfiConverterTypeAd
 // FfiConverter for Array<OutgoingAttachment>
 const FfiConverterSequenceTypeOutgoingAttachment = new FfiConverterArray(FfiConverterTypeOutgoingAttachment);
 
+// FfiConverter for Address | undefined
+const FfiConverterOptionalTypeAddress = new FfiConverterOptional(FfiConverterTypeAddress);
+
 // FfiConverter for MailboxRole | undefined
 const FfiConverterOptionalTypeMailboxRole = new FfiConverterOptional(FfiConverterTypeMailboxRole);
 
@@ -3654,11 +3728,11 @@ const FfiConverterSequenceTypeAttachment = new FfiConverterArray(FfiConverterTyp
 // FfiConverter for Unsubscribe | undefined
 const FfiConverterOptionalTypeUnsubscribe = new FfiConverterOptional(FfiConverterTypeUnsubscribe);
 
-// FfiConverter for Array<ThreadSummary>
-const FfiConverterSequenceTypeThreadSummary = new FfiConverterArray(FfiConverterTypeThreadSummary);
-
 // FfiConverter for number | undefined
 const FfiConverterOptionalFloat64 = new FfiConverterOptional(FfiConverterFloat64);
+
+// FfiConverter for Array<ThreadSummary>
+const FfiConverterSequenceTypeThreadSummary = new FfiConverterArray(FfiConverterTypeThreadSummary);
 
 // FfiConverter for Array<NewMessage>
 const FfiConverterSequenceTypeNewMessage = new FfiConverterArray(FfiConverterTypeNewMessage);
@@ -3724,7 +3798,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_list_mailboxes() !== 29520) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_list_mailboxes");
     }
-    if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_list_threads() !== 11404) {
+    if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_list_threads() !== 62176) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_list_threads");
     }
     if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_load_older() !== 1859) {
@@ -3822,6 +3896,7 @@ export default Object.freeze({
     FfiConverterTypeServerEndpoint,
     FfiConverterTypeSyncErrorKind,
     FfiConverterTypeSyncStatus,
+    FfiConverterTypeThreadFilter,
     FfiConverterTypeThreadPage,
     FfiConverterTypeThreadScope,
     FfiConverterTypeThreadSummary,

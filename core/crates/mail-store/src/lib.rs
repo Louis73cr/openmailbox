@@ -26,6 +26,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0007_unknown_signals.sql"),
     include_str!("migrations/0008_store_settings.sql"),
     include_str!("migrations/0009_stored_signals.sql"),
+    include_str!("migrations/0010_render_html_again.sql"),
 ];
 
 pub struct Store {
@@ -79,10 +80,10 @@ fn open_connection(path: &Path) -> Result<Connection> {
 fn migrate(connection: &Connection) -> Result<()> {
     migrate_with(connection, MIGRATIONS)?;
     add_notified_email_id(connection)?;
-    categories::classify_again(connection)
+    categories::classify_again(connection)?;
+    emails::refetch_undecoded(connection)
 }
 
-/// 0005 first shipped without `notified_email_id`; databases created then are at version 5 too.
 fn add_notified_email_id(connection: &Connection) -> Result<()> {
     let present: bool = connection
         .query_row(
@@ -233,6 +234,144 @@ mod migration_tests {
         assert_eq!(store.search("ines", 10, &[]).unwrap().len(), 1);
         store.remove_uids(1, &[3]).unwrap();
         assert!(store.search("facture", 10, &[]).unwrap().is_empty());
+        std::fs::remove_dir_all(&directory).ok();
+    }
+}
+
+#[cfg(test)]
+mod cached_html_tests {
+    use super::*;
+
+    #[test]
+    fn cached_html_bodies_are_rendered_again_after_migrating() {
+        let directory =
+            std::env::temp_dir().join(format!("mail-store-cached-html-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("mail.db");
+        let _ = std::fs::remove_file(&path);
+        {
+            let connection = Connection::open(&path).unwrap();
+            migrate_with(&connection, &MIGRATIONS[..9]).unwrap();
+            connection
+                .execute_batch(
+                    r#"INSERT INTO account (id, email, display_name, username, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, color, created_at)
+                         VALUES ('a', 'a@x.org', 'A', 'a', 'h', 993, 'tls', 'h', 465, 'tls', 0, 0);
+                       INSERT INTO thread (id, account_id, root) VALUES (1, 'a', 'r@x');
+                       INSERT INTO email (id, account_id, thread_id, from_json, to_json, cc_json, reply_to_json, received_at, body_state)
+                         VALUES (7, 'a', 1, '[]', '[]', '[]', '[]', 1000, 2), (8, 'a', 1, '[]', '[]', '[]', '[]', 1000, 2);
+                       INSERT INTO email_body (email_id, html, text, attachments_json, has_remote_content)
+                         VALUES (7, 'Weekly deals<p>Hello</p>', 'Hello', '[]', 0), (8, NULL, 'Plain', '[]', 0);"#,
+                )
+                .unwrap();
+        }
+        let store = Store::open(&path).unwrap();
+        assert!(store.body(7).unwrap().is_none());
+        assert_eq!(store.body(8).unwrap().unwrap().text, "Plain");
+        std::fs::remove_dir_all(&directory).ok();
+    }
+}
+
+#[cfg(test)]
+mod search_text_tests {
+    use super::*;
+
+    #[test]
+    fn text_written_without_spaces_is_indexed_again_once() {
+        let directory =
+            std::env::temp_dir().join(format!("mail-store-search-text-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("mail.db");
+        let _ = std::fs::remove_file(&path);
+        {
+            let connection = Connection::open(&path).unwrap();
+            migrate_with(&connection, MIGRATIONS).unwrap();
+            connection
+                .execute_batch(
+                    r#"INSERT INTO account (id, email, display_name, username, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, color, created_at)
+                         VALUES ('a', 'a@x.org', 'A', 'a', 'h', 993, 'tls', 'h', 465, 'tls', 0, 0);
+                       INSERT INTO mailbox (id, account_id, remote_name, name) VALUES (1, 'a', 'INBOX', 'Inbox');
+                       INSERT INTO thread (id, account_id, root) VALUES (1, 'a', 'r@x');
+                       INSERT INTO email (id, account_id, thread_id, subject, from_json, to_json, cc_json, reply_to_json, received_at, preview, search_key)
+                         VALUES (7, 'a', 1, '会議のお知らせ', '[{"name":"山田太郎","email":"y@x.jp"}]', '[]', '[]', '[]', 1000, '明日は10時です', 70),
+                                (8, 'a', 1, 'Facture', '[]', '[]', '[]', '[]', 2000, 'Bonjour', 80);
+                       INSERT INTO email_mailbox (mailbox_id, email_id, uid) VALUES (1, 7, 7), (1, 8, 8);
+                       INSERT INTO email_fts (rowid, subject, participants, body)
+                         VALUES (70, '会議のお知らせ', '山田太郎 y@x.jp', '明日は10時です'), (80, 'Facture', '', 'Bonjour');"#,
+                )
+                .unwrap();
+        }
+        let store = Store::open(&path).unwrap();
+        assert!(store.search("お知らせ", 10, &[]).unwrap().is_empty());
+        while store.index_text_without_spaces().unwrap() {}
+        assert!(!store.index_text_without_spaces().unwrap());
+        assert_eq!(store.search("お知らせ", 10, &[]).unwrap()[0].email.id, 7);
+        assert_eq!(store.search("太郎", 10, &[]).unwrap()[0].email.id, 7);
+        assert_eq!(store.search("10時", 10, &[]).unwrap()[0].email.id, 7);
+        assert_eq!(store.search("factu", 10, &[]).unwrap()[0].email.id, 8);
+        std::fs::remove_dir_all(&directory).ok();
+    }
+}
+
+#[cfg(test)]
+mod undecoded_tests {
+    use super::*;
+
+    #[test]
+    fn mail_stored_with_undecoded_charsets_is_fetched_again_once() {
+        let directory =
+            std::env::temp_dir().join(format!("mail-store-undecoded-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("mail.db");
+        let _ = std::fs::remove_file(&path);
+        let insert = |connection: &Connection, id: i64, mailbox: i64, subject: &str, from: &str| {
+            connection
+                .execute(
+                    "INSERT INTO email (id, account_id, thread_id, subject, from_json, to_json, cc_json, reply_to_json, received_at)
+                       VALUES (?1, 'a', 1, ?2, ?3, '[]', '[]', '[]', 1000);",
+                    rusqlite::params![id, subject, from],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO email_mailbox (mailbox_id, email_id, uid) VALUES (?1, ?2, ?2)",
+                    [mailbox, id],
+                )
+                .unwrap();
+        };
+        {
+            let connection = Connection::open(&path).unwrap();
+            migrate_with(&connection, MIGRATIONS).unwrap();
+            connection
+                .execute_batch(
+                    r#"INSERT INTO account (id, email, display_name, username, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, color, created_at)
+                         VALUES ('a', 'a@x.org', 'A', 'a', 'h', 993, 'tls', 'h', 465, 'tls', 0, 0);
+                       INSERT INTO mailbox (id, account_id, remote_name, name, synced_at)
+                         VALUES (1, 'a', 'INBOX', 'Inbox', 5), (2, 'a', 'Sent', 'Sent', 5), (3, 'a', 'Archive', 'Archive', 5);
+                       INSERT INTO thread (id, account_id, root) VALUES (1, 'a', 'r@x');"#,
+                )
+                .unwrap();
+            insert(&connection, 7, 1, "\u{1b}$B2q5D\u{1b}(B", "[]");
+            insert(
+                &connection,
+                8,
+                2,
+                "Hello",
+                r#"[{"name":"\u001b$B;3ED\u001b(B","email":"y@x.jp"}]"#,
+            );
+            insert(&connection, 9, 3, "Caf\u{e9}", "[]");
+            insert(&connection, 10, 3, "\u{fffd}\u{fffd}", "[]");
+        }
+        let store = Store::open(&path).unwrap();
+        assert!(store.local_uids(1).unwrap().is_empty());
+        assert!(store.local_uids(2).unwrap().is_empty());
+        assert_eq!(store.local_uids(3).unwrap(), [9]);
+        assert_eq!(store.mailbox_sync_state(1).unwrap().synced_at, None);
+        assert_eq!(store.mailbox_sync_state(3).unwrap().synced_at, None);
+
+        drop(store);
+        insert(&Connection::open(&path).unwrap(), 11, 1, "\u{fffd}", "[]");
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.local_uids(1).unwrap(), [11]);
         std::fs::remove_dir_all(&directory).ok();
     }
 }

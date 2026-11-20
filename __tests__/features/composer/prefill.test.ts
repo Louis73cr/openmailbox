@@ -1,6 +1,6 @@
 import type { EmailSummary } from '@openmailbox/mail-core';
 
-import { prefill, quoteHtml } from '@/features/composer/prefill';
+import { linkedHtml, prefill, quoteHtml } from '@/features/composer/prefill';
 
 const labels = {
   wrote: (date: string, author: string) => `On ${date}, ${author} wrote:`,
@@ -36,6 +36,14 @@ describe('prefill', () => {
     expect(result.body).toBe('\n\nOn today, Bob wrote:\n> Hello\n>> earlier');
   });
 
+  it('replies to the original recipients when the message was sent by the user', () => {
+    const sent = { ...email, from: [{ name: 'Me', email: 'ME@example.com' }], to: [{ name: 'Bob', email: 'bob@example.com' }] };
+    expect(prefill('reply', sent, 'Hi', ['me@example.com'], 'today', labels).to).toEqual([{ name: 'Bob', email: 'bob@example.com' }]);
+    expect(prefill('replyAll', sent, 'Hi', ['me@example.com'], 'today', labels).to.map((address) => address.email)).toEqual(['bob@example.com']);
+    const noteToSelf = { ...sent, to: [{ name: undefined, email: 'me@example.com' }] };
+    expect(prefill('reply', noteToSelf, 'Hi', ['me@example.com'], 'today', labels).to.map((address) => address.email)).toEqual(['ME@example.com']);
+  });
+
   it('quotes the HTML original under the attribution, escaped', () => {
     const { body } = prefill('reply', { ...email, from: [{ name: 'Bob <&>', email: 'bob@example.com' }] }, 'Hi', [], 'today', labels);
     const html = quoteHtml('reply', body, '<b>Hi</b>');
@@ -55,5 +63,20 @@ describe('prefill', () => {
     expect(result.to).toEqual([]);
     expect(result.subject).toBe('Fwd: Re: Planning');
     expect(result.body).toContain('-- Forwarded --\nFrom: Bob');
+  });
+});
+
+describe('linkedHtml', () => {
+  it('escapes the text, links URLs and keeps line breaks', () => {
+    expect(linkedHtml('Go https://x.eu/?a=1&b=2!\nNext')).toBe(
+      'Go <a href="https://x.eu/?a=1&amp;b=2">https://x.eu/?a=1&amp;b=2</a>!<br>Next',
+    );
+  });
+
+  it('keeps angle brackets and quotes around a URL out of the link', () => {
+    expect(linkedHtml('See <https://openmailbox.eu/help>.')).toBe(
+      'See &lt;<a href="https://openmailbox.eu/help">https://openmailbox.eu/help</a>&gt;.',
+    );
+    expect(linkedHtml('"https://x.eu/a"')).toBe('&quot;<a href="https://x.eu/a">https://x.eu/a</a>&quot;');
   });
 });

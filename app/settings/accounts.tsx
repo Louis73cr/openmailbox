@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { useRouter, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ChevronsUpDown, Plus, TriangleAlert } from 'lucide-react-native';
+import { ChevronsUpDown, Plus, Signature, TriangleAlert } from 'lucide-react-native';
 
 import { useAccounts } from '@/core/hooks';
 import { accountName } from '@/features/accounts/accountName';
@@ -10,7 +10,7 @@ import { providerForAccount, providerName } from '@/features/accounts/providers'
 import { SettingsPage } from '@/features/settings/components/SettingsPage';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useSyncStore } from '@/stores/syncStore';
-import { FormSection, ListRow, ReorderableList, Select, moveItem } from '@/ui/components';
+import { FormSection, ListRow, ReorderableList, Select, Toggle, moveItem } from '@/ui/components';
 
 export default function AccountsSettingsScreen() {
   const { t } = useTranslation();
@@ -22,6 +22,8 @@ export default function AccountsSettingsScreen() {
   const setAccountOrder = useSettingsStore((state) => state.setAccountOrder);
   const storedDefaultId = useSettingsStore((state) => state.defaultAccountId);
   const setDefaultAccountId = useSettingsStore((state) => state.setDefaultAccountId);
+  const sentFromFooter = useSettingsStore((state) => state.sentFromFooter);
+  const setSentFromFooter = useSettingsStore((state) => state.setSentFromFooter);
   const defaultAccount = accounts.find((account) => account.id === storedDefaultId) ?? accounts[0];
 
   const move = (from: number, to: number) => setAccountOrder(moveItem(accounts, from, to).map((account) => account.id));
@@ -85,6 +87,13 @@ export default function AccountsSettingsScreen() {
           />
         </FormSection>
       ) : null}
+      <FormSection footer={t('accounts.sentFromHint')}>
+        <ListRow
+          title={t('accounts.sentFrom')}
+          leading={<Signature size={22} color={colors.primary} />}
+          trailing={<Toggle value={sentFromFooter} onValueChange={setSentFromFooter} accessibilityLabel={t('accounts.sentFrom')} />}
+        />
+      </FormSection>
     </SettingsPage>
   );
 }

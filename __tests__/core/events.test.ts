@@ -2,6 +2,7 @@ import { Alert } from 'react-native';
 import { CoreEvent, SyncErrorKind, SyncStatus } from '@openmailbox/mail-core';
 
 import { CoreEventListener } from '@/core/events';
+import { EMPTY_THREAD_FILTER } from '@/core/hooks';
 import { queryClient, queryKeys } from '@/core/queryClient';
 import { useSyncStore } from '@/stores/syncStore';
 
@@ -10,9 +11,9 @@ const listener = new CoreEventListener();
 function seedQueries() {
   queryClient.setQueryData(queryKeys.accounts, []);
   queryClient.setQueryData(queryKeys.mailboxes, []);
-  queryClient.setQueryData(queryKeys.threads('unified', false), { pages: [], pageParams: [] });
-  queryClient.setQueryData(queryKeys.threads('mailbox-inbox', false), { pages: [], pageParams: [] });
-  queryClient.setQueryData(queryKeys.threads('mailbox-archive', false), { pages: [], pageParams: [] });
+  queryClient.setQueryData(queryKeys.threads('unified', EMPTY_THREAD_FILTER), { pages: [], pageParams: [] });
+  queryClient.setQueryData(queryKeys.threads('mailbox-inbox', EMPTY_THREAD_FILTER), { pages: [], pageParams: [] });
+  queryClient.setQueryData(queryKeys.threads('mailbox-archive', EMPTY_THREAD_FILTER), { pages: [], pageParams: [] });
   queryClient.setQueryData(queryKeys.search('atlas', []), []);
   queryClient.setQueryData(queryKeys.newestUnread('unified'), []);
   queryClient.setQueryData(queryKeys.newestUnread('mailbox-archive'), []);
@@ -30,9 +31,9 @@ describe('core events', () => {
   it('refreshes only the lists of the mailboxes that changed', () => {
     listener.onEvent(new CoreEvent.MailboxesChanged({ mailboxIds: ['mailbox-inbox'] }));
     expect(invalidated(queryKeys.mailboxes)).toBe(true);
-    expect(invalidated(queryKeys.threads('unified', false))).toBe(true);
-    expect(invalidated(queryKeys.threads('mailbox-inbox', false))).toBe(true);
-    expect(invalidated(queryKeys.threads('mailbox-archive', false))).toBe(false);
+    expect(invalidated(queryKeys.threads('unified', EMPTY_THREAD_FILTER))).toBe(true);
+    expect(invalidated(queryKeys.threads('mailbox-inbox', EMPTY_THREAD_FILTER))).toBe(true);
+    expect(invalidated(queryKeys.threads('mailbox-archive', EMPTY_THREAD_FILTER))).toBe(false);
     expect(invalidated(queryKeys.newestUnread('unified'))).toBe(true);
     expect(invalidated(queryKeys.newestUnread('mailbox-archive'))).toBe(false);
     expect(invalidated(queryKeys.search('atlas', []))).toBe(true);

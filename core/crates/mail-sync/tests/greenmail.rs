@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use mail_model::{
     AccountConfig, Address, Category, Draft, Keyword, MailboxRole, OutgoingAttachment, Security,
-    ServerEndpoint, ThreadScope, ThreadSummary,
+    ServerEndpoint, ThreadFilter, ThreadScope, ThreadSummary,
 };
 use mail_sync::{Destination, Engine};
 
@@ -38,6 +38,7 @@ fn draft(
         body_html: None,
         in_reply_to_email_id,
         attachments: vec![],
+        from: None,
     }
 }
 
@@ -117,7 +118,13 @@ async fn eventually<T>(engine: &Engine, mut probe: impl FnMut() -> Option<T>) ->
 
 fn thread_with(engine: &Engine, token: &str) -> Option<ThreadSummary> {
     engine
-        .list_threads(ThreadScope::Unified, false, None, None, 100)
+        .list_threads(
+            ThreadScope::Unified,
+            &ThreadFilter::default(),
+            None,
+            None,
+            100,
+        )
         .unwrap()
         .threads
         .into_iter()

@@ -10,7 +10,13 @@ function actions(overrides: Partial<ThreadActionContext>) {
 
 describe('thread actions', () => {
   it('offers the full set in the inbox', () => {
-    expect(actions({})).toEqual(['reply', 'replyAll', 'forward', 'delete', 'flag', 'markRead', 'move', 'archive', 'junk', 'categorize']);
+    expect(actions({})).toEqual(['reply', 'replyAll', 'forward', 'print', 'delete', 'flag', 'markRead', 'move', 'archive', 'junk', 'categorize']);
+  });
+
+  it('prints from every folder', () => {
+    for (const role of [MailboxRole.Junk, MailboxRole.Trash, MailboxRole.Sent, MailboxRole.Archive]) {
+      expect(actions({ role })).toContain('print');
+    }
   });
 
   it('sorts senders into categories from the inbox only', () => {

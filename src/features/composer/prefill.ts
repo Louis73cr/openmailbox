@@ -1,6 +1,7 @@
 import type { EmailSummary } from '@openmailbox/mail-core';
 
 import { displayName, withoutAddresses, type MailAddress } from '@/utils/addresses';
+import { splitLinks } from '@/utils/links';
 
 export type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward';
 
@@ -48,6 +49,13 @@ export function textToHtml(text: string): string {
   return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
+export function linkedHtml(text: string): string {
+  return splitLinks(text)
+    .map(({ text: part, url }) => (url ? `<a href="${escapeHtml(url)}">${escapeHtml(part)}</a>` : escapeHtml(part)))
+    .join('')
+    .replace(/\n/g, '<br>');
+}
+
 export function quoteHtml(mode: ComposeMode, quoteText: string, originalHtml: string): string {
   const quote = quoteText.trim();
   if (mode === 'forward') return `<br><br><div>${textToHtml(quote.split('\n\n')[0])}</div><br>${originalHtml}`;
@@ -76,7 +84,9 @@ export function prefill(
     return { to: [], cc: [], subject: prefixed(subject, 'Fwd'), body: `\n\n${header}\n\n${originalText}` };
   }
   const sender = email.from.map(({ name, email: address }) => ({ name, email: address }));
-  const to = mode === 'replyAll' ? withoutAddresses([...sender, ...email.to], ownAddresses) : sender;
+  const sentByUser = sender.length > 0 && withoutAddresses(sender, ownAddresses).length === 0;
+  const recipients = sentByUser ? withoutAddresses(email.to, ownAddresses) : sender;
+  const to = mode === 'replyAll' ? withoutAddresses([...recipients, ...email.to], ownAddresses) : recipients;
   const cc = mode === 'replyAll' ? withoutAddresses(email.cc, [...ownAddresses, ...to.map((address) => address.email)]) : [];
   return {
     to: to.length > 0 ? to : sender,

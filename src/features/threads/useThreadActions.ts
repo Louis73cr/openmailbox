@@ -7,6 +7,7 @@ import { setThreadFlagged, setThreadRead } from '@/core/actions';
 import { useMailboxes } from '@/core/hooks';
 import type { ComposeMode } from '@/features/composer/prefill';
 import { mailboxName } from '@/features/mailboxes/mailboxPresentation';
+import { printThread } from '@/features/reader/printThread';
 
 import { deleteThreadsForever, moveWithUndo } from './moves';
 import { availableThreadActions, deletesForGood, indexMailboxes, threadActionContext, type ThreadActionId } from './threadActions';
@@ -36,6 +37,8 @@ export function useThreadActions(onMove?: (thread: ThreadSummary) => void, onCat
           case 'replyAll':
           case 'forward':
             return compose(action);
+          case 'print':
+            return printThread(thread);
           case 'flag':
           case 'unflag':
             return setThreadFlagged(thread, action === 'flag');

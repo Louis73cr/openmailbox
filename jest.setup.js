@@ -117,19 +117,38 @@ jest.mock('react-native-reanimated', () => {
     withDelay: (_delay, value) => value,
     cancelAnimation: () => undefined,
     Easing: { out: (easing) => easing, quad: (progress) => progress },
-    FadeIn: {},
-    FadeOut: {},
+    FadeIn: { duration: () => ({}) },
+    FadeOut: { duration: () => ({}) },
     LinearTransition: {},
     runOnJS: (fn) => (...args) => fn(...args),
+  };
+});
+
+jest.mock('react-native-enriched-html', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const methods = ['focus', 'blur', 'setValue', 'setSelection', 'toggleBold', 'toggleItalic', 'toggleUnderline', 'toggleStrikeThrough', 'toggleUnorderedList', 'toggleOrderedList', 'setStyle', 'setLink', 'removeLink'];
+  const enriched = Object.fromEntries(methods.map((name) => [name, jest.fn()]));
+  enriched.getHTML = jest.fn(async () => '<html></html>');
+  return {
+    __esModule: true,
+    enriched,
+    EnrichedTextInput: React.forwardRef(function EnrichedTextInput(props, reference) {
+      React.useImperativeHandle(reference, () => enriched);
+      return React.createElement(View, props);
+    }),
   };
 });
 
 jest.mock('react-native-webview', () => {
   const React = require('react');
   const { View } = require('react-native');
+  const injectJavaScript = jest.fn();
   return {
     __esModule: true,
-    default: React.forwardRef(function WebView(props, _reference) {
+    injectJavaScript,
+    default: React.forwardRef(function WebView(props, reference) {
+      React.useImperativeHandle(reference, () => ({ injectJavaScript }));
       return React.createElement(View, { testID: 'web-view', ...props });
     }),
   };
@@ -138,10 +157,12 @@ jest.mock('react-native-webview', () => {
 jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
   const React = require('react');
   const { View } = require('react-native');
+  const translation = { value: 0 };
   return {
     __esModule: true,
+    SwipeDirection: { LEFT: 'left', RIGHT: 'right' },
     default: React.forwardRef(function Swipeable({ children, renderLeftActions, renderRightActions }, _reference) {
-      return React.createElement(View, null, renderLeftActions?.(), children, renderRightActions?.());
+      return React.createElement(View, null, renderLeftActions?.(translation, translation), children, renderRightActions?.(translation, translation));
     }),
   };
 });

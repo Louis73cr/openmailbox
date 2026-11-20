@@ -5,6 +5,7 @@ import { CoreError } from '@openmailbox/mail-core';
 import AccountSettingsScreen from '../../app/settings/account/[id]';
 import { queryClient, queryKeys } from '@/core/queryClient';
 import { readSecret, saveSecret } from '@/core/secrets';
+import { useSignatureEditor } from '@/features/signatures/signatureEditorStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useSyncStore } from '@/stores/syncStore';
 import i18n from '@/utils/i18n';
@@ -47,6 +48,18 @@ describe('account settings', () => {
     expect(core.renameAccount).not.toHaveBeenCalled();
   });
 
+  it('lists sender identities and opens them', () => {
+    useSettingsStore.setState({ identities: { 'account-1': [{ id: 'identity-1', name: 'Support', email: 'info@example.com', signature: { html: '', text: '' } }] } });
+    renderWithProviders(<AccountSettingsScreen />);
+    fireEvent.press(screen.getByText('info@example.com'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith({
+      pathname: '/settings/identity',
+      params: { accountId: 'account-1', identityId: 'identity-1' },
+    });
+    fireEvent.press(screen.getByText('Add Identity'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/settings/identity', params: { accountId: 'account-1' } });
+  });
+
   it('changes the sender name when its field is left', () => {
     renderWithProviders(<AccountSettingsScreen />);
     const name = screen.getByLabelText('Sender Name');
@@ -77,14 +90,19 @@ describe('account settings', () => {
     expect(await readSecret('account-1')).toBe('old-secret');
   });
 
-  it('keeps a signature for the account', () => {
+  it('edits the account signature in the signature editor', () => {
+    useSettingsStore.getState().setSignature('account-1', { html: 'Charles', text: 'Charles' });
     renderWithProviders(<AccountSettingsScreen />);
-    fireEvent.changeText(screen.getByLabelText(i18n.t('accounts.signature')), 'Charles\nSoluce Technologies');
-    expect(useSettingsStore.getState().signatures['account-1']).toBe('Charles\nSoluce Technologies');
+    fireEvent.press(screen.getByRole('button', { name: i18n.t('accounts.editSignature') }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/signature');
+    expect(useSignatureEditor.getState().value).toEqual({ html: 'Charles', text: 'Charles' });
+
+    act(() => useSignatureEditor.getState().onDone!({ html: '<b>Charles</b><br>Soluce', text: 'Charles\nSoluce' }));
+    expect(useSettingsStore.getState().signatures['account-1']).toEqual({ html: '<b>Charles</b><br>Soluce', text: 'Charles\nSoluce' });
   });
 
   it('removes the account and its password after confirmation', async () => {
-    useSettingsStore.getState().setSignature('account-1', 'Charles');
+    useSettingsStore.getState().setSignature('account-1', { html: 'Charles', text: 'Charles' });
     useSettingsStore.getState().setAccountNotified('account-1', false);
     useSettingsStore.getState().setAccountName('account-1', 'Work');
     const alert = jest.spyOn(Alert, 'alert');

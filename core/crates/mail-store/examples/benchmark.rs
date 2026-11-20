@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use mail_model::{
     Account, Address, FetchedMessage, Flags, Keyword, MailboxRole, ParsedHeaders, RemoteMailbox,
-    Security, ServerEndpoint, ThreadScope,
+    Security, ServerEndpoint, ThreadFilter, ThreadScope,
 };
 use mail_store::Store;
 
@@ -222,7 +222,13 @@ fn main() {
         "Unified inbox, first page",
         measure(SAMPLES, |_| {
             store
-                .list_threads(ThreadScope::Unified, false, None, None, PAGE_SIZE)
+                .list_threads(
+                    ThreadScope::Unified,
+                    &ThreadFilter::default(),
+                    None,
+                    None,
+                    PAGE_SIZE,
+                )
                 .unwrap()
         }),
     );
@@ -232,7 +238,7 @@ fn main() {
         cursor = store
             .list_threads(
                 ThreadScope::Unified,
-                false,
+                &ThreadFilter::default(),
                 None,
                 cursor.as_deref(),
                 PAGE_SIZE,
@@ -246,7 +252,7 @@ fn main() {
             store
                 .list_threads(
                     ThreadScope::Unified,
-                    false,
+                    &ThreadFilter::default(),
                     None,
                     cursor.as_deref(),
                     PAGE_SIZE,
@@ -258,7 +264,16 @@ fn main() {
         "Unified inbox, unread only, first page",
         measure(SAMPLES, |_| {
             store
-                .list_threads(ThreadScope::Unified, true, None, None, PAGE_SIZE)
+                .list_threads(
+                    ThreadScope::Unified,
+                    &ThreadFilter {
+                        unread: true,
+                        ..ThreadFilter::default()
+                    },
+                    None,
+                    None,
+                    PAGE_SIZE,
+                )
                 .unwrap()
         }),
     );
@@ -268,7 +283,7 @@ fn main() {
             store
                 .list_threads(
                     ThreadScope::Mailbox(alice_inbox),
-                    false,
+                    &ThreadFilter::default(),
                     None,
                     None,
                     PAGE_SIZE,
@@ -280,7 +295,7 @@ fn main() {
     let page = store
         .list_threads(
             ThreadScope::Mailbox(alice_inbox),
-            false,
+            &ThreadFilter::default(),
             None,
             None,
             PAGE_SIZE,
@@ -328,7 +343,7 @@ fn main() {
     let movable = store
         .list_threads(
             ThreadScope::Mailbox(alice_inbox),
-            false,
+            &ThreadFilter::default(),
             None,
             None,
             SAMPLES as u32,

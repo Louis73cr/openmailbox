@@ -7,6 +7,7 @@ import {
   Inbox,
   Mail,
   MailOpen,
+  Printer,
   Reply,
   ReplyAll,
   ShieldAlert,
@@ -25,6 +26,7 @@ export type ThreadActionId =
   | 'reply'
   | 'replyAll'
   | 'forward'
+  | 'print'
   | 'delete'
   | 'flag'
   | 'unflag'
@@ -48,7 +50,7 @@ const BACK_TO_INBOX: (MailboxRole | undefined)[] = [MailboxRole.Trash, MailboxRo
 const NEVER_JUNK: (MailboxRole | undefined)[] = [MailboxRole.Junk, MailboxRole.Trash, MailboxRole.Sent, MailboxRole.Drafts];
 
 export function availableThreadActions({ role, accountRoles, flagged, unread }: ThreadActionContext): ThreadActionId[] {
-  const actions: ThreadActionId[] = ['reply', 'replyAll', 'forward', 'delete', flagged ? 'unflag' : 'flag', unread ? 'markRead' : 'markUnread', 'move'];
+  const actions: ThreadActionId[] = ['reply', 'replyAll', 'forward', 'print', 'delete', flagged ? 'unflag' : 'flag', unread ? 'markRead' : 'markUnread', 'move'];
   if (BACK_TO_INBOX.includes(role)) actions.push('moveToInbox');
   else if (role !== MailboxRole.Junk && (accountRoles.has(MailboxRole.Archive) || accountRoles.has(MailboxRole.All))) {
     actions.push('archive');
@@ -95,6 +97,7 @@ export const THREAD_ACTION_PRESENTATION: Record<
   reply: { label: 'compose.reply', Icon: Reply, symbol: 'arrowshape.turn.up.left' },
   replyAll: { label: 'compose.replyAll', Icon: ReplyAll, symbol: 'arrowshape.turn.up.left.2' },
   forward: { label: 'compose.forward', Icon: Forward, symbol: 'arrowshape.turn.up.right' },
+  print: { label: 'threads.print', Icon: Printer, symbol: 'printer' },
   delete: { label: 'threads.delete', Icon: Trash2, symbol: 'trash', destructive: true },
   flag: { label: 'threads.flag', Icon: Flag, symbol: 'flag' },
   unflag: { label: 'threads.unflag', Icon: FlagOff, symbol: 'flag.slash' },

@@ -1,4 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
+import ReanimatedSwipeable, { SwipeDirection } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { SwipeableThreadRow } from '@/features/threads/components/SwipeableThreadRow';
 import i18n from '@/utils/i18n';
@@ -56,6 +57,42 @@ describe('SwipeableThreadRow', () => {
       ['unflag', thread],
       ['delete', thread],
     ]);
+  });
+
+  it('runs the edge action only when a swipe is released past the full swipe point', () => {
+    const { thread, onAction } = setup();
+    const swipeable = screen.UNSAFE_getByType(ReanimatedSwipeable);
+    const arm = (side: 'left' | 'right' | null) => {
+      const actions = screen.UNSAFE_getAllByProps({ side: side ?? 'right' }).find((node) => node.props.onArm);
+      act(() => actions?.props.onArm(side));
+    };
+    act(() => swipeable.props.onSwipeableWillOpen(SwipeDirection.LEFT));
+    expect(onAction).not.toHaveBeenCalled();
+    arm('right');
+    act(() => swipeable.props.onSwipeableWillOpen(SwipeDirection.LEFT));
+    arm('left');
+    act(() => swipeable.props.onSwipeableWillOpen(SwipeDirection.RIGHT));
+    arm(null);
+    act(() => swipeable.props.onSwipeableWillOpen(SwipeDirection.RIGHT));
+    expect(onAction.mock.calls).toEqual([
+      ['archive', thread],
+      ['markRead', thread],
+    ]);
+  });
+
+  it('keeps the row mounted when selection mode toggles', () => {
+    const thread = makeThread();
+    const row = (selected?: boolean) => (
+      <SwipeableThreadRow thread={thread} canArchive onOpen={jest.fn()} onAction={jest.fn()} onMore={jest.fn()} selected={selected} />
+    );
+    const { rerender } = renderWithProviders(row());
+    const subject = screen.getByText('Lancement du projet Atlas');
+    rerender(row(false));
+    expect(screen.getByRole('checkbox')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Read' })).toBeNull();
+    expect(screen.getByText('Lancement du projet Atlas')).toBe(subject);
+    rerender(row());
+    expect(screen.getByText('Lancement du projet Atlas')).toBe(subject);
   });
 
   it('says when the latest message was answered', () => {

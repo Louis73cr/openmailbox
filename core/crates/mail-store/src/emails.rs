@@ -1,10 +1,11 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 use mail_model::{
     Address, Category, Error, FetchedMessage, Flags, Keyword, NewMessage, RenderedBody, Result,
     SearchHit, now_millis,
 };
-use rusqlite::{OptionalExtension, Transaction, params, params_from_iter};
+use rusqlite::{Connection, OptionalExtension, Transaction, params, params_from_iter};
 
 use crate::categories::category_of;
 use crate::correspondents::record_received;
@@ -427,11 +428,19 @@ impl Store {
                     [email_id],
                 )
                 .storage()?;
+            let subject: Option<String> = transaction
+                .query_row("SELECT subject FROM email WHERE id = ?1", [email_id], |row| row.get(0))
+                .storage()?;
             transaction
                 .execute(
                     "INSERT INTO email_fts (rowid, subject, participants, body)
-                     SELECT search_key, subject, ?2, ?3 FROM email WHERE id = ?1",
-                    params![email_id, participants_of_email(transaction, email_id)?, indexed_body],
+                     SELECT search_key, ?2, ?3, ?4 FROM email WHERE id = ?1",
+                    params![
+                        email_id,
+                        subject.as_deref().map(searchable),
+                        searchable(&participants_of_email(transaction, email_id)?),
+                        searchable(&indexed_body)
+                    ],
                 )
                 .storage()?;
             Ok(())
@@ -628,9 +637,9 @@ fn insert_email(
         .storage()?
         .execute(params![
             search_key,
-            headers.subject,
-            participants,
-            headers.preview
+            headers.subject.as_deref().map(searchable),
+            searchable(&participants),
+            headers.preview.as_deref().map(searchable)
         ])
         .storage()?;
     Ok((email_id, thread_id))
@@ -700,6 +709,53 @@ fn remove_orphans(transaction: &Transaction, email_ids: &[i64]) -> Result<()> {
     refresh_threads(transaction, &touched_threads)
 }
 
+pub(crate) fn refetch_undecoded(connection: &Connection) -> Result<()> {
+    let done: bool = connection
+        .query_row(
+            "SELECT count(*) > 0 FROM store_setting WHERE key = 'decoder'",
+            [],
+            |row| row.get(0),
+        )
+        .storage()?;
+    if done {
+        return Ok(());
+    }
+    let transaction = connection.unchecked_transaction().storage()?;
+    let unlinked: Vec<(i64, i64)> = transaction
+        .prepare(
+            r"DELETE FROM email_mailbox WHERE email_id IN (
+                SELECT id FROM email WHERE
+                  instr(subject, char(65533)) OR instr(subject, char(27))
+                  OR instr(preview, char(65533)) OR instr(preview, char(27))
+                  OR instr(from_json, char(65533)) OR instr(from_json, '\u001b')
+                  OR instr(to_json, char(65533)) OR instr(to_json, '\u001b'))
+              RETURNING email_id, mailbox_id",
+        )
+        .storage()?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .storage()?
+        .collect::<rusqlite::Result<_>>()
+        .storage()?;
+    let mut email_ids: Vec<i64> = unlinked.iter().map(|(email_id, _)| *email_id).collect();
+    email_ids.sort_unstable();
+    email_ids.dedup();
+    remove_orphans(&transaction, &email_ids)?;
+    let mut unsynced = transaction
+        .prepare("UPDATE mailbox SET synced_at = NULL WHERE id = ?1")
+        .storage()?;
+    for (_, mailbox_id) in &unlinked {
+        unsynced.execute([mailbox_id]).storage()?;
+    }
+    drop(unsynced);
+    transaction
+        .execute(
+            "INSERT INTO store_setting (key, value) VALUES ('decoder', 1)",
+            [],
+        )
+        .storage()?;
+    transaction.commit().storage()
+}
+
 fn adjust_counts(
     transaction: &Transaction,
     mailbox_id: i64,
@@ -720,9 +776,130 @@ fn adjust_counts(
 fn fts_query(query: &str) -> String {
     query
         .split_whitespace()
-        .map(|term| term.replace('"', ""))
+        .map(|term| searchable(&term.replace('"', "")).trim().to_owned())
         .filter(|term| !term.is_empty())
         .map(|term| format!("\"{term}\"*"))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn written_without_spaces(character: char) -> bool {
+    matches!(
+        character,
+        '\u{0E00}'..='\u{0EFF}'
+            | '\u{1000}'..='\u{109F}'
+            | '\u{1780}'..='\u{17FF}'
+            | '\u{3040}'..='\u{30FF}'
+            | '\u{31F0}'..='\u{31FF}'
+            | '\u{3400}'..='\u{4DBF}'
+            | '\u{4E00}'..='\u{9FFF}'
+            | '\u{AC00}'..='\u{D7AF}'
+            | '\u{F900}'..='\u{FAFF}'
+            | '\u{FF66}'..='\u{FF9F}'
+            | '\u{20000}'..='\u{3134F}'
+    )
+}
+
+fn full_width(character: char) -> bool {
+    ('\u{FF01}'..='\u{FF5E}').contains(&character)
+}
+
+fn indexed_differently(text: &str) -> bool {
+    !text.is_ascii()
+        && text
+            .chars()
+            .any(|character| written_without_spaces(character) || full_width(character))
+}
+
+fn searchable(text: &str) -> Cow<'_, str> {
+    if !indexed_differently(text) {
+        return Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len() * 2);
+    for character in text.chars() {
+        if written_without_spaces(character) {
+            out.push(' ');
+            out.push(character);
+            out.push(' ');
+        } else if full_width(character) {
+            out.push(char::from_u32(character as u32 - 0xFEE0).unwrap_or(character));
+        } else {
+            out.push(character);
+        }
+    }
+    Cow::Owned(out)
+}
+
+const REINDEX_BATCH: usize = 500;
+
+impl Store {
+    pub fn index_text_without_spaces(&self) -> Result<bool> {
+        self.write(|transaction| {
+            let after: i64 = transaction
+                .query_row(
+                    "SELECT value FROM store_setting WHERE key = 'search_text'",
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()
+                .storage()?
+                .unwrap_or(0);
+            if after == i64::MAX {
+                return Ok(false);
+            }
+            let rows: Vec<(i64, Option<i64>, Option<String>, String, Option<String>)> = transaction
+                .prepare_cached(
+                    "SELECT e.id, e.search_key, e.subject, e.from_json || e.to_json || e.cc_json,
+                       COALESCE(substr(b.text, 1, ?1), e.preview)
+                     FROM email e LEFT JOIN email_body b ON b.email_id = e.id
+                     WHERE e.id > ?2 ORDER BY e.id LIMIT ?3",
+                )
+                .storage()?
+                .query_map(
+                    params![INDEXED_BODY_LIMIT as i64, after, REINDEX_BATCH as i64],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+                )
+                .storage()?
+                .collect::<rusqlite::Result<_>>()
+                .storage()?;
+            let changed = rows.iter().filter_map(|(email_id, search_key, subject, addresses, body)| {
+                let differs = [subject.as_deref(), Some(addresses.as_str()), body.as_deref()]
+                    .into_iter()
+                    .flatten()
+                    .any(indexed_differently);
+                Some((*email_id, (*search_key)?, subject, body)).filter(|_| differs)
+            });
+            for (email_id, search_key, subject, body) in changed {
+                transaction
+                    .prepare_cached("DELETE FROM email_fts WHERE rowid = ?1")
+                    .storage()?
+                    .execute([search_key])
+                    .storage()?;
+                transaction
+                    .prepare_cached(
+                        "INSERT INTO email_fts (rowid, subject, participants, body) VALUES (?1, ?2, ?3, ?4)",
+                    )
+                    .storage()?
+                    .execute(params![
+                        search_key,
+                        subject.as_deref().map(searchable),
+                        searchable(&participants_of_email(transaction, email_id)?),
+                        body.as_deref().map(searchable)
+                    ])
+                    .storage()?;
+            }
+            let next = match rows.last() {
+                Some((email_id, ..)) if rows.len() == REINDEX_BATCH => *email_id,
+                _ => i64::MAX,
+            };
+            transaction
+                .execute(
+                    "INSERT INTO store_setting (key, value) VALUES ('search_text', ?1)
+                     ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                    [next],
+                )
+                .storage()?;
+            Ok(next != i64::MAX)
+        })
+    }
 }

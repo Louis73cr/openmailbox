@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useIsPreview, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
+import { Stack, useFocusEffect, useIsPreview, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ellipsis, Flag, FolderInput, Forward, Reply, ReplyAll, Trash2 } from 'lucide-react-native';
 import { Category, Keyword, type ThreadSummary } from '@openmailbox/mail-core';
@@ -15,6 +15,7 @@ import { CategoryPicker } from '@/features/categories/CategoryPicker';
 import { MailboxPicker } from '@/features/mailboxes/components/MailboxPicker';
 import { mailboxName } from '@/features/mailboxes/mailboxPresentation';
 import { MessageCard } from '@/features/reader/components/MessageCard';
+import { SubjectTitle } from '@/features/reader/components/SubjectTitle';
 import type { ComposeMode } from '@/features/composer/prefill';
 import { ThreadActionSheet } from '@/features/threads/components/ThreadActionSheet';
 import { THREAD_ACTION_PRESENTATION, type ThreadActionId } from '@/features/threads/threadActions';
@@ -80,11 +81,13 @@ export default function ThreadScreen() {
     }
   }, [emails, expanded]);
 
-  useEffect(() => {
-    if (unreadIds.length === 0 || isPreview) return;
-    const markRead = reference ? setThreadRead(reference, true) : mailCore().setKeywords(unreadIds, [Keyword.Seen], []);
-    markRead.catch(() => undefined);
-  }, [unreadKey]);
+  useFocusEffect(
+    useCallback(() => {
+      if (unreadIds.length === 0 || isPreview) return;
+      const markRead = reference ? setThreadRead(reference, true) : mailCore().setKeywords(unreadIds, [Keyword.Seen], []);
+      markRead.catch(() => undefined);
+    }, [unreadKey, isPreview]),
+  );
 
   const toggle = useCallback((emailId: string) => {
     setExpanded((current) => {
@@ -183,7 +186,7 @@ export default function ThreadScreen() {
             contentContainerStyle={[styles.content, { backgroundColor: colors.card }]}
           >
             <View style={styles.titleBlock}>
-              <Typography variant="h3">{latest?.subject || t('reader.noSubject')}</Typography>
+              <SubjectTitle subject={latest?.subject || t('reader.noSubject')} />
               {mailbox ? (
                 <Typography variant="caption" color={colors.textSecondary} style={styles.mailbox}>
                   {mailboxName(mailbox, t)}

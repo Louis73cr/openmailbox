@@ -12,7 +12,8 @@ use mail_mime::{AttachmentContent, OutgoingMessage};
 use mail_model::{
     Account, AccountConfig, Address, Category, CoreEvent, Draft, EmailSummary, Error, Keyword,
     MAX_ATTACHMENTS_BYTES, Mailbox, MailboxRole, NewMessage, OutgoingAttachment, RenderedBody,
-    Result, SearchHit, ServerConfig, ThreadPage, ThreadScope, UnsubscribeOutcome, now_millis,
+    Result, SearchHit, ServerConfig, ThreadFilter, ThreadPage, ThreadScope, UnsubscribeOutcome,
+    now_millis,
 };
 use mail_store::Store;
 use tokio::runtime::Handle;
@@ -80,6 +81,12 @@ impl Engine {
             .map_err(|error| Error::Storage(error.to_string()))?;
         let store = Arc::new(Store::open(&data_directory.join("mail.db"))?);
         store.reset_in_flight_operations(None)?;
+        let indexer = store.clone();
+        runtime.spawn_blocking(move || {
+            while indexer.index_text_without_spaces().unwrap_or(false) {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        });
         let engine = Arc::new(Engine {
             store,
             runtime,
@@ -277,13 +284,13 @@ impl Engine {
     pub fn list_threads(
         &self,
         scope: ThreadScope,
-        unread_only: bool,
+        filter: &ThreadFilter,
         category: Option<Category>,
         cursor: Option<&str>,
         limit: u32,
     ) -> Result<ThreadPage> {
         self.store
-            .list_threads(scope, unread_only, category, cursor, limit)
+            .list_threads(scope, filter, category, cursor, limit)
     }
 
     /// Moves every message from `sender`, past and future, to `category`.
@@ -458,7 +465,11 @@ impl Engine {
             .in_reply_to_email_id
             .map(|email_id| self.store.reply_context(email_id))
             .transpose()?;
-        let domain = account
+        let from = draft.from.clone().unwrap_or_else(|| Address {
+            name: Some(account.display_name.clone()),
+            email: account.email.clone(),
+        });
+        let domain = from
             .email
             .rsplit_once('@')
             .map(|(_, domain)| domain)
@@ -473,10 +484,6 @@ impl Engine {
                 .as_ref()
                 .and_then(|context| context.message_id.clone()),
         );
-        let from = Address {
-            name: Some(account.display_name.clone()),
-            email: account.email.clone(),
-        };
         let built = mail_mime::build_message(OutgoingMessage {
             message_id: &message_id,
             from: &from,
@@ -565,6 +572,7 @@ impl Engine {
             body_html: None,
             in_reply_to_email_id: None,
             attachments: vec![],
+            from: None,
         })
     }
 
@@ -932,7 +940,13 @@ mod tests {
         fn threads(&self, mailbox_id: i64) -> Vec<i64> {
             self.engine
                 .store
-                .list_threads(ThreadScope::Mailbox(mailbox_id), false, None, None, 50)
+                .list_threads(
+                    ThreadScope::Mailbox(mailbox_id),
+                    &ThreadFilter::default(),
+                    None,
+                    None,
+                    50,
+                )
                 .unwrap()
                 .threads
                 .into_iter()
@@ -1127,6 +1141,7 @@ mod tests {
             body_html: None,
             in_reply_to_email_id: None,
             attachments,
+            from: None,
         }
     }
 
@@ -1194,6 +1209,34 @@ mod tests {
         let rendered = mail_mime::render(raw.as_bytes()).unwrap();
         assert_eq!(rendered.attachments[0].filename, "plan.pdf");
         assert_eq!(rendered.attachments[0].size, 2_048);
+    }
+
+    #[test]
+    fn send_from_an_identity_uses_it_as_sender_and_envelope() {
+        let fixture = Fixture::new(STANDARD);
+        let mut draft = draft_with(vec![]);
+        draft.from = Some(Address {
+            name: Some("Support".into()),
+            email: "info@shop.example".into(),
+        });
+        fixture.engine.send(draft).unwrap();
+        let queued = fixture
+            .engine
+            .store
+            .waiting_operations("alice", "send")
+            .unwrap();
+        let Operation::Send {
+            raw, envelope_from, ..
+        } = serde_json::from_str(&queued[0].payload).unwrap()
+        else {
+            panic!("not a send");
+        };
+        assert_eq!(envelope_from, "info@shop.example");
+        assert!(raw.contains("From: Support <info@shop.example>"));
+        assert!(
+            raw.lines()
+                .any(|line| line.starts_with("Message-ID:") && line.ends_with("@shop.example>"))
+        );
     }
 
     fn newsletter(fixture: &Fixture, unsubscribe: Unsubscribe) -> i64 {

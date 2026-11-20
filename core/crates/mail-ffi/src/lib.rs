@@ -242,6 +242,7 @@ pub struct Draft {
     pub body_html: Option<String>,
     pub in_reply_to_email_id: Option<String>,
     pub attachments: Vec<OutgoingAttachment>,
+    pub from: Option<Address>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -301,6 +302,35 @@ impl From<mail_sync::Relocation> for Relocation {
 pub enum ThreadScope {
     Unified,
     Mailbox { mailbox_id: String },
+}
+
+#[derive(Debug, Clone, Default, uniffi::Record)]
+pub struct ThreadFilter {
+    pub unread: bool,
+    pub flagged: bool,
+    pub to_me: bool,
+    pub cc_me: bool,
+    pub with_attachment: bool,
+    pub since: Option<f64>,
+    pub account_ids: Vec<String>,
+    pub keep_thread_ids: Vec<String>,
+}
+
+impl TryFrom<ThreadFilter> for mail_model::ThreadFilter {
+    type Error = CoreError;
+
+    fn try_from(filter: ThreadFilter) -> CoreResult<Self> {
+        Ok(Self {
+            unread: filter.unread,
+            flagged: filter.flagged,
+            to_me: filter.to_me,
+            cc_me: filter.cc_me,
+            with_attachment: filter.with_attachment,
+            since: filter.since.map(|since| since as i64),
+            account_ids: filter.account_ids,
+            keep_thread_ids: parse_ids(&filter.keep_thread_ids)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, uniffi::Enum)]
@@ -708,11 +738,12 @@ impl MailCore {
     pub async fn list_threads(
         &self,
         scope: ThreadScope,
-        unread_only: bool,
+        filter: ThreadFilter,
         category: Option<Category>,
         cursor: Option<String>,
         limit: u32,
     ) -> CoreResult<ThreadPage> {
+        let filter = mail_model::ThreadFilter::try_from(filter)?;
         let scope = match scope {
             ThreadScope::Unified => mail_model::ThreadScope::Unified,
             ThreadScope::Mailbox { mailbox_id } => {
@@ -723,7 +754,7 @@ impl MailCore {
             .blocking(move |engine| {
                 engine.list_threads(
                     scope,
-                    unread_only,
+                    &filter,
                     category.map(Into::into),
                     cursor.as_deref(),
                     limit,
@@ -917,6 +948,7 @@ impl MailCore {
                     mime_type: attachment.mime_type,
                 })
                 .collect(),
+            from: draft.from.map(Into::into),
         };
         self.blocking(move |engine| engine.send(draft)).await
     }
