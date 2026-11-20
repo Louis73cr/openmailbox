@@ -1,18 +1,16 @@
 import { memo, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Platform, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { confirmOpenLink } from '../openLink';
-import { PAGE, READER_FONT } from '../readerPage';
+import { documentFor, PAGE } from '../readerPage';
 
 const INITIAL_HEIGHT = 120;
 const BROKEN_IMAGE_MESSAGE = 'broken-image:';
 const MAX_REFETCHED_IMAGE_BYTES = 5 * 1024 * 1024;
-
-const MIN_FONT_SIZE = 15;
 
 export const ADAPT_COLOR = `
 function adaptColor(color, background) {
@@ -34,7 +32,7 @@ function adaptColor(color, background) {
 }
 `;
 
-const fitAndMeasure = (availableWidth: number, dark: boolean) => `
+const fitAndMeasure = (availableWidth: number, dark: boolean, scaleViewport: boolean) => `
 (function () {
   ${ADAPT_COLOR}
   function apply(changes) {
@@ -56,25 +54,6 @@ const fitAndMeasure = (availableWidth: number, dark: boolean) => `
     });
     apply(changes);
   }
-  function hasText(element) {
-    return Array.prototype.some.call(element.childNodes, function (node) {
-      return node.nodeType === 3 && /\\S/.test(node.nodeValue);
-    });
-  }
-  function floorFonts(zoom) {
-    var changes = [];
-    Array.prototype.forEach.call(document.querySelectorAll('body, body *'), function (element) {
-      if (!hasText(element) || !element.getClientRects().length) return;
-      var style = getComputedStyle(element);
-      var size = parseFloat(style.fontSize);
-      var target = (${MIN_FONT_SIZE} + Math.max(0, size - ${MIN_FONT_SIZE}) * zoom) / zoom;
-      if (size <= 1 || target <= size) return;
-      var lineHeight = parseFloat(style.lineHeight);
-      changes.push([element, 'font-size', target + 'px']);
-      if (lineHeight) changes.push([element, 'line-height', (lineHeight * target) / size + 'px']);
-    });
-    apply(changes);
-  }
   if (${dark}) darken();
   function reportBrokenImage(image) {
     if (image.dataset.reported || !/^https?:/i.test(image.src)) return;
@@ -85,24 +64,25 @@ const fitAndMeasure = (availableWidth: number, dark: boolean) => `
     if (image.complete && image.naturalWidth === 0) reportBrokenImage(image);
     else image.addEventListener('error', function () { reportBrokenImage(image); });
   });
-  function zoomFor(body) {
-    var overflow = body.scrollWidth / ${availableWidth};
-    return overflow > 1.02 ? 1 / overflow : 1;
-  }
-  var floored = false;
+  var viewport = document.querySelector('meta[name=viewport]');
+  var layoutWidth = ${availableWidth};
   function fit() {
     var body = document.body;
     if (!body) return;
-    body.style.zoom = '1';
-    if (!floored) {
-      floored = true;
-      floorFonts(zoomFor(body));
+    if (!${scaleViewport}) {
+      body.style.zoom = '1';
+      var overflow = body.scrollWidth / ${availableWidth};
+      body.style.zoom = String(overflow > 1.02 ? 1 / overflow : 1);
+      return;
     }
-    body.style.zoom = String(zoomFor(body));
+    var width = Math.max(document.documentElement.scrollWidth, body.scrollWidth);
+    if (width <= layoutWidth * 1.02) return;
+    layoutWidth = width;
+    viewport.setAttribute('content', 'width=' + width);
   }
   function report() {
     fit();
-    var height = Math.ceil(document.documentElement.getBoundingClientRect().height);
+    var height = Math.ceil((document.documentElement.getBoundingClientRect().height * ${availableWidth}) / layoutWidth);
     window.ReactNativeWebView.postMessage(String(height));
   }
   window.addEventListener('load', report);
@@ -136,21 +116,6 @@ Array.prototype.forEach.call(document.images, function (image) {
 });
 true;
 `;
-
-function documentFor(html: string, allowRemoteContent: boolean, page: (typeof PAGE)['light']): string {
-  const images = allowRemoteContent ? 'data: https: http:' : 'data:';
-  return `<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src ${images}; font-src data:; media-src 'none'; frame-src 'none'; form-action 'none';">
-<style>
-html, body { margin: 0; padding: 0; background: ${page.background}; color: ${page.text}; }
-a { color: ${page.link}; }
-body { padding: 4px 2px; font: 15px/1.45 ${READER_FONT}; overflow-wrap: break-word; }
-img { max-width: 100%; height: auto; }
-pre { white-space: pre-wrap; }
-blockquote { margin: 0 0 0 8px; padding-left: 10px; border-left: 3px solid ${page.rule}; color: ${page.quote}; }
-</style></head><body>${html}</body></html>`;
-}
 
 interface HtmlBodyProps {
   html: string;
@@ -199,7 +164,7 @@ function HtmlBodyImpl({ html, allowRemoteContent, background }: HtmlBodyProps) {
           key={`${width}-${dark}`}
           source={source}
           originWhitelist={['*']}
-          injectedJavaScript={fitAndMeasure(width, dark)}
+          injectedJavaScript={fitAndMeasure(width, dark, Platform.OS === 'ios')}
           onMessage={onMessage}
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
           scrollEnabled={false}

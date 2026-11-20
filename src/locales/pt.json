@@ -176,6 +176,7 @@
   },
   "reader": {
     "attachmentFailed": "Não foi possível abrir o anexo.",
+    "printFailed": "Não foi possível imprimir a conversa.",
     "collapseHint": "Recolhe a mensagem",
     "contactCard": "Ver cartão de contacto",
     "expandHint": "Mostra a mensagem completa",
@@ -274,6 +275,7 @@
   },
   "threads": {
     "archive": "Arquivar",
+    "print": "Imprimir",
     "categorize": "Classificar remetente",
     "delete": "Eliminar",
     "deleteForever": "Eliminar definitivamente",

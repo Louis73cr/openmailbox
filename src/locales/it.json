@@ -176,6 +176,7 @@
   },
   "reader": {
     "attachmentFailed": "Impossibile aprire l'allegato.",
+    "printFailed": "Impossibile stampare la conversazione.",
     "collapseHint": "Comprime il messaggio",
     "contactCard": "Mostra scheda contatto",
     "expandHint": "Mostra il messaggio completo",
@@ -274,6 +275,7 @@
   },
   "threads": {
     "archive": "Archivia",
+    "print": "Stampa",
     "categorize": "Classifica mittente",
     "delete": "Elimina",
     "deleteForever": "Elimina definitivamente",
