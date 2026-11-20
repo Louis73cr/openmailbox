@@ -1,21 +1,27 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Alert, InputAccessoryView, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { HStack, Host, Image, Menu, Picker, Text } from '@expo/ui/swift-ui';
 import { foregroundStyle, frame, lineLimit, tag } from '@expo/ui/swift-ui/modifiers';
 import { ArrowUp, ChevronDown, FolderOpen, Images, Paperclip, X } from 'lucide-react-native';
+import type { EnrichedTextInputInstance, OnLinkDetected } from 'react-native-enriched-html';
 
 import { sendDraft } from '@/core/actions';
 import { useAccounts, useBody, useThreadEmails } from '@/core/hooks';
 import { canAdd, forwardedAttachments, pickAttachments, type ComposerAttachment } from '@/features/composer/attachments';
 import { AttachmentList } from '@/features/composer/components/AttachmentList';
 import { RecipientField } from '@/features/composer/components/RecipientField';
+import { FORMAT_BAR_HEIGHT, KeyboardFormatBar } from '@/features/composer/components/KeyboardFormatBar';
+import { RichBody } from '@/features/composer/components/RichBody';
+import { editorHtml } from '@/features/composer/editorHtml';
 import { composeTitleKey, linkedHtml, prefill, quoteHtml, type ComposeMode } from '@/features/composer/prefill';
 import { replySender, sendersOf } from '@/features/composer/senders';
 import { readSharedContent } from '@/features/composer/shared';
 import { HtmlBody } from '@/features/reader/components/HtmlBody';
+import { INITIAL_EDITOR_STATE, sameState, type EditorState } from '@/features/signatures/FormatBar';
+import { FormatSheets, type FormatPanel } from '@/features/signatures/FormatSheets';
 import { mailHtml, signatureHtml, signatureText } from '@/features/composer/signature';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useUndoStore } from '@/stores/undoStore';
@@ -27,6 +33,7 @@ import { goBack } from '@/utils/navigation';
 
 const snapshot = (...fields: string[]) => fields.map((field) => field.trim()).join('\u0000');
 const fieldName = (label: string) => label.replace(/\s*:$/, '');
+const FORMAT_BAR_ID = 'compose-format-bar';
 
 type ComposeParams = {
   mode?: ComposeMode;
@@ -81,7 +88,17 @@ export default function ComposeScreen() {
   const [bccText, setBccText] = useState('');
   const [subject, setSubject] = useState('');
   const loadRemoteImages = useSettingsStore((state) => state.loadRemoteImages);
-  const [body, setBody] = useState('');
+  const body = useRef<EnrichedTextInputInstance>(null);
+  const accessoryId = useId();
+  const bodyText = useRef('');
+  const [hasBody, setHasBody] = useState(false);
+  const [bodyFocused, setBodyFocused] = useState(false);
+  const [formatting, setFormatting] = useState(false);
+  const [panel, setPanel] = useState<FormatPanel>(null);
+  const [editorState, setEditorState] = useState(INITIAL_EDITOR_STATE);
+  const selection = useRef({ start: 0, end: 0, text: '' });
+  const detectedLink = useRef<OnLinkDetected | null>(null);
+  const [linkTarget, setLinkTarget] = useState<OnLinkDetected | null>(null);
   const [signatureRemoved, setSignatureRemoved] = useState(false);
   const [signatureReady, setSignatureReady] = useState(false);
   const [showCopies, setShowCopies] = useState(false);
@@ -91,8 +108,7 @@ export default function ComposeScreen() {
   const [forwarding, setForwarding] = useState(false);
   const [quote, setQuote] = useState('');
   const [attachMenuVisible, setAttachMenuVisible] = useState(false);
-  const bodyInput = useRef<TextInput>(null);
-  const [initialContent, setInitialContent] = useState(() => snapshot('', '', '', '', ''));
+  const [initialContent, setInitialContent] = useState(() => snapshot('', '', '', ''));
 
   useEffect(() => {
     const timer = setTimeout(() => setSignatureReady(true), 300);
@@ -118,7 +134,7 @@ export default function ComposeScreen() {
     setShowCopies(content.cc.length > 0);
     setSubject(content.subject);
     setQuote(content.body);
-    setInitialContent(snapshot(formatAddressList(content.to), formatAddressList(content.cc), '', content.subject, ''));
+    setInitialContent(snapshot(formatAddressList(content.to), formatAddressList(content.cc), '', content.subject));
     setPrefilled(true);
     const originalAttachments = originalBody.data?.attachments ?? [];
     if (mode === 'forward' && params.emailId && originalAttachments.length > 0) {
@@ -133,8 +149,11 @@ export default function ComposeScreen() {
   useEffect(() => {
     if (!params.shared) return;
     readSharedContent()
-      .then((shared) => {
-        if (shared.text) setBody((current) => shared.text + current);
+      .then(async (shared) => {
+        if (shared.text) {
+          const current = bodyText.current.trim() ? editorHtml((await body.current?.getHTML()) ?? '') : '';
+          body.current?.setValue(linkedHtml(shared.text) + current);
+        }
         if (shared.failed) Alert.alert(t('compose.sharedFilesFailed'));
         if (shared.attachments.length === 0) return;
         if (!canAdd([], shared.attachments)) {
@@ -149,8 +168,8 @@ export default function ComposeScreen() {
   useEffect(() => {
     if (!prefilled || (mode !== 'reply' && mode !== 'replyAll')) return;
     const timer = setTimeout(() => {
-      bodyInput.current?.focus();
-      bodyInput.current?.setSelection(0, 0);
+      body.current?.focus();
+      body.current?.setSelection(0, 0);
     }, 50);
     return () => clearTimeout(timer);
   }, [prefilled, mode]);
@@ -162,9 +181,58 @@ export default function ComposeScreen() {
   const recipientsText = (addresses: MailAddress[], text: string) => [formatAddressList(addresses), text].filter(Boolean).join(', ');
   const dirty =
     prefilled &&
-    (snapshot(recipientsText(to, toText), recipientsText(cc, ccText), recipientsText(bcc, bccText), subject, body) !== initialContent ||
+    (snapshot(recipientsText(to, toText), recipientsText(cc, ccText), recipientsText(bcc, bccText), subject) !== initialContent ||
+      hasBody ||
       (mode !== 'forward' && attachments.length > 0));
   const hasRecipient = to.length + cc.length + bcc.length > 0 || (toText + ccText + bccText).trim().length > 0;
+
+  const onBodyText = useCallback((text: string) => {
+    bodyText.current = text;
+    setHasBody(text.trim() !== '');
+  }, []);
+
+  const ios = Platform.OS === 'ios';
+  const sharedAccessory = ios ? `${FORMAT_BAR_ID}.${accessoryId}` : undefined;
+  const barShown = bodyFocused || (panel !== null && panel !== 'link');
+  const onEditorState = useCallback((next: EditorState) => setEditorState((current) => (sameState(current, next) ? current : next)), []);
+  const onSelection = useCallback((next: { start: number; end: number; text: string }) => {
+    selection.current = next;
+  }, []);
+  const toggleFormatting = useCallback(() => setFormatting((current) => !current), []);
+  const onLinkDetected = useCallback((link: OnLinkDetected) => {
+    detectedLink.current = link;
+  }, []);
+  const openLink = useCallback(() => {
+    setLinkTarget(editorState.link !== null ? detectedLink.current : null);
+    setPanel('link');
+  }, [editorState.link]);
+  const closePanel = useCallback(() => {
+    setPanel(null);
+    body.current?.focus();
+    body.current?.setSelection(selection.current.start, selection.current.end);
+  }, []);
+  const openSize = useCallback(() => setPanel('size'), []);
+  const openColor = useCallback((kind: 'text' | 'highlight') => setPanel(kind), []);
+  const runCommand = useCallback(
+    (command: string) => {
+      const editor = body.current;
+      if (!editor) return;
+      if (command === 'bold') editor.toggleBold();
+      else if (command === 'italic') editor.toggleItalic();
+      else if (command === 'underline') editor.toggleUnderline();
+      else if (command === 'strikeThrough') editor.toggleStrikeThrough();
+      else if (command === 'insertUnorderedList') editor.toggleUnorderedList();
+      else if (command === 'insertOrderedList') editor.toggleOrderedList();
+      else if (command === 'removeFormat') {
+        editor.setStyle({ foregroundColor: null, backgroundColor: null, fontSize: null });
+        if (editorState.bold) editor.toggleBold();
+        if (editorState.italic) editor.toggleItalic();
+        if (editorState.underline) editor.toggleUnderline();
+        if (editorState.strike) editor.toggleStrikeThrough();
+      }
+    },
+    [editorState],
+  );
 
   const changeSender = (key: string) => {
     const next = senders.find((candidate) => candidate.key === key);
@@ -215,15 +283,16 @@ export default function ComposeScreen() {
     const signatureMarkup = signatureHtml(signature, signatureFooter);
     setSending(true);
     try {
+      const html = editorHtml((await body.current?.getHTML()) ?? '');
       await sendDraft({
         accountId,
         to: toAddresses,
         cc: ccAddresses,
         bcc: bccAddresses,
         subject: subject.trim(),
-        bodyText: body + signatureText(signature, signatureFooter) + quote,
+        bodyText: bodyText.current + signatureText(signature, signatureFooter) + quote,
         bodyHtml: mailHtml(
-          linkedHtml(body) +
+          html +
             (signatureMarkup ? `<br><br>${signatureMarkup}` : '') +
             (originalHtml ? quoteHtml(mode, quote, originalHtml) : linkedHtml(quote)),
         ),
@@ -240,12 +309,24 @@ export default function ComposeScreen() {
   };
 
   const title = t(composeTitleKey(mode));
+  const formatBar = (
+    <KeyboardFormatBar
+      visible={barShown}
+      expanded={formatting}
+      onToggle={toggleFormatting}
+      state={editorState}
+      onCommand={runCommand}
+      onLink={openLink}
+      onSize={openSize}
+      onColor={openColor}
+    />
+  );
   const previewHtml = useMemo(() => (sender ? signatureHtml(sender.signature, footer) : ''), [sender, footer]);
 
   return (
     <ViewContainer>
       <SafeAreaView edges={NATIVE_CHROME ? ['bottom'] : ['top', 'bottom']} style={styles.flex}>
-        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+        <KeyboardAvoidingView style={styles.flex} behavior="padding" enabled={!ios}>
           {NATIVE_CHROME ? null : (
           <View style={styles.header}>
             <IconButton round glass size={40} accessibilityLabel={t('common.close')} onPress={close}>
@@ -268,7 +349,12 @@ export default function ComposeScreen() {
             </View>
           </View>
           )}
-          <ScrollView keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+          <ScrollView
+            keyboardShouldPersistTaps="always"
+            contentInsetAdjustmentBehavior="automatic"
+            automaticallyAdjustKeyboardInsets={ios}
+            contentContainerStyle={[styles.content, barShown && !ios ? styles.contentAboveBar : null]}
+          >
             {NATIVE_CHROME ? null : (
               <Typography variant="h3" style={styles.title}>
                 {title}
@@ -281,11 +367,12 @@ export default function ComposeScreen() {
               text={toText}
               onTextChange={setToText}
               autoFocus={mode === 'new' || mode === 'forward'}
+              inputAccessoryViewID={sharedAccessory}
             />
             {showCopies ? (
               <>
-                <RecipientField label={t('compose.cc')} value={cc} onChange={setCc} text={ccText} onTextChange={setCcText} />
-                <RecipientField label={t('compose.bcc')} value={bcc} onChange={setBcc} text={bccText} onTextChange={setBccText} />
+                <RecipientField label={t('compose.cc')} value={cc} onChange={setCc} text={ccText} onTextChange={setCcText} inputAccessoryViewID={sharedAccessory} />
+                <RecipientField label={t('compose.bcc')} value={bcc} onChange={setBcc} text={bccText} onTextChange={setBccText} inputAccessoryViewID={sharedAccessory} />
                 <FieldRow label={t('compose.from')}>
                   {NATIVE_CHROME ? (
                     <Host matchContents={{ vertical: true }} style={styles.senderPicker}>
@@ -337,6 +424,7 @@ export default function ComposeScreen() {
                 value={subject}
                 onChangeText={setSubject}
                 accessibilityLabel={fieldName(t('compose.subject'))}
+                inputAccessoryViewID={sharedAccessory}
                 style={[styles.input, { color: colors.text }]}
               />
             </FieldRow>
@@ -344,15 +432,15 @@ export default function ComposeScreen() {
               attachments={attachments}
               onRemove={(removed) => setAttachments((current) => current.filter((attachment) => attachment !== removed))}
             />
-            <TextInput
-              value={body}
-              onChangeText={setBody}
-              multiline
-              ref={bodyInput}
-              textAlignVertical="top"
+            <RichBody
+              ref={body}
+              nativeID={FORMAT_BAR_ID}
               placeholder={t('compose.bodyPlaceholder')}
-              placeholderTextColor={colors.textTertiary}
-              style={[styles.body, { color: colors.text }]}
+              onFocusChange={setBodyFocused}
+              onTextChange={onBodyText}
+              onStateChange={onEditorState}
+              onSelectionChange={onSelection}
+              onLinkDetected={onLinkDetected}
             />
             {signatureReady && !signatureRemoved && previewHtml ? (
               <View style={styles.signature}>
@@ -381,8 +469,36 @@ export default function ComposeScreen() {
               )
             ) : null}
           </ScrollView>
+          {ios ? (
+            <InputAccessoryView key={showCopies ? 'copies' : 'fields'} nativeID={FORMAT_BAR_ID} backgroundColor="transparent">
+              {formatBar}
+            </InputAccessoryView>
+          ) : (
+            <View pointerEvents="box-none" style={styles.floatingBar}>
+              {formatBar}
+            </View>
+          )}
         </KeyboardAvoidingView>
       </SafeAreaView>
+      <FormatSheets
+        panel={panel}
+        link={linkTarget?.url ?? null}
+        accessoryId={sharedAccessory}
+        onClose={closePanel}
+        onSize={(px, bold) => {
+          body.current?.setStyle({ fontSize: px });
+          if (bold && !editorState.bold) body.current?.toggleBold();
+        }}
+        onColor={(kind, hex) => body.current?.setStyle(kind === 'highlight' ? { backgroundColor: hex } : { foregroundColor: hex })}
+        onSaveLink={(url) => {
+          const { start, end, text } = linkTarget ?? selection.current;
+          body.current?.setLink(start, end, end > start ? text : url, url);
+        }}
+        onRemoveLink={() => {
+          const { start, end } = linkTarget ?? selection.current;
+          body.current?.removeLink(start, end);
+        }}
+      />
       <Sheet visible={attachMenuVisible} onClose={() => setAttachMenuVisible(false)} title={t('compose.attach')}>
         <ActionList
           actions={[
@@ -424,13 +540,14 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   headerActions: { flexDirection: 'row', gap: 10 },
   content: { paddingHorizontal: 16, paddingBottom: 40 },
+  contentAboveBar: { paddingBottom: 40 + FORMAT_BAR_HEIGHT },
+  floatingBar: { marginTop: -FORMAT_BAR_HEIGHT },
   title: { marginVertical: 12 },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, borderBottomWidth: StyleSheet.hairlineWidth },
   input: { fontSize: 16, paddingVertical: 12 },
   sender: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 12 },
   senderEmail: { flexShrink: 1 },
   senderPicker: { width: '100%' },
-  body: { fontSize: 16, lineHeight: 22, minHeight: 160, paddingTop: 16 },
   signature: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, paddingBottom: 16 },
   quote: { gap: 8, paddingBottom: 16 },
   quoted: { borderLeftWidth: 2, paddingLeft: 8 },

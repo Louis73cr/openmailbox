@@ -137,7 +137,9 @@
     "messageSent": "Mensagem enviada",
     "subject": "Assunto:",
     "to": "Para:",
-    "wrote": "Em {{date}}, {{author}} escreveu:"
+    "wrote": "Em {{date}}, {{author}} escreveu:",
+    "formatting": "Formatação",
+    "hideFormatting": "Ocultar formatação"
   },
   "dates": {
     "yesterday": "Ontem"
@@ -229,6 +231,7 @@
   },
   "signature": {
     "bold": "Negrito",
+    "bulletList": "Lista com marcadores",
     "clearFormatting": "Limpar formatação",
     "codePlaceholder": "Escreva o HTML aqui…",
     "colors": {
@@ -246,6 +249,7 @@
     "italic": "Itálico",
     "link": "Ligação",
     "linkPlaceholder": "https://example.com",
+    "numberedList": "Lista numerada",
     "placeholder": "Escreva a sua assinatura ou cole o código HTML",
     "removeLink": "Remover ligação",
     "sizes": {

@@ -1,54 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Check, CodeXml, X } from 'lucide-react-native';
 
 import { EDITOR_SCRIPT, editorDocument } from '@/features/signatures/editorScript';
-import { FormatBar, INITIAL_EDITOR_STATE, type EditorState } from '@/features/signatures/FormatBar';
+import { FormatBar, INITIAL_EDITOR_STATE, sameState, type EditorState } from '@/features/signatures/FormatBar';
+import { FormatSheets, type FormatPanel } from '@/features/signatures/FormatSheets';
 import { useSignatureEditor } from '@/features/signatures/signatureEditorStore';
 import { darkTheme, lightTheme } from '@/theme';
-import { ActionList, Button, Dialog, IconButton, ScreenHeader, Sheet, TextField, Typography, ViewContainer } from '@/ui/components';
+import { IconButton, ScreenHeader, ViewContainer } from '@/ui/components';
 import { NATIVE_CHROME } from '@/ui/nativeChrome';
 import { goBack } from '@/utils/navigation';
 
 const MAX_BYTES = 32 * 1024;
-const SIZES = [
-  { key: 'small', px: 13 },
-  { key: 'normal', px: 15 },
-  { key: 'large', px: 18 },
-  { key: 'title', px: 22 },
-] as const;
-const PALETTES = {
-  text: [
-    ['black', '#1a1a1a'],
-    ['grey', '#6b7280'],
-    ['red', '#dc2626'],
-    ['orange', '#ea580c'],
-    ['yellow', '#ca8a04'],
-    ['green', '#16a34a'],
-    ['blue', '#2563eb'],
-    ['purple', '#7c3aed'],
-  ],
-  highlight: [
-    ['yellow', '#fef08a'],
-    ['green', '#bbf7d0'],
-    ['blue', '#bfdbfe'],
-    ['purple', '#e9d5ff'],
-    ['pink', '#fbcfe8'],
-    ['orange', '#fed7aa'],
-    ['red', '#fecaca'],
-    ['grey', '#e5e7eb'],
-  ],
-} as const;
-
-type Panel = 'size' | 'text' | 'highlight' | null;
-
-const sameState = (a: EditorState, b: EditorState) =>
-  a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.strike === b.strike && a.link === b.link && a.empty === b.empty;
 
 export default function SignatureScreen() {
   const { t } = useTranslation();
@@ -59,9 +28,13 @@ export default function SignatureScreen() {
   const openedDark = useRef(dark).current;
   const [editorState, setEditorState] = useState(INITIAL_EDITOR_STATE);
   const [codeMode, setCodeMode] = useState(false);
-  const [panel, setPanel] = useState<Panel>(null);
-  const [linking, setLinking] = useState(false);
-  const [url, setUrl] = useState('');
+  const [focused, setFocused] = useState(false);
+  const [panel, setPanel] = useState<FormatPanel>(null);
+  const ios = Platform.OS === 'ios';
+  const bottomInset = useSafeAreaInsets().bottom;
+  const keyboard = useAnimatedKeyboard();
+  const lift = useAnimatedStyle(() => ({ transform: [{ translateY: -Math.max(0, keyboard.height.value - bottomInset) }] }));
+  const barShown = !codeMode && (focused || (panel !== null && panel !== 'link'));
   const source = useMemo(
     () => ({ html: editorDocument(value.html, { dark: openedDark, light: lightTheme.colors, darkColors: darkTheme.colors, placeholder: t('signature.placeholder'), codePlaceholder: t('signature.codePlaceholder') }) }),
     [value.html, openedDark, t],
@@ -86,10 +59,14 @@ export default function SignatureScreen() {
   };
 
   const onMessage = (event: WebViewMessageEvent) => {
-    let message: Partial<EditorState> & { type?: string; html?: string; text?: string };
+    let message: Partial<EditorState> & { type?: string; html?: string; text?: string; focused?: boolean };
     try {
       message = JSON.parse(event.nativeEvent.data);
     } catch {
+      return;
+    }
+    if (message.type === 'focus') {
+      setFocused(message.focused === true);
       return;
     }
     if (message.type === 'state') {
@@ -98,8 +75,9 @@ export default function SignatureScreen() {
         italic: message.italic === true,
         underline: message.underline === true,
         strike: message.strike === true,
+        ul: false,
+        ol: false,
         link: typeof message.link === 'string' ? message.link : null,
-        empty: message.empty === true,
       };
       setEditorState((current) => (sameState(current, next) ? current : next));
       return;
@@ -116,26 +94,9 @@ export default function SignatureScreen() {
   const onShouldStartLoadWithRequest = (request: ShouldStartLoadRequest) =>
     request.url === 'about:blank' || request.url.startsWith('data:');
 
-  const openLink = useCallback(() => {
-    setUrl(editorState.link ?? '');
-    setLinking(true);
-  }, [editorState.link]);
+  const openLink = useCallback(() => setPanel('link'), []);
   const openSize = useCallback(() => setPanel('size'), []);
   const openColor = useCallback((kind: 'text' | 'highlight') => setPanel(kind), []);
-
-  const saveLink = () => {
-    const target = url.trim();
-    setLinking(false);
-    if (target) run('createLink', /^[a-z][a-z0-9+.-]*:/i.test(target) ? target : `https://${target}`);
-  };
-  const removeLink = () => {
-    setLinking(false);
-    run('unlink');
-  };
-  const choose = (command: string, argument: string | number) => {
-    setPanel(null);
-    run(command, argument);
-  };
 
   return (
     <ViewContainer>
@@ -160,7 +121,7 @@ export default function SignatureScreen() {
             }
           />
         )}
-        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+        <KeyboardAvoidingView style={styles.flex} behavior="padding" enabled={!ios}>
           <WebView
             ref={webView}
             source={source}
@@ -176,52 +137,23 @@ export default function SignatureScreen() {
             setSupportMultipleWindows={false}
             style={[styles.flex, { backgroundColor: colors.background }]}
           />
-          {codeMode ? null : <FormatBar state={editorState} onCommand={run} onLink={openLink} onSize={openSize} onColor={openColor} />}
+          {barShown ? (
+            <Animated.View style={ios ? [styles.floating, lift] : null}>
+              <FormatBar state={editorState} onCommand={run} onLink={openLink} onSize={openSize} onColor={openColor} />
+            </Animated.View>
+          ) : null}
         </KeyboardAvoidingView>
       </SafeAreaView>
 
-      <Sheet visible={panel === 'size'} onClose={() => setPanel(null)} title={t('signature.textSize')}>
-        <ActionList actions={SIZES.map(({ key, px }) => ({ key, title: t(`signature.sizes.${key}`), onPress: () => choose('size', px) }))} />
-      </Sheet>
-      <Sheet
-        visible={panel === 'text' || panel === 'highlight'}
+      <FormatSheets
+        panel={panel}
+        link={editorState.link}
         onClose={() => setPanel(null)}
-        title={panel === 'highlight' ? t('signature.highlight') : t('signature.textColor')}
-      >
-        <View style={styles.swatches}>
-          {(panel === 'highlight' ? PALETTES.highlight : PALETTES.text).map(([name, color]) => (
-            <Pressable
-              key={name}
-              accessibilityRole="button"
-              accessibilityLabel={t(`signature.colors.${name}`)}
-              onPress={() => choose(panel === 'highlight' ? 'hiliteColor' : 'foreColor', color)}
-              style={({ pressed }) => [styles.swatch, { backgroundColor: color, borderColor: colors.textTertiary }, pressed ? styles.pressed : null]}
-            />
-          ))}
-        </View>
-      </Sheet>
-
-      <Dialog visible={linking} onClose={() => setLinking(false)}>
-        <Typography variant="h3">{t('signature.link')}</Typography>
-        <TextField
-          value={url}
-          onChangeText={setUrl}
-          placeholder={t('signature.linkPlaceholder')}
-          accessibilityLabel={t('signature.link')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          autoFocus
-          onSubmitEditing={saveLink}
-          style={styles.field}
-        />
-        <View style={styles.actions}>
-          {editorState.link !== null ? <Button variant="link" color="danger" title={t('signature.removeLink')} onPress={removeLink} /> : null}
-          <View style={styles.flex} />
-          <Button variant="link" title={t('common.cancel')} onPress={() => setLinking(false)} />
-          <Button variant="link" title={t('common.ok')} disabled={!url.trim()} onPress={saveLink} />
-        </View>
-      </Dialog>
+        onSize={(px) => run('size', px)}
+        onColor={(kind, hex) => run(kind === 'highlight' ? 'hiliteColor' : 'foreColor', hex)}
+        onSaveLink={(url) => run('createLink', url)}
+        onRemoveLink={() => run('unlink')}
+      />
 
       {NATIVE_CHROME ? (
         <>
@@ -246,9 +178,5 @@ export default function SignatureScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  field: { alignSelf: 'stretch' },
-  actions: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', gap: 8 },
-  swatches: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
-  swatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 1 },
-  pressed: { opacity: 0.6 },
+  floating: { position: 'absolute', left: 0, right: 0, bottom: 0 },
 });

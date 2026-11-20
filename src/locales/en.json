@@ -137,7 +137,9 @@
     "messageSent": "Message sent",
     "subject": "Subject:",
     "to": "To:",
-    "wrote": "On {{date}}, {{author}} wrote:"
+    "wrote": "On {{date}}, {{author}} wrote:",
+    "formatting": "Formatting",
+    "hideFormatting": "Hide Formatting"
   },
   "dates": {
     "yesterday": "Yesterday"
@@ -229,6 +231,7 @@
   },
   "signature": {
     "bold": "Bold",
+    "bulletList": "Bulleted List",
     "clearFormatting": "Clear Formatting",
     "codePlaceholder": "Type HTML here…",
     "colors": {
@@ -246,6 +249,7 @@
     "italic": "Italic",
     "link": "Link",
     "linkPlaceholder": "https://example.com",
+    "numberedList": "Numbered List",
     "placeholder": "Write your signature or paste its HTML code",
     "removeLink": "Remove Link",
     "sizes": {

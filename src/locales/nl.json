@@ -137,7 +137,9 @@
     "messageSent": "Bericht verstuurd",
     "subject": "Onderwerp:",
     "to": "Aan:",
-    "wrote": "Op {{date}} schreef {{author}}:"
+    "wrote": "Op {{date}} schreef {{author}}:",
+    "formatting": "Opmaak",
+    "hideFormatting": "Opmaak verbergen"
   },
   "dates": {
     "yesterday": "Gisteren"
@@ -229,6 +231,7 @@
   },
   "signature": {
     "bold": "Vet",
+    "bulletList": "Lijst met opsommingstekens",
     "clearFormatting": "Opmaak wissen",
     "codePlaceholder": "Typ hier HTML…",
     "colors": {
@@ -246,6 +249,7 @@
     "italic": "Cursief",
     "link": "Link",
     "linkPlaceholder": "https://example.com",
+    "numberedList": "Genummerde lijst",
     "placeholder": "Schrijf je handtekening of plak de HTML-code",
     "removeLink": "Link verwijderen",
     "sizes": {

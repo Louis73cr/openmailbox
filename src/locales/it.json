@@ -137,7 +137,9 @@
     "messageSent": "Messaggio inviato",
     "subject": "Oggetto:",
     "to": "A:",
-    "wrote": "Il {{date}}, {{author}} ha scritto:"
+    "wrote": "Il {{date}}, {{author}} ha scritto:",
+    "formatting": "Formattazione",
+    "hideFormatting": "Nascondi formattazione"
   },
   "dates": {
     "yesterday": "Ieri"
@@ -229,6 +231,7 @@
   },
   "signature": {
     "bold": "Grassetto",
+    "bulletList": "Elenco puntato",
     "clearFormatting": "Cancella formattazione",
     "codePlaceholder": "Scrivi qui l’HTML…",
     "colors": {
@@ -246,6 +249,7 @@
     "italic": "Corsivo",
     "link": "Link",
     "linkPlaceholder": "https://example.com",
+    "numberedList": "Elenco numerato",
     "placeholder": "Scrivi la tua firma o incolla il suo codice HTML",
     "removeLink": "Rimuovi link",
     "sizes": {
