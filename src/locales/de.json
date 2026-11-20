@@ -176,6 +176,7 @@
   },
   "reader": {
     "attachmentFailed": "Der Anhang konnte nicht geöffnet werden.",
+    "printFailed": "Die Konversation konnte nicht gedruckt werden.",
     "collapseHint": "Klappt die Nachricht ein",
     "contactCard": "Kontaktkarte anzeigen",
     "expandHint": "Zeigt die vollständige Nachricht",
@@ -274,6 +275,7 @@
   },
   "threads": {
     "archive": "Archivieren",
+    "print": "Drucken",
     "categorize": "Absender einordnen",
     "delete": "Löschen",
     "deleteForever": "Endgültig löschen",

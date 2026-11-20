@@ -176,6 +176,7 @@
   },
   "reader": {
     "attachmentFailed": "De bijlage kon niet worden geopend.",
+    "printFailed": "Het gesprek kon niet worden afgedrukt.",
     "collapseHint": "Klapt het bericht in",
     "contactCard": "Contactkaart tonen",
     "expandHint": "Toont het volledige bericht",
@@ -274,6 +275,7 @@
   },
   "threads": {
     "archive": "Archiveer",
+    "print": "Afdrukken",
     "categorize": "Afzender indelen",
     "delete": "Verwijderen",
     "deleteForever": "Definitief verwijderen",

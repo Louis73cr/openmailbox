@@ -28,7 +28,7 @@ import { ThreadRow } from './ThreadRow';
 const ACTION_WIDTH = 80;
 const FULL_SWIPE = 0.55;
 const MENU_ORDER: ThreadActionId[] = [
-  'reply', 'replyAll', 'forward', 'markRead', 'markUnread', 'flag', 'unflag',
+  'reply', 'replyAll', 'forward', 'print', 'markRead', 'markUnread', 'flag', 'unflag',
   'move', 'categorize', 'archive', 'moveToInbox', 'junk', 'notJunk', 'delete',
 ];
 

@@ -6,7 +6,7 @@ import { useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { confirmOpenLink } from '../openLink';
-import { PAGE, READER_FONT } from '../readerPage';
+import { documentFor, PAGE } from '../readerPage';
 
 const INITIAL_HEIGHT = 120;
 const BROKEN_IMAGE_MESSAGE = 'broken-image:';
@@ -136,21 +136,6 @@ Array.prototype.forEach.call(document.images, function (image) {
 });
 true;
 `;
-
-function documentFor(html: string, allowRemoteContent: boolean, page: (typeof PAGE)['light']): string {
-  const images = allowRemoteContent ? 'data: https: http:' : 'data:';
-  return `<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src ${images}; font-src data:; media-src 'none'; frame-src 'none'; form-action 'none';">
-<style>
-html, body { margin: 0; padding: 0; background: ${page.background}; color: ${page.text}; }
-a { color: ${page.link}; }
-body { padding: 4px 2px; font: 15px/1.45 ${READER_FONT}; overflow-wrap: break-word; }
-img { max-width: 100%; height: auto; }
-pre { white-space: pre-wrap; }
-blockquote { margin: 0 0 0 8px; padding-left: 10px; border-left: 3px solid ${page.rule}; color: ${page.quote}; }
-</style></head><body>${html}</body></html>`;
-}
 
 interface HtmlBodyProps {
   html: string;

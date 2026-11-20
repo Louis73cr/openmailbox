@@ -176,6 +176,7 @@
   },
   "reader": {
     "attachmentFailed": "La pièce jointe n'a pas pu être ouverte.",
+    "printFailed": "La conversation n'a pas pu être imprimée.",
     "collapseHint": "Réduit le message",
     "contactCard": "Afficher la fiche contact",
     "expandHint": "Affiche le message complet",
@@ -274,6 +275,7 @@
   },
   "threads": {
     "archive": "Archiver",
+    "print": "Imprimer",
     "categorize": "Classer l’expéditeur",
     "delete": "Supprimer",
     "deleteForever": "Supprimer définitivement",
