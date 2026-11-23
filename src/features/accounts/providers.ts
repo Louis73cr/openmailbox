@@ -1,9 +1,9 @@
 import { Platform } from 'react-native';
-import { Security, type ServerConfig } from '@openmailbox/mail-core';
+import { Authentication, Security, type ServerConfig } from '@openmailbox/mail-core';
 
 import { organizationDomain } from '@/utils/addresses';
 
-export type ProviderIdentifier = 'gmail' | 'icloud' | 'ovhcloud' | 'ionos' | 'yahoo' | 'other' | 'local';
+export type ProviderIdentifier = 'gmail' | 'microsoft' | 'icloud' | 'ovhcloud' | 'ionos' | 'yahoo' | 'other' | 'local';
 
 export interface BrandMark {
   background: string;
@@ -21,6 +21,8 @@ export interface MailProvider {
   domains: string[];
   brand?: BrandMark;
   appPasswordHelp?: string;
+  oauth?: Authentication;
+  oauthOnly?: boolean;
   servers?: ServerConfig;
   editableServers?: boolean;
   account?: { email: string; password: string };
@@ -65,7 +67,26 @@ export const PROVIDERS: MailProvider[] = [
       ],
     },
     appPasswordHelp: 'https://support.google.com/accounts/answer/185833',
+    oauth: __DEV__ ? Authentication.Google : undefined,
     servers: servers('imap.gmail.com', 'smtp.gmail.com'),
+  },
+  {
+    identifier: 'microsoft',
+    name: 'Microsoft',
+    domains: ['outlook.com', 'outlook.fr', 'hotmail.com', 'hotmail.fr', 'live.com', 'live.fr', 'msn.com'],
+    brand: {
+      background: WHITE,
+      scale: 0.56,
+      shapes: [
+        { fill: '#F25022', d: 'M0 0h11.4v11.4H0z' },
+        { fill: '#7FBA00', d: 'M12.6 0H24v11.4H12.6z' },
+        { fill: '#00A4EF', d: 'M0 12.6h11.4V24H0z' },
+        { fill: '#FFB900', d: 'M12.6 12.6H24V24H12.6z' },
+      ],
+    },
+    oauth: Authentication.Microsoft,
+    oauthOnly: true,
+    servers: servers('outlook.office365.com', 'smtp-mail.outlook.com', 587),
   },
   {
     identifier: 'icloud',

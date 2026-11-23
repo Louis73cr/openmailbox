@@ -41,6 +41,10 @@ function ProviderRow({ provider, onSelect }: { provider: MailProvider; onSelect:
           <Typography variant="caption" color={colors.textSecondary}>
             {t('accounts.setup.otherProviderHint')}
           </Typography>
+        ) : provider.identifier === 'microsoft' ? (
+          <Typography variant="caption" color={colors.textSecondary}>
+            {t('accounts.setup.microsoftHint')}
+          </Typography>
         ) : provider.identifier === 'local' ? (
           <Typography variant="caption" color={colors.textSecondary}>
             {t('accounts.setup.localServerHint')}

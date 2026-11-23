@@ -76,9 +76,68 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
       : setup.phase === 'connecting'
         ? t('accounts.setup.connectingTo', { host })
         : null;
+  const statusRow = status ? (
+    <View style={styles.status} accessibilityLiveRegion="polite">
+      <ActivityIndicator size="small" color={colors.textSecondary} />
+      <Typography variant="caption" color={colors.textSecondary}>
+        {status}
+      </Typography>
+    </View>
+  ) : null;
+  const errorBox = setup.error ? (
+    <View accessible accessibilityRole="alert" accessibilityLiveRegion="assertive" style={[styles.error, { backgroundColor: `${colors.danger}14` }]}>
+      <CircleAlert size={18} color={colors.danger} />
+      <Typography variant="caption" color={colors.text} style={styles.flex}>
+        {setup.error}
+      </Typography>
+    </View>
+  ) : null;
+  const nameField = (
+    <FormField
+      label={t('accounts.setup.name')}
+      value={setup.displayName}
+      onChangeText={setup.setDisplayName}
+      placeholder={t('accounts.setup.namePlaceholder')}
+      autoComplete="name"
+      textContentType="name"
+      returnKeyType="next"
+    />
+  );
+  const oauthButton = provider.oauth ? (
+    <Button
+      title={t('accounts.setup.signInWith', { provider: provider.name })}
+      size="large"
+      disabled={setup.busy}
+      onPress={setup.signInWithProvider}
+    />
+  ) : null;
+
+  if (provider.oauthOnly) {
+    return (
+      <View style={styles.form}>
+        <FormSection>{nameField}</FormSection>
+        {errorBox}
+        <View style={styles.actions}>
+          {oauthButton}
+          {statusRow}
+        </View>
+        <Typography variant="caption" color={colors.textSecondary} align="center" style={styles.privacy}>
+          {t('accounts.setup.oauthPrivacy', { provider: provider.name })}
+        </Typography>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.form}>
+      {oauthButton ? (
+        <View style={styles.actions}>
+          {oauthButton}
+          <Typography variant="caption" color={colors.textSecondary} align="center" style={styles.separator}>
+            {t('accounts.setup.orAppPassword')}
+          </Typography>
+        </View>
+      ) : null}
       <FormSection
         footer={
           provider.appPasswordHelp ? (
@@ -95,15 +154,7 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
           ) : undefined
         }
       >
-        <FormField
-          label={t('accounts.setup.name')}
-          value={setup.displayName}
-          onChangeText={setup.setDisplayName}
-          placeholder={t('accounts.setup.namePlaceholder')}
-          autoComplete="name"
-          textContentType="name"
-          returnKeyType="next"
-        />
+        {nameField}
         <FormField
           label={t('accounts.setup.email')}
           value={setup.email}
@@ -141,14 +192,7 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
         />
       </FormSection>
 
-      {setup.error ? (
-        <View accessible accessibilityRole="alert" accessibilityLiveRegion="assertive" style={[styles.error, { backgroundColor: `${colors.danger}14` }]}>
-          <CircleAlert size={18} color={colors.danger} />
-          <Typography variant="caption" color={colors.text} style={styles.flex}>
-            {setup.error}
-          </Typography>
-        </View>
-      ) : null}
+      {errorBox}
 
       {setup.manual && setup.servers ? (
         <>
@@ -179,16 +223,9 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
 
       <View style={styles.actions}>
         <Button title={t('accounts.setup.signIn')} size="large" disabled={!setup.canSubmit} onPress={setup.submit} />
-        {status ? (
-          <View style={styles.status} accessibilityLiveRegion="polite">
-            <ActivityIndicator size="small" color={colors.textSecondary} />
-            <Typography variant="caption" color={colors.textSecondary}>
-              {status}
-            </Typography>
-          </View>
-        ) : !setup.manual ? (
+        {statusRow ?? (!setup.manual ? (
           <Button variant="link" title={t('accounts.setup.manual')} disabled={setup.busy} onPress={setup.showManualSettings} />
-        ) : null}
+        ) : null)}
       </View>
 
       <Typography variant="caption" color={colors.textSecondary} align="center" style={styles.privacy}>
@@ -209,4 +246,5 @@ const styles = StyleSheet.create({
   actions: { gap: 4 },
   status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 40 },
   privacy: { marginTop: 8, paddingHorizontal: 24, fontSize: 12 },
+  separator: { marginTop: 12 },
 });

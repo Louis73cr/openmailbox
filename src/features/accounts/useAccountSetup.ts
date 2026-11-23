@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import * as WebBrowser from 'expo-web-browser';
 import { CoreError, Security, type Account, type ServerConfig } from '@openmailbox/mail-core';
 
 import { mailCore } from '@/core/mailCore';
@@ -79,6 +80,24 @@ export function useAccountSetup(provider: MailProvider, onDone: (account: Accoun
     }
   };
 
+  const signInWithProvider = async () => {
+    if (!provider.oauth) return;
+    setError(null);
+    setPhase('connecting');
+    try {
+      const request = mailCore().beginSignIn(provider.oauth, undefined);
+      const answer = await WebBrowser.openAuthSessionAsync(request.url, request.redirectUri);
+      if (answer.type !== 'success') return;
+      const account = await mailCore().addOauthAccount(answer.url, displayName.trim());
+      queryClient.setQueryData(queryKeys.accounts, await mailCore().listAccounts());
+      onDone(account);
+    } catch (failure) {
+      if (!CoreError.Cancelled.instanceOf(failure)) setError(describeCoreError(failure, t));
+    } finally {
+      setPhase('idle');
+    }
+  };
+
   return {
     email,
     password,
@@ -94,6 +113,7 @@ export function useAccountSetup(provider: MailProvider, onDone: (account: Accoun
     setDisplayName,
     setServers,
     showManualSettings,
+    signInWithProvider,
     submit,
   };
 }

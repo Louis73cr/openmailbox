@@ -1,7 +1,8 @@
 import { BackHandler } from 'react-native';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import * as Notifications from 'expo-notifications';
-import { Security } from '@openmailbox/mail-core';
+import * as WebBrowser from 'expo-web-browser';
+import { Authentication, Security } from '@openmailbox/mail-core';
 
 import OnboardingScreen from '../../app/onboarding';
 import i18n from '@/utils/i18n';
@@ -19,10 +20,10 @@ describe('onboarding', () => {
   it('welcomes the user with the list of providers', () => {
     renderWithProviders(<OnboardingScreen />);
     expect(screen.getByText('Welcome to Open Mailbox')).toBeOnTheScreen();
-    for (const name of ['Google', 'iCloud', 'OVHcloud', 'IONOS', 'Yahoo', 'Other']) {
+    for (const name of ['Google', 'Microsoft', 'iCloud', 'OVHcloud', 'IONOS', 'Yahoo', 'Other']) {
       expect(screen.getByRole('button', { name })).toBeOnTheScreen();
     }
-    expect(screen.queryByText(/microsoft|outlook/i)).toBeNull();
+    expect(screen.getByText('Outlook, Hotmail, Live, Microsoft 365')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Language' })).toBeOnTheScreen();
   });
 
@@ -47,6 +48,30 @@ describe('onboarding', () => {
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/'));
     expect(core.addAccount.mock.calls[0][0]).toMatchObject({ email: 'alice@gmail.com', displayName: 'Alice Martin' });
     expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs in to Microsoft on its page, without a password', async () => {
+    core.beginSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
+    (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({ type: 'success', url: 'openmailbox://oauth?code=c' });
+    core.addOauthAccount.mockResolvedValue(makeAccount({ email: 'alice@outlook.com', authentication: Authentication.Microsoft }));
+    renderWithProviders(<OnboardingScreen />);
+
+    fireEvent.press(screen.getByRole('button', { name: 'Microsoft' }));
+    expect(screen.queryByLabelText('Password')).toBeNull();
+    expect(screen.queryByLabelText('Email')).toBeNull();
+    expect(screen.getByText('You sign in on Microsoft’s page: this app never sees your password.')).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: 'Sign in with Microsoft' }));
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/'));
+    expect(core.addOauthAccount).toHaveBeenCalledWith('openmailbox://oauth?code=c', '');
+  });
+
+  it('offers Google sign-in above the app password form', () => {
+    renderWithProviders(<OnboardingScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'Google' }));
+    expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeOnTheScreen();
+    expect(screen.getByText('Or with an app password')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Password')).toBeOnTheScreen();
   });
 
   it('signs in to a provider it knows without looking up its servers', async () => {

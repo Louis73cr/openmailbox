@@ -46,6 +46,10 @@ jest.mock('@/core/mailCore', () => {
   };
 });
 
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn(async () => ({ type: 'cancel' })),
+}));
+
 jest.mock('expo-secure-store', () => {
   const values = new Map();
   return {

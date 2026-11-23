@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
-import { CoreError, Security, type ServerConfig } from '@openmailbox/mail-core';
+import * as WebBrowser from 'expo-web-browser';
+import { Authentication, CoreError, Security, type ServerConfig } from '@openmailbox/mail-core';
 
 import { queryClient, queryKeys } from '@/core/queryClient';
 import { readSecret } from '@/core/secrets';
@@ -11,6 +12,10 @@ import { core, makeAccount } from '../../helpers/fixtures';
 
 const GOOGLE = PROVIDERS.find((provider) => provider.identifier === 'gmail')!;
 const OTHER = PROVIDERS.find((provider) => provider.identifier === 'other')!;
+const MICROSOFT = PROVIDERS.find((provider) => provider.identifier === 'microsoft')!;
+const openAuthSession = WebBrowser.openAuthSessionAsync as jest.Mock;
+const SIGN_IN = { url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' };
+const ANSWER = 'openmailbox://oauth?code=c&state=s';
 const DISCOVERED: ServerConfig = {
   imap: { host: 'imap.gmail.com', port: 993, security: Security.Tls },
   smtp: { host: 'smtp.gmail.com', port: 465, security: Security.Tls },
@@ -107,6 +112,54 @@ describe('account setup', () => {
     expect(core.discover).not.toHaveBeenCalled();
     expect(result.current.manual).toBe(true);
     expect(result.current.servers?.imap).toEqual({ host: '', port: 993, security: Security.Tls });
+  });
+
+  it('signs in on the provider page and adds the account', async () => {
+    const account = makeAccount({ id: 'account-7', email: 'alice@outlook.com', authentication: Authentication.Microsoft });
+    core.beginSignIn.mockReturnValue(SIGN_IN);
+    openAuthSession.mockResolvedValue({ type: 'success', url: ANSWER });
+    core.addOauthAccount.mockResolvedValue(account);
+    core.listAccounts.mockResolvedValue([account]);
+    const { result, onDone } = setup(MICROSOFT);
+    await act(async () => result.current.setDisplayName(' Alice '));
+
+    await act(() => result.current.signInWithProvider());
+
+    expect(core.beginSignIn).toHaveBeenCalledWith(Authentication.Microsoft, undefined);
+    expect(openAuthSession).toHaveBeenCalledWith(SIGN_IN.url, SIGN_IN.redirectUri);
+    expect(core.addOauthAccount).toHaveBeenCalledWith(ANSWER, 'Alice');
+    expect(queryClient.getQueryData(queryKeys.accounts)).toEqual([account]);
+    expect(onDone).toHaveBeenCalledWith(account);
+    expect(result.current.error).toBeNull();
+    expect(result.current.phase).toBe('idle');
+  });
+
+  it('stays quiet when the sign-in page is closed or cancelled', async () => {
+    core.beginSignIn.mockReturnValue(SIGN_IN);
+    openAuthSession.mockResolvedValue({ type: 'cancel' });
+    const { result, onDone } = setup(MICROSOFT);
+
+    await act(() => result.current.signInWithProvider());
+    expect(core.addOauthAccount).not.toHaveBeenCalled();
+
+    openAuthSession.mockResolvedValue({ type: 'success', url: ANSWER });
+    core.addOauthAccount.mockRejectedValue(new CoreError.Cancelled());
+    await act(() => result.current.signInWithProvider());
+
+    expect(result.current.error).toBeNull();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it('shows what the provider answered when it refuses', async () => {
+    core.beginSignIn.mockReturnValue(SIGN_IN);
+    openAuthSession.mockResolvedValue({ type: 'success', url: ANSWER });
+    core.addOauthAccount.mockRejectedValue(new CoreError.Server({ message: 'Need admin approval' }));
+    const { result, onDone } = setup(MICROSOFT);
+
+    await act(() => result.current.signInWithProvider());
+
+    expect(result.current.error).toContain('Need admin approval');
+    expect(onDone).not.toHaveBeenCalled();
   });
 
   it('starts the development entry ready to sign in to GreenMail', async () => {
