@@ -5,7 +5,9 @@ use async_imap::extensions::idle::IdleResponse;
 use async_imap::imap_proto::NameAttribute;
 use async_imap::types::{Fetch, Flag};
 use futures::TryStreamExt;
-use mail_model::{Error, Flags, MailboxRole, RemoteMailbox, Result, Security, ServerEndpoint};
+use mail_model::{
+    Credential, Error, Flags, MailboxRole, RemoteMailbox, Result, Security, ServerEndpoint,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
@@ -134,10 +136,52 @@ fn network(error: std::io::Error) -> Error {
     Error::Network(error.to_string())
 }
 
+pub fn xoauth2(username: &str, token: &str) -> String {
+    format!("user={username}\x01auth=Bearer {token}\x01\x01")
+}
+
+struct XOAuth2(Option<String>);
+
+impl async_imap::Authenticator for XOAuth2 {
+    type Response = String;
+
+    fn process(&mut self, _: &[u8]) -> String {
+        self.0.take().unwrap_or_default()
+    }
+}
+
+async fn log_in<T>(
+    client: async_imap::Client<T>,
+    username: &str,
+    credential: &Credential,
+) -> Result<async_imap::Session<T>>
+where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + std::fmt::Debug + Send,
+{
+    let attempt = async {
+        match credential {
+            Credential::Password(password) => client.login(username, password).await,
+            Credential::AccessToken(token) => {
+                client
+                    .authenticate("XOAUTH2", XOAuth2(Some(xoauth2(username, token))))
+                    .await
+            }
+        }
+    };
+    match tokio::time::timeout(NETWORK_TIMEOUT, attempt).await {
+        Ok(Ok(session)) => Ok(session),
+        Ok(Err((async_imap::error::Error::No(_) | async_imap::error::Error::Bad(_), _))) => {
+            Err(Error::Auth)
+        }
+        Ok(Err((error, _))) => Err(map_error(error)),
+        Err(_) => Err(Error::Network("timed out".into())),
+    }
+}
+
 pub async fn connect(
     endpoint: &ServerEndpoint,
     username: &str,
-    password: &str,
+    credential: &Credential,
 ) -> Result<ImapConnection> {
     let stream = tokio::time::timeout(NETWORK_TIMEOUT, open_tls_stream(endpoint))
         .await
@@ -152,15 +196,7 @@ pub async fn connect(
         })
         .await?;
     }
-    let mut session =
-        match tokio::time::timeout(NETWORK_TIMEOUT, client.login(username, password)).await {
-            Ok(Ok(session)) => session,
-            Ok(Err((async_imap::error::Error::No(_) | async_imap::error::Error::Bad(_), _))) => {
-                return Err(Error::Auth);
-            }
-            Ok(Err((error, _))) => return Err(map_error(error)),
-            Err(_) => return Err(Error::Network("timed out".into())),
-        };
+    let mut session = log_in(client, username, credential).await?;
     let capabilities = timed(session.capabilities()).await?;
     let capabilities = Capabilities {
         condstore: capabilities.has_str("CONDSTORE") || capabilities.has_str("QRESYNC"),
@@ -773,6 +809,66 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn xoauth2_payload() {
+        assert_eq!(
+            xoauth2("alice@outlook.com", "tok"),
+            "user=alice@outlook.com\x01auth=Bearer tok\x01\x01"
+        );
+    }
+
+    async fn xoauth2_server(accept: bool) -> tokio::io::DuplexStream {
+        use base64::Engine;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+
+        let (client, server) = tokio::io::duplex(4096);
+        tokio::spawn(async move {
+            let (read, mut write) = tokio::io::split(server);
+            let mut lines = BufReader::new(read).lines();
+            let command = lines.next_line().await.unwrap().unwrap();
+            let (tag, rest) = command.split_once(' ').unwrap();
+            assert_eq!(rest, "AUTHENTICATE XOAUTH2");
+            write.write_all(b"+ \r\n").await.unwrap();
+            let response = lines.next_line().await.unwrap().unwrap();
+            let decoded = base64::engine::general_purpose::STANDARD
+                .decode(response.trim())
+                .unwrap();
+            assert_eq!(decoded, xoauth2("alice@outlook.com", "tok").as_bytes());
+            if accept {
+                write
+                    .write_all(format!("{tag} OK AUTHENTICATE completed\r\n").as_bytes())
+                    .await
+                    .unwrap();
+            } else {
+                let error = base64::engine::general_purpose::STANDARD
+                    .encode(r#"{"status":"401","schemes":"bearer","scope":"https://outlook.office.com/IMAP.AccessAsUser.All"}"#);
+                write
+                    .write_all(format!("+ {error}\r\n").as_bytes())
+                    .await
+                    .unwrap();
+                assert_eq!(lines.next_line().await.unwrap().unwrap().trim(), "");
+                write
+                    .write_all(format!("{tag} NO AUTHENTICATE failed.\r\n").as_bytes())
+                    .await
+                    .unwrap();
+            }
+            let _ = lines.next_line().await;
+        });
+        client
+    }
+
+    #[tokio::test]
+    async fn connect_authenticates_with_xoauth2() {
+        let token = Credential::AccessToken("tok".into());
+        let client = async_imap::Client::new(xoauth2_server(true).await);
+        assert!(log_in(client, "alice@outlook.com", &token).await.is_ok());
+        let client = async_imap::Client::new(xoauth2_server(false).await);
+        assert!(matches!(
+            log_in(client, "alice@outlook.com", &token).await,
+            Err(Error::Auth)
+        ));
+    }
 
     #[test]
     fn uid_set_collapses_consecutive_uids() {

@@ -5,8 +5,8 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use mail_model::{
-    Account, CoreEvent, Error, FetchedMessage, Mailbox, MailboxRole, RenderedBody, Result,
-    SyncErrorKind, SyncStatus, now_millis,
+    Account, CoreEvent, Credential, Error, FetchedMessage, Mailbox, MailboxRole, RenderedBody,
+    Result, SyncErrorKind, SyncStatus, now_millis,
 };
 use mail_store::{MailboxSyncState, Store};
 use proto_imap::{ImapConnection, uid_set};
@@ -273,7 +273,12 @@ impl Worker {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
             .ok_or(Error::Auth)?;
-        proto_imap::connect(&self.account.imap, &self.account.username, &secret).await
+        proto_imap::connect(
+            &self.account.imap,
+            &self.account.username,
+            &Credential::Password(secret),
+        )
+        .await
     }
 
     fn forget_connection_on(&mut self, error: &Error) {
@@ -818,7 +823,7 @@ impl Worker {
                 proto_smtp::send(
                     &self.account.smtp,
                     &self.account.username,
-                    &secret,
+                    &Credential::Password(secret),
                     envelope_from,
                     recipients,
                     raw.as_bytes(),

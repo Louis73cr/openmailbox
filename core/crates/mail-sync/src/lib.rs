@@ -10,10 +10,10 @@ use std::time::Duration;
 
 use mail_mime::{AttachmentContent, OutgoingMessage};
 use mail_model::{
-    Account, AccountConfig, Address, Authentication, Category, CoreEvent, Draft, EmailSummary,
-    Error, Keyword, MAX_ATTACHMENTS_BYTES, Mailbox, MailboxRole, NewMessage, OutgoingAttachment,
-    RenderedBody, Result, SearchHit, ServerConfig, ThreadFilter, ThreadPage, ThreadScope,
-    UnsubscribeOutcome, now_millis,
+    Account, AccountConfig, Address, Authentication, Category, CoreEvent, Credential, Draft,
+    EmailSummary, Error, Keyword, MAX_ATTACHMENTS_BYTES, Mailbox, MailboxRole, NewMessage,
+    OutgoingAttachment, RenderedBody, Result, SearchHit, ServerConfig, ThreadFilter, ThreadPage,
+    ThreadScope, UnsubscribeOutcome, now_millis,
 };
 use mail_store::Store;
 use tokio::runtime::Handle;
@@ -187,9 +187,10 @@ impl Engine {
     }
 
     pub async fn add_account(&self, config: AccountConfig, secret: String) -> Result<Account> {
-        let connection = proto_imap::connect(&config.imap, &config.username, &secret).await?;
+        let credential = Credential::Password(secret.clone());
+        let connection = proto_imap::connect(&config.imap, &config.username, &credential).await?;
         connection.logout().await;
-        proto_smtp::verify(&config.smtp, &config.username, &secret).await?;
+        proto_smtp::verify(&config.smtp, &config.username, &credential).await?;
         let account = Account {
             id: uuid::Uuid::new_v4().to_string(),
             email: config.email.trim().to_owned(),
@@ -243,7 +244,12 @@ impl Engine {
 
     pub async fn update_password(&self, account_id: &str, secret: String) -> Result<()> {
         let account = self.store.account(account_id)?;
-        let connection = proto_imap::connect(&account.imap, &account.username, &secret).await?;
+        let connection = proto_imap::connect(
+            &account.imap,
+            &account.username,
+            &Credential::Password(secret.clone()),
+        )
+        .await?;
         connection.logout().await;
         self.unlock_account(account_id, secret);
         self.dispatch(
@@ -749,8 +755,12 @@ async fn watch_inbox(
             .ok()
             .flatten();
         if let (Some(password), Some(inbox)) = (password, inbox)
-            && let Ok(mut connection) =
-                proto_imap::connect(&account.imap, &account.username, &password).await
+            && let Ok(mut connection) = proto_imap::connect(
+                &account.imap,
+                &account.username,
+                &Credential::Password(password),
+            )
+            .await
         {
             if !connection.capabilities.idle {
                 connection.logout().await;
