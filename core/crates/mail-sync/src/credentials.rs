@@ -63,7 +63,21 @@ where
         return Ok(token.clone());
     }
     let refresh_token = read(secret).ok_or(Error::Auth)?;
-    let grant = refresh(refresh_token).await?;
+    let grant = match refresh(refresh_token.clone()).await {
+        Err(Error::Auth) => {
+            let mut current = secret
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if current.as_deref() == Some(refresh_token.as_str()) {
+                *current = None;
+            }
+            events.emit(CoreEvent::AuthRequired {
+                account_id: account_id.to_owned(),
+            });
+            return Err(Error::Auth);
+        }
+        result => result?,
+    };
     Ok(keep_grant(account_id, grant, secret, &mut cached, events))
 }
 
@@ -179,6 +193,33 @@ mod tests {
         assert_eq!(first.unwrap(), "at");
         assert_eq!(second.unwrap(), "at");
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_refused_refresh_stops_asking_until_signed_in_again() {
+        let events = Events::start();
+        let seen = recorded(&events);
+        let secret: Secret = Arc::new(RwLock::new(Some("dead".into())));
+        let tokens = TokenCache::default();
+        let calls = AtomicUsize::new(0);
+        let refuse = |_: String| async {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Err(Error::Auth)
+        };
+        assert!(matches!(
+            access_token("a", &tokens, &secret, &events, refuse).await,
+            Err(Error::Auth)
+        ));
+        assert!(matches!(
+            access_token("a", &tokens, &secret, &events, refuse).await,
+            Err(Error::Auth)
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*secret.read().unwrap(), None);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(seen.lock().unwrap().contains(&CoreEvent::AuthRequired {
+            account_id: "a".into()
+        }));
     }
 
     #[tokio::test]

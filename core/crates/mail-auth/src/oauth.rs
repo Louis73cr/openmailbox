@@ -166,13 +166,24 @@ pub async fn exchange(pending: &PendingSignIn, code: &str) -> Result<Grant> {
     .await
 }
 
+fn refresh_form(
+    authentication: Authentication,
+    refresh_token: &str,
+) -> Vec<(&'static str, String)> {
+    let mut form = vec![
+        ("grant_type", "refresh_token".to_owned()),
+        ("refresh_token", refresh_token.to_owned()),
+    ];
+    if authentication == Authentication::Microsoft {
+        form.push(("scope", MICROSOFT.scope.to_owned()));
+    }
+    form
+}
+
 pub async fn refresh(authentication: Authentication, refresh_token: &str) -> Result<Grant> {
     request_token(
         provider(authentication)?,
-        vec![
-            ("grant_type", "refresh_token".to_owned()),
-            ("refresh_token", refresh_token.to_owned()),
-        ],
+        refresh_form(authentication, refresh_token),
     )
     .await
 }
@@ -182,25 +193,28 @@ async fn request_token(
     mut form: Vec<(&'static str, String)>,
 ) -> Result<Grant> {
     form.push(("client_id", provider.client_id.to_owned()));
-    let body = tokio::task::spawn_blocking(move || post_form(provider.token_url, &form))
+    let (status, body) = tokio::task::spawn_blocking(move || post_form(provider.token_url, &form))
         .await
         .map_err(|error| Error::Network(error.to_string()))??;
-    parse_grant(&body, now_millis())
+    parse_grant(status, &body, now_millis())
 }
 
-fn post_form(url: &str, form: &[(&str, String)]) -> Result<String> {
+fn post_form(url: &str, form: &[(&str, String)]) -> Result<(u16, String)> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(HTTP_TIMEOUT))
         .http_status_as_error(false)
         .build()
         .into();
-    agent
+    let mut response = agent
         .post(url)
         .send_form(form.iter().map(|(name, value)| (*name, value.as_str())))
-        .map_err(|error| Error::Network(error.to_string()))?
+        .map_err(|error| Error::Network(error.to_string()))?;
+    let status = response.status().as_u16();
+    let body = response
         .body_mut()
         .read_to_string()
-        .map_err(|error| Error::Network(error.to_string()))
+        .map_err(|error| Error::Network(error.to_string()))?;
+    Ok((status, body))
 }
 
 #[derive(Deserialize)]
@@ -221,14 +235,21 @@ struct Claims {
     tid: Option<String>,
 }
 
-fn parse_grant(body: &str, now: i64) -> Result<Grant> {
-    let response: TokenResponse =
-        serde_json::from_str(body).map_err(|_| Error::Server(body.chars().take(200).collect()))?;
+fn parse_grant(status: u16, body: &str, now: i64) -> Result<Grant> {
+    if status == 429 || status >= 500 {
+        return Err(Error::Network(format!(
+            "sign-in service unavailable ({status})"
+        )));
+    }
+    let response: TokenResponse = serde_json::from_str(body)
+        .map_err(|_| Error::Network(format!("unreadable sign-in answer ({status})")))?;
     if let Some(error) = response.error {
-        if error == "invalid_grant" {
-            return Err(Error::Auth);
-        }
-        return Err(Error::Server(response.error_description.unwrap_or(error)));
+        return Err(match error.as_str() {
+            "invalid_grant" | "interaction_required" | "consent_required" | "login_required" => {
+                Error::Auth
+            }
+            _ => Error::Server(response.error_description.unwrap_or(error)),
+        });
     }
     let access_token = response
         .access_token
@@ -397,7 +418,7 @@ mod tests {
             "expires_in": 3600,
             "id_token": id_token(r#"{"preferred_username":"a@outlook.com","name":"A","tid":"9188040d-6c67-4c5b-b112-36a304b66dad"}"#),
         });
-        let grant = parse_grant(&microsoft.to_string(), 1_000).unwrap();
+        let grant = parse_grant(200, &microsoft.to_string(), 1_000).unwrap();
         assert_eq!(grant.access_token, "at");
         assert_eq!(grant.refresh_token.as_deref(), Some("rt"));
         assert_eq!(grant.expires_at, 1_000 + 3_600_000);
@@ -411,21 +432,65 @@ mod tests {
             "expires_in": 3599,
             "id_token": id_token(r#"{"email":"b@gmail.com","name":"B"}"#),
         });
-        let grant = parse_grant(&google.to_string(), 0).unwrap();
+        let grant = parse_grant(200, &google.to_string(), 0).unwrap();
         assert_eq!(grant.identity.unwrap().email, "b@gmail.com");
         assert_eq!(grant.refresh_token, None);
 
         assert!(matches!(
             parse_grant(
+                400,
                 r#"{"error":"invalid_grant","error_description":"expired"}"#,
                 0
             ),
             Err(Error::Auth)
         ));
         assert!(matches!(
-            parse_grant(r#"{"error":"invalid_client","error_description":"bad client"}"#, 0),
+            parse_grant(400, r#"{"error":"invalid_client","error_description":"bad client"}"#, 0),
             Err(Error::Server(message)) if message == "bad client"
         ));
+    }
+
+    #[test]
+    fn token_endpoint_trouble_is_temporary() {
+        assert!(matches!(
+            parse_grant(503, "<html>Service Unavailable</html>", 0),
+            Err(Error::Network(_))
+        ));
+        assert!(matches!(parse_grant(429, "{}", 0), Err(Error::Network(_))));
+        let unreadable = r#"{"access_token":"secret-at","expires_in":"soon"}"#;
+        match parse_grant(200, unreadable, 0) {
+            Err(Error::Network(message)) => assert!(!message.contains("secret-at")),
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_refresh_the_provider_refuses_needs_a_new_sign_in() {
+        for error in [
+            "invalid_grant",
+            "interaction_required",
+            "consent_required",
+            "login_required",
+        ] {
+            let body = format!(r#"{{"error":"{error}","error_description":"sign in"}}"#);
+            assert!(
+                matches!(parse_grant(400, &body, 0), Err(Error::Auth)),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn microsoft_refreshes_name_the_mail_scopes() {
+        let scope = |form: Vec<(&str, String)>| {
+            form.into_iter()
+                .find(|(name, _)| *name == "scope")
+                .map(|(_, value)| value)
+        };
+        let microsoft = scope(refresh_form(Authentication::Microsoft, "rt")).unwrap();
+        assert!(microsoft.contains("https://outlook.office.com/IMAP.AccessAsUser.All"));
+        assert!(microsoft.contains("offline_access"));
+        assert_eq!(scope(refresh_form(Authentication::Google, "rt")), None);
     }
 
     #[test]
