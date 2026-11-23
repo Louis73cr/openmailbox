@@ -10,10 +10,10 @@ use std::time::Duration;
 
 use mail_mime::{AttachmentContent, OutgoingMessage};
 use mail_model::{
-    Account, AccountConfig, Address, Category, CoreEvent, Draft, EmailSummary, Error, Keyword,
-    MAX_ATTACHMENTS_BYTES, Mailbox, MailboxRole, NewMessage, OutgoingAttachment, RenderedBody,
-    Result, SearchHit, ServerConfig, ThreadFilter, ThreadPage, ThreadScope, UnsubscribeOutcome,
-    now_millis,
+    Account, AccountConfig, Address, Authentication, Category, CoreEvent, Draft, EmailSummary,
+    Error, Keyword, MAX_ATTACHMENTS_BYTES, Mailbox, MailboxRole, NewMessage, OutgoingAttachment,
+    RenderedBody, Result, SearchHit, ServerConfig, ThreadFilter, ThreadPage, ThreadScope,
+    UnsubscribeOutcome, now_millis,
 };
 use mail_store::Store;
 use tokio::runtime::Handle;
@@ -199,6 +199,7 @@ impl Engine {
             smtp: config.smtp,
             color: self.store.next_account_color()?,
             created_at: now_millis(),
+            authentication: Authentication::Password,
         };
         self.store.insert_account(&account)?;
         self.store.set_notified_until(&account.id, now_millis())?;
@@ -813,7 +814,7 @@ fn read_attachments(attachments: &[OutgoingAttachment]) -> Result<Vec<Attachment
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    use mail_model::{Account, Security, ServerEndpoint};
+    use mail_model::{Account, Authentication, Security, ServerEndpoint};
     use mail_store::Store;
 
     pub fn store() -> Store {
@@ -841,6 +842,7 @@ pub(crate) mod test_support {
             smtp: endpoint,
             color: 0,
             created_at: 0,
+            authentication: Authentication::Password,
         }
     }
 }

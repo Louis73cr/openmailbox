@@ -65,6 +65,7 @@ fn account(id: &str) -> Account {
         smtp: endpoint,
         color: 0,
         created_at: 0,
+        authentication: mail_model::Authentication::Password,
     }
 }
 

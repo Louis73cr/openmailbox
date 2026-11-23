@@ -21,6 +21,8 @@ pub enum CoreError {
     NotFound,
     #[error("invalid input: {message}")]
     InvalidInput { message: String },
+    #[error("cancelled")]
+    Cancelled,
 }
 
 impl From<mail_model::Error> for CoreError {
@@ -33,6 +35,7 @@ impl From<mail_model::Error> for CoreError {
             Error::Storage(message) => CoreError::Storage { message },
             Error::NotFound => CoreError::NotFound,
             Error::InvalidInput(message) => CoreError::InvalidInput { message },
+            Error::Cancelled => CoreError::Cancelled,
         }
     }
 }
@@ -370,6 +373,10 @@ pub enum CoreEvent {
         account_id: String,
         message: String,
     },
+    SecretChanged {
+        account_id: String,
+        secret: String,
+    },
 }
 
 #[uniffi::export(with_foreign)]
@@ -597,6 +604,9 @@ impl From<mail_model::CoreEvent> for CoreEvent {
                 account_id,
                 message,
             },
+            Event::SecretChanged { account_id, secret } => {
+                CoreEvent::SecretChanged { account_id, secret }
+            }
         }
     }
 }
