@@ -81,6 +81,19 @@ pub struct AccountConfig {
     pub smtp: ServerEndpoint,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum Authentication {
+    Password,
+    Microsoft,
+    Google,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SignInRequest {
+    pub url: String,
+    pub redirect_uri: String,
+}
+
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Account {
     pub id: String,
@@ -90,6 +103,7 @@ pub struct Account {
     pub imap: ServerEndpoint,
     pub smtp: ServerEndpoint,
     pub color: u32,
+    pub authentication: Authentication,
 }
 
 #[derive(Debug, Clone, Copy, uniffi::Enum)]
@@ -432,6 +446,27 @@ impl From<mail_model::Account> for Account {
             imap: account.imap.into(),
             smtp: account.smtp.into(),
             color: account.color,
+            authentication: account.authentication.into(),
+        }
+    }
+}
+
+impl From<mail_model::Authentication> for Authentication {
+    fn from(authentication: mail_model::Authentication) -> Authentication {
+        match authentication {
+            mail_model::Authentication::Password => Authentication::Password,
+            mail_model::Authentication::Microsoft => Authentication::Microsoft,
+            mail_model::Authentication::Google => Authentication::Google,
+        }
+    }
+}
+
+impl From<Authentication> for mail_model::Authentication {
+    fn from(authentication: Authentication) -> mail_model::Authentication {
+        match authentication {
+            Authentication::Password => mail_model::Authentication::Password,
+            Authentication::Microsoft => mail_model::Authentication::Microsoft,
+            Authentication::Google => mail_model::Authentication::Google,
         }
     }
 }
@@ -710,6 +745,36 @@ impl MailCore {
             .asynchronous(async move |engine| engine.add_account(config, secret).await)
             .await?;
         Ok(account.into())
+    }
+
+    pub fn begin_sign_in(
+        &self,
+        provider: Authentication,
+        login_hint: Option<String>,
+    ) -> CoreResult<SignInRequest> {
+        let request = self.engine.begin_sign_in(provider.into(), login_hint)?;
+        Ok(SignInRequest {
+            url: request.url,
+            redirect_uri: request.redirect_uri,
+        })
+    }
+
+    pub async fn add_oauth_account(
+        &self,
+        callback_url: String,
+        display_name: String,
+    ) -> CoreResult<Account> {
+        let account = self
+            .asynchronous(async move |engine| {
+                engine.add_oauth_account(&callback_url, &display_name).await
+            })
+            .await?;
+        Ok(account.into())
+    }
+
+    pub async fn reauthorize(&self, account_id: String, callback_url: String) -> CoreResult<()> {
+        self.asynchronous(async move |engine| engine.reauthorize(&account_id, &callback_url).await)
+            .await
     }
 
     pub fn unlock_account(&self, account_id: String, secret: String) {
