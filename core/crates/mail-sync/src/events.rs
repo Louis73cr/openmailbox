@@ -80,6 +80,10 @@ fn coalesce(batch: Vec<CoreEvent>) -> Vec<CoreEvent> {
                 others.retain(|existing| !matches!(existing, CoreEvent::SyncState { account_id: other, .. } if other == account_id));
                 others.push(event);
             }
+            CoreEvent::SecretChanged { ref account_id, .. } => {
+                others.retain(|existing| !matches!(existing, CoreEvent::SecretChanged { account_id: other, .. } if other == account_id));
+                others.push(event);
+            }
             event if others.contains(&event) => {}
             event => others.push(event),
         }
@@ -100,6 +104,22 @@ mod tests {
     use mail_model::SyncStatus;
 
     use super::*;
+
+    #[test]
+    fn coalesce_keeps_the_latest_secret_of_each_account() {
+        let changed = |account_id: &str, secret: &str| CoreEvent::SecretChanged {
+            account_id: account_id.into(),
+            secret: secret.into(),
+        };
+        assert_eq!(
+            coalesce(vec![
+                changed("a", "1"),
+                changed("b", "1"),
+                changed("a", "2")
+            ]),
+            vec![changed("b", "1"), changed("a", "2")]
+        );
+    }
 
     #[test]
     fn coalesce_merges_mailbox_changes_and_keeps_the_latest_sync_state() {

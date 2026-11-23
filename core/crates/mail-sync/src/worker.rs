@@ -12,6 +12,7 @@ use mail_store::{MailboxSyncState, Store};
 use proto_imap::{ImapConnection, uid_set};
 use tokio::sync::{mpsc, oneshot};
 
+use crate::credentials::{self, TokenCache};
 use crate::events::Events;
 use crate::operations::{self, MAX_ATTEMPTS, Operation, Source};
 
@@ -59,6 +60,7 @@ pub type Heartbeat = Arc<AtomicI64>;
 pub struct Worker {
     pub account: Account,
     pub secret: Secret,
+    pub tokens: TokenCache,
     pub store: Arc<Store>,
     pub events: Events,
     pub receiver: mpsc::UnboundedReceiver<Command>,
@@ -76,6 +78,7 @@ impl Worker {
     pub fn new(
         account: Account,
         secret: Secret,
+        tokens: TokenCache,
         store: Arc<Store>,
         events: Events,
         receiver: mpsc::UnboundedReceiver<Command>,
@@ -84,6 +87,7 @@ impl Worker {
         Worker {
             account,
             secret,
+            tokens,
             store,
             events,
             receiver,
@@ -246,6 +250,10 @@ impl Worker {
         ))
     }
 
+    async fn credential(&self) -> Result<Credential> {
+        credentials::credential(&self.account, &self.secret, &self.tokens, &self.events).await
+    }
+
     fn has_secret(&self) -> bool {
         self.secret
             .read()
@@ -267,18 +275,8 @@ impl Worker {
                 return Ok(connection);
             }
         }
-        let secret = self
-            .secret
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone()
-            .ok_or(Error::Auth)?;
-        proto_imap::connect(
-            &self.account.imap,
-            &self.account.username,
-            &Credential::Password(secret),
-        )
-        .await
+        let credential = self.credential().await?;
+        proto_imap::connect(&self.account.imap, &self.account.username, &credential).await
     }
 
     fn forget_connection_on(&mut self, error: &Error) {
@@ -814,16 +812,11 @@ impl Worker {
                 envelope_from,
                 recipients,
             } => {
-                let secret = self
-                    .secret
-                    .read()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .clone()
-                    .ok_or(Error::Auth)?;
+                let credential = self.credential().await?;
                 proto_smtp::send(
                     &self.account.smtp,
                     &self.account.username,
-                    &Credential::Password(secret),
+                    &credential,
                     envelope_from,
                     recipients,
                     raw.as_bytes(),
