@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter, useTheme } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
-import { Plus, RefreshCw } from 'lucide-react-native';
-import { Security, type ServerEndpoint } from '@openmailbox/mail-core';
+import { LogIn, Plus, RefreshCw } from 'lucide-react-native';
+import { Authentication, CoreError, Security, type ServerEndpoint } from '@openmailbox/mail-core';
 
 import { useAccounts } from '@/core/hooks';
 import { mailCore } from '@/core/mailCore';
@@ -68,6 +69,26 @@ export default function AccountSettingsScreen() {
       setUpdating(false);
     }
   };
+
+  const signInAgain = async () => {
+    setUpdating(true);
+    setPasswordMessage(null);
+    try {
+      const request = mailCore().beginSignIn(account.authentication, account.email);
+      const answer = await WebBrowser.openAuthSessionAsync(request.url, request.redirectUri);
+      if (answer.type !== 'success') return;
+      await mailCore().reauthorize(account.id, answer.url);
+      useSyncStore.getState().setAuthRequired(account.id, false);
+      setPasswordMessage({ text: t('accounts.signedIn'), failed: false });
+    } catch (error) {
+      if (!CoreError.Cancelled.instanceOf(error)) setPasswordMessage({ text: describeCoreError(error, t), failed: true });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const oauth = account.authentication !== Authentication.Password;
+  const provider = providerName(account);
 
   const remove = () =>
     Alert.alert(t('accounts.removeTitle'), t('accounts.removeMessage', { email: account.email }), [
@@ -153,26 +174,43 @@ export default function AccountSettingsScreen() {
       </FormSection>
 
       <View style={styles.group}>
-        <FormSection
-          title={t('accounts.password')}
-          footer={authRequired ? t('accounts.reconnectRequired') : t('accounts.passwordHint')}
-        >
-          <FormField
-            label={t('accounts.newPassword')}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="password"
-          />
-        </FormSection>
+        {oauth ? (
+          <FormSection
+            title={provider}
+            footer={authRequired ? t('accounts.signInRequired', { provider }) : t('accounts.oauthHint', { provider })}
+          >
+            <ListRow
+              title={t('accounts.signInAgain')}
+              leading={<LogIn size={20} color={colors.primary} />}
+              chevron={false}
+              disabled={updating}
+              onPress={signInAgain}
+            />
+          </FormSection>
+        ) : (
+          <FormSection
+            title={t('accounts.password')}
+            footer={authRequired ? t('accounts.reconnectRequired') : t('accounts.passwordHint')}
+          >
+            <FormField
+              label={t('accounts.newPassword')}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="password"
+            />
+          </FormSection>
+        )}
         {passwordMessage ? (
           <Typography variant="caption" color={passwordMessage.failed ? colors.danger : colors.textSecondary} style={styles.message}>
             {passwordMessage.text}
           </Typography>
         ) : null}
-        <Button title={t('accounts.updatePassword')} loading={updating} disabled={!password || updating} onPress={updatePassword} />
+        {oauth ? null : (
+          <Button title={t('accounts.updatePassword')} loading={updating} disabled={!password || updating} onPress={updatePassword} />
+        )}
       </View>
 
       <FormSection>
