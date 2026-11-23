@@ -290,11 +290,15 @@ impl Engine {
             self.finish_sign_in(callback_url).await?;
         let config = oauth::servers(authentication, &identity);
         let credential = Credential::AccessToken(grant.access_token.clone());
-        let connection = proto_imap::connect(&config.imap, &config.username, &credential).await?;
+        let connection = proto_imap::connect(&config.imap, &config.username, &credential)
+            .await
+            .map_err(|error| refused_sign_in(error, &config.imap.host, &identity.email))?;
         connection.logout().await;
         match proto_smtp::verify(&config.smtp, &config.username, &credential).await {
             Ok(()) | Err(Error::Server(_)) => {}
-            Err(error) => return Err(error),
+            Err(error) => {
+                return Err(refused_sign_in(error, &config.smtp.host, &identity.email));
+            }
         }
         let display_name = [display_name, identity.name.as_deref().unwrap_or_default()]
             .into_iter()
@@ -342,7 +346,8 @@ impl Engine {
             &account.username,
             &Credential::AccessToken(grant.access_token.clone()),
         )
-        .await?;
+        .await
+        .map_err(|error| refused_sign_in(error, &account.imap.host, &identity.email))?;
         connection.logout().await;
         let tokens = self
             .accounts()
@@ -884,6 +889,13 @@ impl Engine {
         handle.idle = Some(self.runtime.spawn(watch_inbox(
             account, secret, tokens, events, store, commands,
         )));
+    }
+}
+
+fn refused_sign_in(error: Error, host: &str, email: &str) -> Error {
+    match error {
+        Error::Auth => Error::Server(format!("{host} refused the sign-in of {email}")),
+        other => other,
     }
 }
 
@@ -1653,6 +1665,19 @@ mod tests {
 
         assert_eq!(subjects(&found), vec!["Message 1"]);
         assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn a_mail_server_refusing_a_fresh_token_names_itself_and_the_address() {
+        assert!(matches!(
+            refused_sign_in(Error::Auth, "outlook.office365.com", "alice@gmail.com"),
+            Error::Server(message)
+                if message == "outlook.office365.com refused the sign-in of alice@gmail.com"
+        ));
+        assert!(matches!(
+            refused_sign_in(Error::Network("down".into()), "smtp.office365.com", "a@b.c"),
+            Error::Network(message) if message == "down"
+        ));
     }
 
     #[test]
