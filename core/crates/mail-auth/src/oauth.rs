@@ -4,10 +4,12 @@ use std::time::Duration;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use mail_model::{
-    Authentication, Error, Result, Security, ServerConfig, ServerEndpoint, now_millis,
+    Authentication, Error, OAuthServer, Result, Security, ServerConfig, ServerEndpoint, now_millis,
 };
 use ring::rand::SecureRandom;
 use serde::Deserialize;
+
+use crate::server::{MAIL_SCOPE, REDIRECT_URI};
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
 const PERSONAL_TENANT: &str = "9188040d-6c67-4c5b-b112-36a304b66dad";
@@ -74,6 +76,7 @@ pub struct PendingSignIn {
     pub state: String,
     pub verifier: String,
     pub redirect_uri: String,
+    pub server: Option<OAuthServer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,16 +99,7 @@ pub fn begin(
     login_hint: Option<&str>,
 ) -> Result<(SignInRequest, PendingSignIn)> {
     let provider = provider(authentication)?;
-    let mut random = [0u8; 32];
-    ring::rand::SystemRandom::new()
-        .fill(&mut random)
-        .map_err(|_| Error::InvalidInput("no randomness".into()))?;
-    let verifier = URL_SAFE_NO_PAD.encode(random);
-    let challenge = URL_SAFE_NO_PAD.encode(ring::digest::digest(
-        &ring::digest::SHA256,
-        verifier.as_bytes(),
-    ));
-    let state = uuid::Uuid::new_v4().simple().to_string();
+    let (verifier, challenge, state) = proof()?;
     let scope = match authentication {
         Authentication::Microsoft => format!("{} {GRAPH_SEND_SCOPE}", provider.scope),
         _ => provider.scope.to_owned(),
@@ -135,6 +129,63 @@ pub fn begin(
             state,
             verifier,
             redirect_uri: provider.redirect_uri.to_owned(),
+            server: None,
+        },
+    ))
+}
+
+fn proof() -> Result<(String, String, String)> {
+    let mut random = [0u8; 32];
+    ring::rand::SystemRandom::new()
+        .fill(&mut random)
+        .map_err(|_| Error::InvalidInput("no randomness".into()))?;
+    let verifier = URL_SAFE_NO_PAD.encode(random);
+    let challenge = URL_SAFE_NO_PAD.encode(ring::digest::digest(
+        &ring::digest::SHA256,
+        verifier.as_bytes(),
+    ));
+    Ok((
+        verifier,
+        challenge,
+        uuid::Uuid::new_v4().simple().to_string(),
+    ))
+}
+
+pub fn begin_server(
+    server: &OAuthServer,
+    login_hint: &str,
+    resources: &[&str],
+) -> Result<(SignInRequest, PendingSignIn)> {
+    let (verifier, challenge, state) = proof()?;
+    let mut url = url::Url::parse(&server.authorization_endpoint)
+        .map_err(|error| Error::InvalidInput(error.to_string()))?;
+    {
+        let mut query = url.query_pairs_mut();
+        query
+            .append_pair("client_id", &server.client_id)
+            .append_pair("response_type", "code")
+            .append_pair("redirect_uri", REDIRECT_URI)
+            .append_pair("scope", MAIL_SCOPE)
+            .append_pair("state", &state)
+            .append_pair("code_challenge", &challenge)
+            .append_pair("code_challenge_method", "S256")
+            .append_pair("prompt", "consent")
+            .append_pair("login_hint", login_hint);
+        for resource in resources {
+            query.append_pair("resource", resource);
+        }
+    }
+    Ok((
+        SignInRequest {
+            url: url.into(),
+            redirect_uri: REDIRECT_URI.to_owned(),
+        },
+        PendingSignIn {
+            provider: Authentication::Server,
+            state,
+            verifier,
+            redirect_uri: REDIRECT_URI.to_owned(),
+            server: Some(server.clone()),
         },
     ))
 }
@@ -145,6 +196,13 @@ pub fn authorization_code(callback_url: &str, pending: &PendingSignIn) -> Result
     let mut answer: HashMap<String, String> = url.query_pairs().into_owned().collect();
     if answer.get("state") != Some(&pending.state) {
         return Err(Error::InvalidInput("unexpected sign-in answer".into()));
+    }
+    if let Some(server) = &pending.server
+        && answer.get("iss") != Some(&server.issuer)
+    {
+        return Err(Error::InvalidInput(
+            "sign-in answer from another server".into(),
+        ));
     }
     if let Some(error) = answer.remove("error") {
         if answer.get("error_subcode").map(String::as_str) == Some("cancel") {
@@ -173,7 +231,26 @@ fn exchange_form(pending: &PendingSignIn, code: &str) -> Vec<(&'static str, Stri
 }
 
 pub async fn exchange(pending: &PendingSignIn, code: &str) -> Result<Grant> {
-    request_token(provider(pending.provider)?, exchange_form(pending, code)).await
+    let target = token_target(pending.provider, pending.server.as_ref())?;
+    request_token(target, exchange_form(pending, code)).await
+}
+
+fn token_target(
+    authentication: Authentication,
+    server: Option<&OAuthServer>,
+) -> Result<(String, String)> {
+    match (authentication, server) {
+        (Authentication::Server, Some(server)) => {
+            Ok((server.token_endpoint.clone(), server.client_id.clone()))
+        }
+        (Authentication::Server, None) => Err(Error::InvalidInput(
+            "no OAuth server for this account".into(),
+        )),
+        (authentication, _) => {
+            let provider = provider(authentication)?;
+            Ok((provider.token_url.to_owned(), provider.client_id.to_owned()))
+        }
+    }
 }
 
 fn graph_refresh_form(refresh_token: &str) -> Vec<(&'static str, String)> {
@@ -185,7 +262,8 @@ fn graph_refresh_form(refresh_token: &str) -> Vec<(&'static str, String)> {
 }
 
 pub async fn graph_grant(refresh_token: &str) -> Result<Grant> {
-    request_token(&MICROSOFT, graph_refresh_form(refresh_token)).await
+    let target = token_target(Authentication::Microsoft, None)?;
+    request_token(target, graph_refresh_form(refresh_token)).await
 }
 
 fn refresh_form(
@@ -202,32 +280,28 @@ fn refresh_form(
     form
 }
 
-pub async fn refresh(authentication: Authentication, refresh_token: &str) -> Result<Grant> {
-    request_token(
-        provider(authentication)?,
-        refresh_form(authentication, refresh_token),
-    )
-    .await
+pub async fn refresh(
+    authentication: Authentication,
+    server: Option<&OAuthServer>,
+    refresh_token: &str,
+) -> Result<Grant> {
+    let target = token_target(authentication, server)?;
+    request_token(target, refresh_form(authentication, refresh_token)).await
 }
 
 async fn request_token(
-    provider: &'static Provider,
+    (token_url, client_id): (String, String),
     mut form: Vec<(&'static str, String)>,
 ) -> Result<Grant> {
-    form.push(("client_id", provider.client_id.to_owned()));
-    let (status, body) = tokio::task::spawn_blocking(move || post_form(provider.token_url, &form))
+    form.push(("client_id", client_id));
+    let (status, body) = tokio::task::spawn_blocking(move || post_form(&token_url, &form))
         .await
         .map_err(|error| Error::Network(error.to_string()))??;
     parse_grant(status, &body, now_millis())
 }
 
 fn post_form(url: &str, form: &[(&str, String)]) -> Result<(u16, String)> {
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(HTTP_TIMEOUT))
-        .http_status_as_error(false)
-        .build()
-        .into();
-    let mut response = agent
+    let mut response = crate::http::agent(url, HTTP_TIMEOUT)
         .post(url)
         .send_form(form.iter().map(|(name, value)| (*name, value.as_str())))
         .map_err(|error| Error::Network(error.to_string()))?;
@@ -245,6 +319,7 @@ struct TokenResponse {
     refresh_token: Option<String>,
     expires_in: Option<i64>,
     id_token: Option<String>,
+    username: Option<String>,
     error: Option<String>,
     error_description: Option<String>,
 }
@@ -280,7 +355,30 @@ fn parse_grant(status: u16, body: &str, now: i64) -> Result<Grant> {
         access_token,
         refresh_token: response.refresh_token,
         expires_at: now + response.expires_in.unwrap_or(3600) * 1000,
-        identity: response.id_token.as_deref().and_then(identity),
+        identity: named(
+            response.id_token.as_deref().and_then(identity),
+            response.username,
+        ),
+    })
+}
+
+fn named(identity: Option<Identity>, username: Option<String>) -> Option<Identity> {
+    let Some(username) = username
+        .map(|name| name.trim().to_owned())
+        .filter(|name| !name.is_empty())
+    else {
+        return identity;
+    };
+    Some(match identity {
+        Some(identity) => Identity {
+            email: username,
+            ..identity
+        },
+        None => Identity {
+            email: username,
+            name: None,
+            tenant: None,
+        },
     })
 }
 
@@ -333,7 +431,7 @@ mod tests {
 
     use base64::Engine;
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-    use mail_model::{Authentication, Error, Security};
+    use mail_model::{Authentication, Error, OAuthServer, Security};
 
     use super::*;
 
@@ -543,6 +641,107 @@ mod tests {
         assert_eq!(
             form_value(&form, "scope").as_deref(),
             Some("https://graph.microsoft.com/Mail.Send offline_access")
+        );
+    }
+
+    fn stalwart() -> OAuthServer {
+        OAuthServer {
+            issuer: "https://mail.example.org".into(),
+            authorization_endpoint: "https://mail.example.org/login".into(),
+            token_endpoint: "https://mail.example.org/auth/token".into(),
+            client_id: "swc1.abc".into(),
+        }
+    }
+
+    #[test]
+    fn a_server_sign_in_asks_for_mail_consent_on_every_mail_host() {
+        let (request, pending) = begin_server(
+            &stalwart(),
+            "alice@example.org",
+            &["imap.example.org", "smtp.example.org"],
+        )
+        .unwrap();
+        let url = url::Url::parse(&request.url).unwrap();
+        assert_eq!(url.host_str(), Some("mail.example.org"));
+        assert_eq!(url.path(), "/login");
+        let pairs: Vec<(String, String)> = url.query_pairs().into_owned().collect();
+        let value = |name: &str| {
+            pairs
+                .iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value.clone())
+        };
+        assert_eq!(value("client_id").as_deref(), Some("swc1.abc"));
+        assert_eq!(
+            value("redirect_uri").as_deref(),
+            Some("com.soluce.openmailbox:/oauth")
+        );
+        assert_eq!(request.redirect_uri, "com.soluce.openmailbox:/oauth");
+        assert_eq!(
+            value("scope").as_deref(),
+            Some("urn:ietf:params:oauth:scope:mail openid offline_access")
+        );
+        assert_eq!(value("prompt").as_deref(), Some("consent"));
+        assert_eq!(value("login_hint").as_deref(), Some("alice@example.org"));
+        assert_eq!(value("code_challenge_method").as_deref(), Some("S256"));
+        let resources: Vec<String> = pairs
+            .iter()
+            .filter(|(key, _)| key == "resource")
+            .map(|(_, value)| value.clone())
+            .collect();
+        assert_eq!(resources, vec!["imap.example.org", "smtp.example.org"]);
+        assert_eq!(pending.provider, Authentication::Server);
+        assert_eq!(pending.server, Some(stalwart()));
+    }
+
+    #[test]
+    fn a_server_answer_must_come_from_its_issuer() {
+        let (_, pending) = begin_server(&stalwart(), "alice@example.org", &[]).unwrap();
+        let state = &pending.state;
+        let callback =
+            |iss: &str| format!("com.soluce.openmailbox:/oauth?code=abc&state={state}{iss}");
+        assert_eq!(
+            authorization_code(&callback("&iss=https%3A%2F%2Fmail.example.org"), &pending).unwrap(),
+            "abc"
+        );
+        assert!(matches!(
+            authorization_code(&callback("&iss=https%3A%2F%2Fevil.example"), &pending),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            authorization_code(&callback(""), &pending),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn the_token_username_names_the_account() {
+        let grant = parse_grant(
+            200,
+            r#"{"access_token":"at","refresh_token":"rt","username":"alice@example.org"}"#,
+            0,
+        )
+        .unwrap();
+        assert_eq!(grant.identity.unwrap().email, "alice@example.org");
+    }
+
+    #[test]
+    fn a_server_account_renews_at_its_own_token_endpoint() {
+        let server = stalwart();
+        assert_eq!(
+            token_target(Authentication::Server, Some(&server)).unwrap(),
+            (
+                "https://mail.example.org/auth/token".to_owned(),
+                "swc1.abc".to_owned()
+            )
+        );
+        assert!(matches!(
+            token_target(Authentication::Server, None),
+            Err(Error::InvalidInput(_))
+        ));
+        assert_eq!(
+            token_target(Authentication::Microsoft, None).unwrap().0,
+            "https://login.microsoftonline.com/common/oauth2/v2.0/token"
         );
     }
 

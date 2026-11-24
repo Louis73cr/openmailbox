@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+test-ca = []
+
 [dependencies]
 base64.workspace = true
 mail-model.workspace = true

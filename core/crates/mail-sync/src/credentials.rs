@@ -136,15 +136,23 @@ pub async fn credential(
 ) -> Result<Credential> {
     match account.authentication {
         Authentication::Password => read(secret).map(Credential::Password).ok_or(Error::Auth),
-        provider => access_token(
-            &account.id,
-            tokens,
-            secret,
-            events,
-            |refresh_token| async move { oauth::refresh(provider, &refresh_token).await },
-        )
-        .await
-        .map(Credential::AccessToken),
+        provider => {
+            let server = account.oauth_server.clone();
+            let token = access_token(
+                &account.id,
+                tokens,
+                secret,
+                events,
+                |refresh_token| async move {
+                    oauth::refresh(provider, server.as_ref(), &refresh_token).await
+                },
+            )
+            .await?;
+            Ok(match provider {
+                Authentication::Server => Credential::OAuthBearer(token),
+                _ => Credential::AccessToken(token),
+            })
+        }
     }
 }
 
@@ -309,6 +317,31 @@ mod tests {
         assert_eq!(secret.read().unwrap().as_deref(), Some("rt"));
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(seen.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_server_account_logs_in_with_oauthbearer() {
+        let events = Events::start();
+        let secret: Secret = Arc::new(RwLock::new(Some("rt".into())));
+        let tokens: TokenCache = Arc::new(tokio::sync::Mutex::new(Some((
+            "at".into(),
+            now_millis() + 3_600_000,
+        ))));
+        let mut account = crate::test_support::account("a");
+        account.authentication = Authentication::Server;
+        assert_eq!(
+            credential(&account, &secret, &tokens, &events)
+                .await
+                .unwrap(),
+            Credential::OAuthBearer("at".into())
+        );
+        account.authentication = Authentication::Microsoft;
+        assert_eq!(
+            credential(&account, &secret, &tokens, &events)
+                .await
+                .unwrap(),
+            Credential::AccessToken("at".into())
+        );
     }
 
     #[tokio::test]
