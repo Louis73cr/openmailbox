@@ -72,7 +72,7 @@ describe('providers', () => {
   it('points a development entry at a local Stalwart that offers OAuth', () => {
     expect(LOCAL_STALWART_PROVIDER.servers?.imap).toEqual({ host: 'localhost', port: 993, security: Security.Tls });
     expect(LOCAL_STALWART_PROVIDER.servers?.smtp).toEqual({ host: 'localhost', port: 465, security: Security.Tls });
-    expect(LOCAL_STALWART_PROVIDER.account?.email).toBe('alice@example.com');
+    expect(LOCAL_STALWART_PROVIDER.account?.email).toBe('carol@example.com');
     expect(LOCAL_STALWART_PROVIDER.probesOAuth).toBe(true);
     expect(PROVIDERS.find((provider) => provider.identifier === 'other')?.probesOAuth).toBe(true);
   });

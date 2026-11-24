@@ -203,11 +203,11 @@ export const LOCAL_STALWART_PROVIDER: MailProvider = {
   name: 'Stalwart',
   domains: [],
   probesOAuth: true,
-  account: { email: 'alice@example.com', password: '' },
+  account: { email: 'carol@example.com', password: '' },
   servers: {
-    imap: { host: 'localhost', port: 993, security: Security.Tls },
-    smtp: { host: 'localhost', port: 465, security: Security.Tls },
-    username: 'alice@example.com',
+    imap: { host: LOCAL_HOST, port: 993, security: Security.Tls },
+    smtp: { host: LOCAL_HOST, port: 465, security: Security.Tls },
+    username: 'carol@example.com',
   },
 };
 
