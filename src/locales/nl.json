@@ -242,6 +242,12 @@
       "light": "Licht",
       "system": "Automatisch"
     },
+    "timeFormat": "Tijdnotatie",
+    "timeFormats": {
+      "12h": "12 uur",
+      "24h": "24 uur",
+      "system": "Automatisch"
+    },
     "title": "Instellingen"
   },
   "signature": {

@@ -12,4 +12,10 @@ describe('native intent', () => {
     expect(redirectSystemPath({ path: 'openmailbox://expo-sharing?id=1', initial: true })).toBe('/compose?shared=1');
     expect(redirectSystemPath({ path: '/thread/1', initial: false })).toBe('/thread/1');
   });
+
+  it('writes a new message for a mailto link', () => {
+    const link = 'mailto:bob@example.com?subject=Hi%20there';
+    expect(redirectSystemPath({ path: link, initial: true })).toBe(`/compose?mailto=${encodeURIComponent(link)}`);
+    expect(redirectSystemPath({ path: 'MAILTO:bob@example.com', initial: false })).toBe('/compose?mailto=MAILTO%3Abob%40example.com');
+  });
 });

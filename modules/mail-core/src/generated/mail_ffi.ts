@@ -531,7 +531,8 @@ export type EmailSummary = {
     isSeen: boolean,
     isFlagged: boolean,
     isAnswered: boolean,
-    hasAttachment: boolean
+    hasAttachment: boolean,
+    originalSender?: string
 }
 
 /**
@@ -567,7 +568,8 @@ const FfiConverterTypeEmailSummary = (() => {
                 isSeen: FfiConverterBool.readFromCursor(c), 
                 isFlagged: FfiConverterBool.readFromCursor(c), 
                 isAnswered: FfiConverterBool.readFromCursor(c), 
-                hasAttachment: FfiConverterBool.readFromCursor(c)
+                hasAttachment: FfiConverterBool.readFromCursor(c), 
+                originalSender: FfiConverterOptionalString.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -584,6 +586,7 @@ const FfiConverterTypeEmailSummary = (() => {
             FfiConverterBool.writeIntoCursor(value.isFlagged, c);
             FfiConverterBool.writeIntoCursor(value.isAnswered, c);
             FfiConverterBool.writeIntoCursor(value.hasAttachment, c);
+            FfiConverterOptionalString.writeIntoCursor(value.originalSender, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.id) +
@@ -598,7 +601,8 @@ const FfiConverterTypeEmailSummary = (() => {
              FfiConverterBool.allocationSize(value.isSeen) +
              FfiConverterBool.allocationSize(value.isFlagged) +
              FfiConverterBool.allocationSize(value.isAnswered) +
-             FfiConverterBool.allocationSize(value.hasAttachment);
+             FfiConverterBool.allocationSize(value.hasAttachment) +
+             FfiConverterOptionalString.allocationSize(value.originalSender);
             
         }
     };

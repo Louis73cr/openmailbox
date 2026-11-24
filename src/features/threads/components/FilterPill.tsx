@@ -18,7 +18,6 @@ const MAX_WIDTH = 220;
 const LABEL_GAP = 10;
 const LABEL_END_PADDING = 12;
 const CHEVRON_WIDTH = 16;
-// ponytail: estimated caption glyph width; the native toolbar needs a fixed width up front. Measure the text if locales overflow.
 const CAPTION_CHARACTER_WIDTH = 7.8;
 const SPRING = { damping: 18, stiffness: 230, mass: 0.9 };
 const FADE = { duration: 200 };

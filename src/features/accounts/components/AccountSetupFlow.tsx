@@ -46,7 +46,6 @@ export function AccountSetupFlow({ onDone, onClose }: AccountSetupFlowProps) {
     return () => subscription.remove();
   }, [provider, back]);
 
-  // On iOS, the Add Account sheet uses the native header like the other sheets.
   const nativeModal = NATIVE_CHROME && onClose !== undefined;
   const welcome = !provider && !onClose;
   const title = welcome

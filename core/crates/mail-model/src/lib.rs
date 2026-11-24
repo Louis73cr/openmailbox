@@ -264,6 +264,7 @@ pub struct EmailSummary {
     pub is_flagged: bool,
     pub is_answered: bool,
     pub has_attachment: bool,
+    pub original_sender: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -386,6 +387,7 @@ pub struct ParsedHeaders {
     pub has_attachment: bool,
     pub preview: Option<String>,
     pub signals: SendingSignals,
+    pub original_sender: Option<String>,
 }
 
 impl ParsedHeaders {

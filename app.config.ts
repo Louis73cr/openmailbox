@@ -1,14 +1,37 @@
 import type { ExpoConfig } from 'expo/config';
+import { withMainActivity, type ConfigPlugin } from 'expo/config-plugins';
 
 import { version } from './package.json';
 
 const [major, minor, patch] = version.split('.').map(Number);
 const versionCode = major * 10000 + minor * 100 + patch;
 
+const VIEW_SEND_TO = `
+  override fun onNewIntent(intent: Intent) {
+    viewSendTo(intent)
+    super.onNewIntent(intent)
+  }
+
+  private fun viewSendTo(intent: Intent?) {
+    if (intent?.action == Intent.ACTION_SENDTO) intent.action = Intent.ACTION_VIEW
+  }
+`;
+
+const withMailtoSendTo: ConfigPlugin = (config) =>
+  withMainActivity(config, (activity) => {
+    const contents = activity.modResults.contents;
+    if (contents.includes('viewSendTo')) return activity;
+    if (!contents.includes('    super.onCreate(null)\n  }\n')) throw new Error('MainActivity has no onCreate to hand mailto SENDTO intents over');
+    activity.modResults.contents = contents
+      .replace('import android.os.Bundle\n', 'import android.os.Bundle\nimport android.content.Intent\n')
+      .replace('    super.onCreate(null)\n  }\n', `    viewSendTo(intent)\n    super.onCreate(null)\n  }\n${VIEW_SEND_TO}`);
+    return activity;
+  });
+
 const config: ExpoConfig = {
   name: 'Open Mailbox',
   slug: 'openmailbox',
-  scheme: ['openmailbox', 'com.googleusercontent.apps.894628345620-n02dmit6km3lipioghk4r6unjnmr5l98', 'com.soluce.openmailbox'],
+  scheme: ['openmailbox', 'com.googleusercontent.apps.894628345620-n02dmit6km3lipioghk4r6unjnmr5l98', 'com.soluce.openmailbox', 'mailto'],
   version,
   orientation: 'default',
   userInterfaceStyle: 'automatic',
@@ -24,6 +47,9 @@ const config: ExpoConfig = {
       CFBundleDisplayName: 'Open Mailbox',
       ITSAppUsesNonExemptEncryption: false,
     },
+    entitlements: {
+      'com.apple.developer.mail-client': true,
+    },
   },
 
   android: {
@@ -37,6 +63,7 @@ const config: ExpoConfig = {
     softwareKeyboardLayoutMode: 'resize',
     allowBackup: false,
     blockedPermissions: ['android.permission.WRITE_CONTACTS'],
+    intentFilters: [{ action: 'SENDTO', data: [{ scheme: 'mailto' }], category: ['DEFAULT'] }],
   },
   owner: "soluce",
   extra: {
@@ -107,4 +134,4 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+export default withMailtoSendTo(config);

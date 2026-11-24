@@ -156,6 +156,7 @@ pub struct EmailSummary {
     pub is_flagged: bool,
     pub is_answered: bool,
     pub has_attachment: bool,
+    pub original_sender: Option<String>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -545,6 +546,7 @@ impl From<mail_model::EmailSummary> for EmailSummary {
             is_flagged: email.is_flagged,
             is_answered: email.is_answered,
             has_attachment: email.has_attachment,
+            original_sender: email.original_sender,
         }
     }
 }
