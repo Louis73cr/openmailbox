@@ -18,6 +18,10 @@ pub enum Error {
     NotFound,
     #[error("invalid input: {0}")]
     InvalidInput(String),
+    #[error("cancelled")]
+    Cancelled,
+    #[error("account already added")]
+    AccountExists,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -43,6 +47,37 @@ impl Security {
             Security::Tls
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Authentication {
+    Password,
+    Microsoft,
+    Google,
+}
+
+impl Authentication {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Authentication::Password => "password",
+            Authentication::Microsoft => "microsoft",
+            Authentication::Google => "google",
+        }
+    }
+
+    pub fn parse(value: &str) -> Authentication {
+        match value {
+            "microsoft" => Authentication::Microsoft,
+            "google" => Authentication::Google,
+            _ => Authentication::Password,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Credential {
+    Password(String),
+    AccessToken(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +113,7 @@ pub struct Account {
     pub smtp: ServerEndpoint,
     pub color: u32,
     pub created_at: i64,
+    pub authentication: Authentication,
 }
 
 impl Account {
@@ -392,6 +428,10 @@ pub enum CoreEvent {
     OpFailed {
         account_id: String,
         message: String,
+    },
+    SecretChanged {
+        account_id: String,
+        secret: String,
     },
 }
 

@@ -1,10 +1,10 @@
-use mail_model::{Account, Error, Result, Security, ServerEndpoint};
+use mail_model::{Account, Authentication, Error, Result, Security, ServerEndpoint};
 use rusqlite::{OptionalExtension, Row, params};
 
 use crate::{StorageResult, Store};
 
 const ACCOUNT_COLUMNS: &str = "id, email, display_name, username, imap_host, imap_port, imap_security, \
-     smtp_host, smtp_port, smtp_security, color, created_at";
+     smtp_host, smtp_port, smtp_security, color, created_at, authentication";
 
 fn account_from_row(row: &Row) -> rusqlite::Result<Account> {
     Ok(Account {
@@ -24,6 +24,7 @@ fn account_from_row(row: &Row) -> rusqlite::Result<Account> {
         },
         color: row.get(10)?,
         created_at: row.get(11)?,
+        authentication: Authentication::parse(&row.get::<_, String>(12)?),
     })
 }
 
@@ -85,7 +86,7 @@ impl Store {
         self.write(|transaction| {
             transaction
                 .execute(
-                    &format!("INSERT INTO account ({ACCOUNT_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"),
+                    &format!("INSERT INTO account ({ACCOUNT_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"),
                     params![
                         account.id,
                         account.email,
@@ -99,6 +100,7 @@ impl Store {
                         account.smtp.security.as_str(),
                         account.color,
                         account.created_at,
+                        account.authentication.as_str(),
                     ],
                 )
                 .storage()?;
@@ -133,6 +135,16 @@ impl Store {
             .ok_or(Error::NotFound)
     }
 
+    pub fn has_account_for(&self, email: &str) -> Result<bool> {
+        self.read()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM account WHERE lower(email) = lower(trim(?1)))",
+                [email],
+                |row| row.get(0),
+            )
+            .storage()
+    }
+
     pub fn next_account_color(&self) -> Result<u32> {
         let connection = self.read();
         connection
@@ -163,5 +175,39 @@ impl Store {
                 .storage()?;
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mail_model::Authentication;
+
+    use crate::test_support::{account, store};
+
+    #[test]
+    fn an_address_is_known_whatever_its_case() {
+        let (store, directory) = store();
+        store.insert_account(&account("alice")).unwrap();
+        assert!(store.has_account_for("ALICE@example.com").unwrap());
+        assert!(!store.has_account_for("bob@example.com").unwrap());
+        std::fs::remove_dir_all(directory).ok();
+    }
+
+    #[test]
+    fn an_account_keeps_how_it_signs_in() {
+        let (store, directory) = store();
+        let mut microsoft = account("m");
+        microsoft.authentication = Authentication::Microsoft;
+        store.insert_account(&microsoft).unwrap();
+        store.insert_account(&account("p")).unwrap();
+        assert_eq!(
+            store.account("m").unwrap().authentication,
+            Authentication::Microsoft
+        );
+        assert_eq!(
+            store.account("p").unwrap().authentication,
+            Authentication::Password
+        );
+        std::fs::remove_dir_all(directory).ok();
     }
 }

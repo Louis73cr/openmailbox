@@ -47,9 +47,13 @@ async fn server_subjects() -> Vec<String> {
 }
 
 async fn server_subjects_in(mailbox: &str) -> Vec<String> {
-    let mut connection = proto_imap::connect(&endpoint(3993), "bob@example.com", "secret")
-        .await
-        .unwrap();
+    let mut connection = proto_imap::connect(
+        &endpoint(3993),
+        "bob@example.com",
+        &mail_model::Credential::Password("secret".into()),
+    )
+    .await
+    .unwrap();
     connection.select(mailbox).await.unwrap();
     let uids = connection.search_since(0).await.unwrap();
     if uids.is_empty() {
@@ -66,9 +70,13 @@ async fn server_subjects_in(mailbox: &str) -> Vec<String> {
 }
 
 async fn ensure_mailboxes() {
-    let mut connection = proto_imap::connect(&endpoint(3993), "bob@example.com", "secret")
-        .await
-        .unwrap();
+    let mut connection = proto_imap::connect(
+        &endpoint(3993),
+        "bob@example.com",
+        &mail_model::Credential::Password("secret".into()),
+    )
+    .await
+    .unwrap();
     let mailboxes = connection.list_mailboxes().await.unwrap();
     for (name, role) in [
         ("Sent", MailboxRole::Sent),
@@ -473,9 +481,13 @@ async fn unsubscribes_from_a_list_by_mail() {
          List-Unsubscribe: <mailto:bob@example.com?subject=Leave%20{token}>\r\n\
          Content-Type: text/plain\r\n\r\nNews of the week.\r\n"
     );
-    let mut connection = proto_imap::connect(&endpoint(3993), "bob@example.com", "secret")
-        .await
-        .unwrap();
+    let mut connection = proto_imap::connect(
+        &endpoint(3993),
+        "bob@example.com",
+        &mail_model::Credential::Password("secret".into()),
+    )
+    .await
+    .unwrap();
     connection
         .append("INBOX", newsletter.as_bytes())
         .await
@@ -557,7 +569,7 @@ async fn background_check_reports_new_mail() {
     proto_smtp::send(
         &endpoint(3465),
         "alice@example.com",
-        "secret",
+        &mail_model::Credential::Password("secret".into()),
         "alice@example.com",
         &["bob@example.com".into()],
         raw.as_bytes(),
@@ -596,9 +608,13 @@ async fn background_check_reports_new_mail() {
         .is_empty()
     );
 
-    let mut connection = proto_imap::connect(&endpoint(3993), "bob@example.com", "secret")
-        .await
-        .unwrap();
+    let mut connection = proto_imap::connect(
+        &endpoint(3993),
+        "bob@example.com",
+        &mail_model::Credential::Password("secret".into()),
+    )
+    .await
+    .unwrap();
     connection.select("INBOX").await.unwrap();
     let uids = connection
         .search_message_id(&format!("{token}@example.com"))
@@ -648,9 +664,13 @@ async fn classifies_mail_from_the_headers_the_server_sends() {
             Category::Primary,
         ),
     ];
-    let mut connection = proto_imap::connect(&endpoint(3993), "bob@example.com", "secret")
-        .await
-        .unwrap();
+    let mut connection = proto_imap::connect(
+        &endpoint(3993),
+        "bob@example.com",
+        &mail_model::Credential::Password("secret".into()),
+    )
+    .await
+    .unwrap();
     for (index, (from, subject, headers, _)) in cases.iter().enumerate() {
         let raw = format!(
             "From: {from}\r\nTo: bob@example.com\r\nSubject: {subject} {token}\r\nMessage-ID: <{index}.{token}@test.example>\r\n\

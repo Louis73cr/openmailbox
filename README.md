@@ -82,8 +82,9 @@ Want early access? Beta builds are available, reach out at
 
 ### All your accounts, one inbox
 - A unified inbox across every account, plus each account's own folders
-- Sign-in for **Google**, **iCloud**, **OVHcloud**, **IONOS**, **Yahoo**, or any IMAP/SMTP account,
-  with servers found automatically when possible
+- Sign-in for **Google**, **Microsoft** (Outlook.com, Hotmail, Live, Microsoft 365), **iCloud**,
+  **OVHcloud**, **IONOS**, **Yahoo**, or any IMAP/SMTP account, with servers found automatically when
+  possible; Microsoft accounts sign in on Microsoft's page, so the app never sees their password
 - A signature per account and a sender picker when you write
 - Mail sorted on the device into **Primary, Transactions, Updates and Promotions**, with All Mail one tap
   away; sign-in codes, security alerts and bounces stay in Primary, and moving a sender to another
@@ -148,7 +149,6 @@ Want early access? Beta builds are available, reach out at
 - **Contact pictures** tell Gravatar and company websites which addresses you write to, and
   Cloudflare's DNS resolver which company domains (for their BIMI logos). They are fetched once a month
   per address and can be turned off in Settings.
-- **Microsoft accounts** need OAuth and are not supported yet.
 
 ---
 

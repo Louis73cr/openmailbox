@@ -1,4 +1,4 @@
-import { Security } from '@openmailbox/mail-core';
+import { Authentication, Security } from '@openmailbox/mail-core';
 
 import {
   LOCAL_TEST_PROVIDER,
@@ -10,9 +10,10 @@ import {
 } from '@/features/accounts/providers';
 
 describe('providers', () => {
-  it('lists the providers in order, without Microsoft', () => {
+  it('lists the providers in order, Microsoft after Google', () => {
     expect(PROVIDERS.map((provider) => provider.identifier)).toEqual([
       'gmail',
+      'microsoft',
       'icloud',
       'ovhcloud',
       'ionos',
@@ -33,8 +34,20 @@ describe('providers', () => {
     expect(providerForAddress('alice@GMAIL.com')?.identifier).toBe('gmail');
     expect(providerForAddress('alice@me.com')?.identifier).toBe('icloud');
     expect(providerForAddress('alice@yahoo.fr')?.identifier).toBe('yahoo');
+    expect(providerForAddress('alice@hotmail.fr')?.identifier).toBe('microsoft');
+    expect(providerForAddress('alice@Outlook.com')?.identifier).toBe('microsoft');
     expect(providerForAddress('alice@example.org')).toBeUndefined();
     expect(providerForAddress('not an address')).toBeUndefined();
+  });
+
+  it('signs in to Microsoft only on its page, and to Google on its page too in development', () => {
+    const microsoft = PROVIDERS.find((provider) => provider.identifier === 'microsoft')!;
+    expect(microsoft.oauth).toBe(Authentication.Microsoft);
+    expect(microsoft.oauthOnly).toBe(true);
+    expect(microsoft.appPasswordHelp).toBeUndefined();
+    const google = PROVIDERS.find((provider) => provider.identifier === 'gmail')!;
+    expect(google.oauth).toBe(Authentication.Google);
+    expect(google.oauthOnly).toBeFalsy();
   });
 
   it('links providers that require app passwords to their help page', () => {
@@ -67,6 +80,8 @@ describe('providers', () => {
     expect(providerForAccount(at('imap.mail.me.com'))?.provider.identifier).toBe('icloud');
     expect(providerForAccount(at('IMAP.ionos.de'))?.provider.identifier).toBe('ionos');
     expect(providerForAccount(at('imap.mail.yahoo.com'))?.provider.identifier).toBe('yahoo');
+    expect(providerForAccount(at('outlook.office365.com'))?.provider.identifier).toBe('microsoft');
+    expect(providerName(at('outlook.office365.com'))).toBe('Microsoft');
     expect(providerForAccount(at(LOCAL_TEST_PROVIDER.servers!.imap.host))?.provider.identifier).toBe('local');
     expect(providerName(at('pro2.mail.ovh.net'))).toBe('OVHcloud Email Pro');
     expect(providerName(at('ssl0.ovh.net'))).toBe('OVHcloud MX Plan');

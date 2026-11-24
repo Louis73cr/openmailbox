@@ -9,6 +9,8 @@ notifyManager.setNotifyFunction((notify) => act(notify));
 jest.mock('@/core/mailCore', () => {
   const core = {
     addAccount: jest.fn(),
+    addOauthAccount: jest.fn(),
+    beginSignIn: jest.fn(),
     body: jest.fn(async () => ({ text: '', hasRemoteContent: false, attachments: [] })),
     discover: jest.fn(),
     listAccounts: jest.fn(async () => []),
@@ -20,6 +22,7 @@ jest.mock('@/core/mailCore', () => {
     onBackground: jest.fn(),
     onForeground: jest.fn(),
     openMailbox: jest.fn(async () => undefined),
+    reauthorize: jest.fn(async () => undefined),
     removeAccount: jest.fn(async () => undefined),
     renameAccount: jest.fn(async () => undefined),
     saveAttachment: jest.fn(),
@@ -42,6 +45,10 @@ jest.mock('@/core/mailCore', () => {
     attachmentsDirectory: () => '/cache/attachments',
   };
 });
+
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn(async () => ({ type: 'cancel' })),
+}));
 
 jest.mock('expo-secure-store', () => {
   const values = new Map();

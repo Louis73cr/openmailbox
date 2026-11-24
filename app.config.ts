@@ -8,7 +8,7 @@ const versionCode = major * 10000 + minor * 100 + patch;
 const config: ExpoConfig = {
   name: 'Open Mailbox',
   slug: 'openmailbox',
-  scheme: 'openmailbox',
+  scheme: ['openmailbox', 'com.googleusercontent.apps.894628345620-n02dmit6km3lipioghk4r6unjnmr5l98', 'com.soluce.openmailbox'],
   version,
   orientation: 'default',
   userInterfaceStyle: 'automatic',
@@ -47,6 +47,7 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-secure-store',
+    'expo-web-browser',
     'expo-localization',
     'expo-font',
     'expo-background-task',

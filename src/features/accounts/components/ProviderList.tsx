@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -17,10 +17,18 @@ import { ChevronRight, Heart } from 'lucide-react-native';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { FormSection, Typography } from '@/ui/components';
 
-import { LOCAL_TEST_PROVIDER, PROVIDERS, type MailProvider } from '../providers';
+import { LOCAL_TEST_PROVIDER, PROVIDERS, type MailProvider, type ProviderIdentifier } from '../providers';
 import { ProviderMark } from './ProviderMark';
+import { SignInError } from './SignInError';
 
-function ProviderRow({ provider, onSelect }: { provider: MailProvider; onSelect: (provider: MailProvider) => void }) {
+interface ProviderRowProps {
+  provider: MailProvider;
+  onSelect: (provider: MailProvider) => void;
+  busy?: boolean;
+  disabled?: boolean;
+}
+
+function ProviderRow({ provider, onSelect, busy = false, disabled = false }: ProviderRowProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const title = provider.identifier === 'other' ? t('accounts.setup.otherProvider') : provider.name;
@@ -29,6 +37,8 @@ function ProviderRow({ provider, onSelect }: { provider: MailProvider; onSelect:
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
+      accessibilityState={{ busy, disabled }}
+      disabled={disabled}
       onPress={() => onSelect(provider)}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface }]}
     >
@@ -41,13 +51,17 @@ function ProviderRow({ provider, onSelect }: { provider: MailProvider; onSelect:
           <Typography variant="caption" color={colors.textSecondary}>
             {t('accounts.setup.otherProviderHint')}
           </Typography>
+        ) : provider.identifier === 'microsoft' ? (
+          <Typography variant="caption" color={colors.textSecondary}>
+            {t('accounts.setup.microsoftHint')}
+          </Typography>
         ) : provider.identifier === 'local' ? (
           <Typography variant="caption" color={colors.textSecondary}>
             {t('accounts.setup.localServerHint')}
           </Typography>
         ) : null}
       </View>
-      <ChevronRight size={18} color={colors.textTertiary} />
+      {busy ? <ActivityIndicator size="small" color={colors.textSecondary} /> : <ChevronRight size={18} color={colors.textTertiary} />}
     </Pressable>
   );
 }
@@ -87,13 +101,26 @@ export function MadeWithLove() {
   );
 }
 
-export function ProviderList({ onSelect }: { onSelect: (provider: MailProvider) => void }) {
+interface ProviderListProps {
+  onSelect: (provider: MailProvider) => void;
+  pending?: ProviderIdentifier | null;
+  error?: string | null;
+}
+
+export function ProviderList({ onSelect, pending = null, error = null }: ProviderListProps) {
   const { t } = useTranslation();
   return (
     <View style={styles.list}>
+      {error ? <SignInError message={error} /> : null}
       <FormSection footer={t('accounts.setup.providerFooter')}>
         {PROVIDERS.map((provider) => (
-          <ProviderRow key={provider.identifier} provider={provider} onSelect={onSelect} />
+          <ProviderRow
+            key={provider.identifier}
+            provider={provider}
+            onSelect={onSelect}
+            busy={pending === provider.identifier}
+            disabled={pending !== null}
+          />
         ))}
       </FormSection>
       {__DEV__ ? (

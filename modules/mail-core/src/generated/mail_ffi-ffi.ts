@@ -75,6 +75,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_mail_ffi_fn_method_eventlistener_on_event(uniffiSelf: bigint, event: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_mail_ffi_fn_constructor_mailcore_open(dataDirectory: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_add_account(uniffiSelf: bigint, config: Uint8Array, secret: Uint8Array): bigint;
+    ubrn_uniffi_mail_ffi_fn_method_mailcore_add_oauth_account(uniffiSelf: bigint, callbackUrl: Uint8Array, displayName: Uint8Array): bigint;
+    ubrn_uniffi_mail_ffi_fn_method_mailcore_begin_sign_in(uniffiSelf: bigint, provider: Uint8Array, loginHint: Uint8Array, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_body(uniffiSelf: bigint, emailId: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_check_new_mail(uniffiSelf: bigint, budgetMs: number): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_discover(uniffiSelf: bigint, email: Uint8Array): bigint;
@@ -87,6 +89,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_mail_ffi_fn_method_mailcore_on_background(uniffiSelf: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_on_foreground(uniffiSelf: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_open_mailbox(uniffiSelf: bigint, mailboxId: Uint8Array): bigint;
+    ubrn_uniffi_mail_ffi_fn_method_mailcore_reauthorize(uniffiSelf: bigint, accountId: Uint8Array, callbackUrl: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_remove_account(uniffiSelf: bigint, accountId: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_rename_account(uniffiSelf: bigint, accountId: Uint8Array, displayName: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_save_attachment(uniffiSelf: bigint, emailId: Uint8Array, index: number, directory: Uint8Array): bigint;
@@ -106,6 +109,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_mail_ffi_checksum_method_eventlistener_on_event(): number;
     ubrn_uniffi_mail_ffi_checksum_constructor_mailcore_open(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_add_account(): number;
+    ubrn_uniffi_mail_ffi_checksum_method_mailcore_add_oauth_account(): number;
+    ubrn_uniffi_mail_ffi_checksum_method_mailcore_begin_sign_in(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_body(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_check_new_mail(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_discover(): number;
@@ -118,6 +123,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_on_background(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_on_foreground(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_open_mailbox(): number;
+    ubrn_uniffi_mail_ffi_checksum_method_mailcore_reauthorize(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_remove_account(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_rename_account(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_save_attachment(): number;

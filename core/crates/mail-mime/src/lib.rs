@@ -164,6 +164,29 @@ fn normalize_whitespace(text: &str, max_characters: usize) -> String {
         .collect()
 }
 
+pub fn with_bcc_header(raw: &[u8], recipients: &[String]) -> Vec<u8> {
+    let visible: HashSet<String> = charsets::parse(raw)
+        .map(|message| {
+            addresses(message.to())
+                .into_iter()
+                .chain(addresses(message.cc()))
+                .map(|address| address.email.to_lowercase())
+                .collect()
+        })
+        .unwrap_or_default();
+    let hidden: Vec<&str> = recipients
+        .iter()
+        .filter(|recipient| !visible.contains(&recipient.to_lowercase()))
+        .map(String::as_str)
+        .collect();
+    if hidden.is_empty() {
+        return raw.to_vec();
+    }
+    let mut with_header = format!("Bcc: {}\r\n", hidden.join(", ")).into_bytes();
+    with_header.extend_from_slice(raw);
+    with_header
+}
+
 pub fn render(raw: &[u8]) -> Result<RenderedBody> {
     let message = charsets::parse(raw).ok_or_else(|| Error::Server("unreadable message".into()))?;
     let has_html = message
@@ -494,6 +517,43 @@ Content-Type: text/plain; charset=ISO-2022-JP\r\n\r\n";
         assert_eq!(
             built.recipients,
             vec!["bob@example.com", "carol@example.com"]
+        );
+    }
+
+    #[test]
+    fn bcc_recipients_become_a_header_only_when_asked() {
+        let from = Address {
+            name: None,
+            email: "alice@example.com".into(),
+        };
+        let bob = Address {
+            name: None,
+            email: "Bob@example.com".into(),
+        };
+        let carol = Address {
+            name: None,
+            email: "carol@example.com".into(),
+        };
+        let built = build_message(OutgoingMessage {
+            message_id: "new@example.com",
+            from: &from,
+            to: &[bob],
+            cc: &[],
+            bcc: &[carol],
+            subject: "Hello",
+            body_text: "Hi",
+            body_html: None,
+            in_reply_to: None,
+            references: &[],
+            attachments: vec![],
+        })
+        .unwrap();
+        let raw = String::from_utf8(with_bcc_header(&built.raw, &built.recipients)).unwrap();
+        assert!(raw.starts_with("Bcc: carol@example.com\r\n"));
+        assert!(!raw.contains("Bcc: carol@example.com, bob"));
+        assert_eq!(
+            with_bcc_header(&built.raw, &["bob@example.com".into()]),
+            built.raw
         );
     }
 

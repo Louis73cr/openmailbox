@@ -27,6 +27,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0008_store_settings.sql"),
     include_str!("migrations/0009_stored_signals.sql"),
     include_str!("migrations/0010_render_html_again.sql"),
+    include_str!("migrations/0011_authentication.sql"),
 ];
 
 pub struct Store {
@@ -198,6 +199,7 @@ pub(crate) mod test_support {
             smtp: endpoint,
             color: 0,
             created_at: 0,
+            authentication: mail_model::Authentication::Password,
         }
     }
 }
@@ -230,6 +232,10 @@ mod migration_tests {
                 .unwrap();
         }
         let store = Store::open(&path).unwrap();
+        assert_eq!(
+            store.account("a").unwrap().authentication,
+            mail_model::Authentication::Password
+        );
         assert_eq!(store.search("facture", 10, &[]).unwrap()[0].email.id, 7);
         assert_eq!(store.search("ines", 10, &[]).unwrap().len(), 1);
         store.remove_uids(1, &[3]).unwrap();

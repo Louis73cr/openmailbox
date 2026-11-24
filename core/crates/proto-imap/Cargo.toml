@@ -17,3 +17,6 @@ tokio.workspace = true
 tokio-rustls.workspace = true
 utf7-imap.workspace = true
 webpki-roots.workspace = true
+
+[dev-dependencies]
+base64.workspace = true

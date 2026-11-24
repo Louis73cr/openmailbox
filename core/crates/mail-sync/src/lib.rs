@@ -1,3 +1,4 @@
+mod credentials;
 mod events;
 mod operations;
 mod worker;
@@ -10,18 +11,21 @@ use std::time::Duration;
 
 use mail_mime::{AttachmentContent, OutgoingMessage};
 use mail_model::{
-    Account, AccountConfig, Address, Category, CoreEvent, Draft, EmailSummary, Error, Keyword,
-    MAX_ATTACHMENTS_BYTES, Mailbox, MailboxRole, NewMessage, OutgoingAttachment, RenderedBody,
-    Result, SearchHit, ServerConfig, ThreadFilter, ThreadPage, ThreadScope, UnsubscribeOutcome,
-    now_millis,
+    Account, AccountConfig, Address, Authentication, Category, CoreEvent, Credential, Draft,
+    EmailSummary, Error, Keyword, MAX_ATTACHMENTS_BYTES, Mailbox, MailboxRole, NewMessage,
+    OutgoingAttachment, RenderedBody, Result, SearchHit, ServerConfig, ThreadFilter, ThreadPage,
+    ThreadScope, UnsubscribeOutcome, now_millis,
 };
 use mail_store::Store;
 use tokio::runtime::Handle;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
+use credentials::TokenCache;
 pub use events::EventSink;
 use events::Events;
+pub use mail_auth::oauth::SignInRequest;
+use mail_auth::oauth::{self, Grant, Identity, PendingSignIn};
 use operations::Operation;
 use worker::{Command, Heartbeat, Secret, Worker};
 
@@ -51,6 +55,7 @@ pub struct Relocation {
 struct AccountHandle {
     account: Account,
     secret: Secret,
+    tokens: TokenCache,
     commands: mpsc::UnboundedSender<Command>,
     worker: JoinHandle<()>,
     heartbeat: Heartbeat,
@@ -73,6 +78,7 @@ pub struct Engine {
     foreground: AtomicBool,
     backgrounded_at: AtomicI64,
     ticker: Mutex<Option<JoinHandle<()>>>,
+    pending_sign_in: Mutex<Option<PendingSignIn>>,
 }
 
 impl Engine {
@@ -95,9 +101,10 @@ impl Engine {
             foreground: AtomicBool::new(false),
             backgrounded_at: AtomicI64::new(0),
             ticker: Mutex::default(),
+            pending_sign_in: Mutex::default(),
         });
         for account in engine.store.list_accounts()? {
-            engine.start_worker(account, None);
+            engine.start_worker(account, None, None);
         }
         Ok(engine)
     }
@@ -112,8 +119,13 @@ impl Engine {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    fn start_worker(&self, account: Account, secret: Option<String>) {
-        let handle = self.spawn_worker(account, Arc::new(RwLock::new(secret)), None);
+    fn start_worker(&self, account: Account, secret: Option<String>, token: Option<(String, i64)>) {
+        let handle = self.spawn_worker(
+            account,
+            Arc::new(RwLock::new(secret)),
+            Arc::new(tokio::sync::Mutex::new(token)),
+            None,
+        );
         self.accounts().insert(handle.account.id.clone(), handle);
     }
 
@@ -121,6 +133,7 @@ impl Engine {
         &self,
         account: Account,
         secret: Secret,
+        tokens: TokenCache,
         idle: Option<JoinHandle<()>>,
     ) -> AccountHandle {
         let (commands, receiver) = mpsc::unbounded_channel();
@@ -128,6 +141,7 @@ impl Engine {
         let worker = Worker::new(
             account.clone(),
             secret.clone(),
+            tokens.clone(),
             self.store.clone(),
             self.events.clone(),
             receiver,
@@ -137,6 +151,7 @@ impl Engine {
             worker: self.runtime.spawn(worker.run()),
             account,
             secret,
+            tokens,
             commands,
             heartbeat,
             idle,
@@ -157,6 +172,7 @@ impl Engine {
             *handle = self.spawn_worker(
                 handle.account.clone(),
                 handle.secret.clone(),
+                handle.tokens.clone(),
                 handle.idle.take(),
             );
             let _ = handle.commands.send(Command::Sync {
@@ -187,9 +203,11 @@ impl Engine {
     }
 
     pub async fn add_account(&self, config: AccountConfig, secret: String) -> Result<Account> {
-        let connection = proto_imap::connect(&config.imap, &config.username, &secret).await?;
+        self.ensure_new(&config.email)?;
+        let credential = Credential::Password(secret.clone());
+        let connection = proto_imap::connect(&config.imap, &config.username, &credential).await?;
         connection.logout().await;
-        proto_smtp::verify(&config.smtp, &config.username, &secret).await?;
+        proto_smtp::verify(&config.smtp, &config.username, &credential).await?;
         let account = Account {
             id: uuid::Uuid::new_v4().to_string(),
             email: config.email.trim().to_owned(),
@@ -199,10 +217,28 @@ impl Engine {
             smtp: config.smtp,
             color: self.store.next_account_color()?,
             created_at: now_millis(),
+            authentication: Authentication::Password,
         };
-        self.store.insert_account(&account)?;
+        self.register(&account, secret, None)?;
+        Ok(account)
+    }
+
+    fn ensure_new(&self, email: &str) -> Result<()> {
+        if self.store.has_account_for(email)? {
+            return Err(Error::AccountExists);
+        }
+        Ok(())
+    }
+
+    fn register(
+        &self,
+        account: &Account,
+        secret: String,
+        token: Option<(String, i64)>,
+    ) -> Result<()> {
+        self.store.insert_account(account)?;
         self.store.set_notified_until(&account.id, now_millis())?;
-        self.start_worker(account.clone(), Some(secret));
+        self.start_worker(account.clone(), Some(secret), token);
         if self.foreground.load(Ordering::SeqCst) {
             self.start_idle(&account.id);
         }
@@ -214,7 +250,134 @@ impl Engine {
             },
         );
         self.events.emit(CoreEvent::AccountsChanged);
+        Ok(())
+    }
+
+    pub fn begin_sign_in(
+        &self,
+        provider: Authentication,
+        login_hint: Option<String>,
+    ) -> Result<SignInRequest> {
+        let (request, pending) = oauth::begin(provider, login_hint.as_deref())?;
+        *self
+            .pending_sign_in
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(pending);
+        Ok(request)
+    }
+
+    async fn finish_sign_in(
+        &self,
+        callback_url: &str,
+    ) -> Result<(Authentication, Grant, Identity, String)> {
+        let pending = self
+            .pending_sign_in
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+            .ok_or_else(|| Error::InvalidInput("no sign-in in progress".into()))?;
+        let code = oauth::authorization_code(callback_url, &pending)?;
+        let grant = oauth::exchange(&pending, &code).await?;
+        let identity = grant
+            .identity
+            .clone()
+            .ok_or_else(|| Error::Server("the provider did not give the address".into()))?;
+        let refresh_token = grant
+            .refresh_token
+            .clone()
+            .ok_or_else(|| Error::Server("the provider did not allow offline access".into()))?;
+        Ok((pending.provider, grant, identity, refresh_token))
+    }
+
+    pub async fn add_oauth_account(
+        &self,
+        callback_url: &str,
+        display_name: &str,
+    ) -> Result<Account> {
+        let (authentication, grant, identity, refresh_token) =
+            self.finish_sign_in(callback_url).await?;
+        self.ensure_new(&identity.email)?;
+        let config = oauth::servers(authentication, &identity);
+        let credential = Credential::AccessToken(grant.access_token.clone());
+        let connection = proto_imap::connect(&config.imap, &config.username, &credential)
+            .await
+            .map_err(|error| refused_sign_in(error, &config.imap.host, &identity.email))?;
+        connection.logout().await;
+        match proto_smtp::verify(&config.smtp, &config.username, &credential).await {
+            Ok(()) | Err(Error::Server(_)) => {}
+            Err(error) => {
+                return Err(refused_sign_in(error, &config.smtp.host, &identity.email));
+            }
+        }
+        let display_name = [display_name, identity.name.as_deref().unwrap_or_default()]
+            .into_iter()
+            .map(str::trim)
+            .find(|name| !name.is_empty())
+            .unwrap_or(&identity.email)
+            .to_owned();
+        let account = Account {
+            id: uuid::Uuid::new_v4().to_string(),
+            email: identity.email.clone(),
+            display_name,
+            username: config.username,
+            imap: config.imap,
+            smtp: config.smtp,
+            color: self.store.next_account_color()?,
+            created_at: now_millis(),
+            authentication,
+        };
+        self.register(
+            &account,
+            refresh_token.clone(),
+            Some((grant.access_token, grant.expires_at)),
+        )?;
+        self.events.emit(CoreEvent::SecretChanged {
+            account_id: account.id.clone(),
+            secret: refresh_token,
+        });
         Ok(account)
+    }
+
+    pub async fn reauthorize(&self, account_id: &str, callback_url: &str) -> Result<()> {
+        let account = self.store.account(account_id)?;
+        let (authentication, grant, identity, refresh_token) =
+            self.finish_sign_in(callback_url).await?;
+        if authentication != account.authentication
+            || !identity.email.eq_ignore_ascii_case(&account.email)
+        {
+            return Err(Error::InvalidInput(format!(
+                "signed in as {}",
+                identity.email
+            )));
+        }
+        let connection = proto_imap::connect(
+            &account.imap,
+            &account.username,
+            &Credential::AccessToken(grant.access_token.clone()),
+        )
+        .await
+        .map_err(|error| refused_sign_in(error, &account.imap.host, &identity.email))?;
+        connection.logout().await;
+        let tokens = self
+            .accounts()
+            .get(account_id)
+            .map(|handle| handle.tokens.clone());
+        if let Some(tokens) = tokens {
+            *tokens.lock().await = Some((grant.access_token, grant.expires_at));
+        }
+        self.unlock_account(account_id, refresh_token.clone());
+        self.events.emit(CoreEvent::SecretChanged {
+            account_id: account_id.to_owned(),
+            secret: refresh_token,
+        });
+        self.dispatch(
+            account_id,
+            Command::Sync {
+                mailbox_ids: None,
+                force: true,
+            },
+        );
+        Ok(())
     }
 
     pub fn unlock_account(&self, account_id: &str, secret: String) {
@@ -242,7 +405,12 @@ impl Engine {
 
     pub async fn update_password(&self, account_id: &str, secret: String) -> Result<()> {
         let account = self.store.account(account_id)?;
-        let connection = proto_imap::connect(&account.imap, &account.username, &secret).await?;
+        let connection = proto_imap::connect(
+            &account.imap,
+            &account.username,
+            &Credential::Password(secret.clone()),
+        )
+        .await?;
         connection.logout().await;
         self.unlock_account(account_id, secret);
         self.dispatch(
@@ -723,33 +891,41 @@ impl Engine {
         }
         let account = handle.account.clone();
         let secret = handle.secret.clone();
+        let tokens = handle.tokens.clone();
         let commands = handle.commands.clone();
         let store = self.store.clone();
-        handle.idle = Some(
-            self.runtime
-                .spawn(watch_inbox(account, secret, store, commands)),
-        );
+        let events = self.events.clone();
+        handle.idle = Some(self.runtime.spawn(watch_inbox(
+            account, secret, tokens, events, store, commands,
+        )));
+    }
+}
+
+fn refused_sign_in(error: Error, host: &str, email: &str) -> Error {
+    match error {
+        Error::Auth => Error::Server(format!("{host} refused the sign-in of {email}")),
+        other => other,
     }
 }
 
 async fn watch_inbox(
     account: Account,
     secret: Secret,
+    tokens: TokenCache,
+    events: Events,
     store: Arc<Store>,
     commands: mpsc::UnboundedSender<Command>,
 ) {
     loop {
-        let password = secret
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone();
         let inbox = store
             .mailbox_by_role(&account.id, MailboxRole::Inbox)
             .ok()
             .flatten();
-        if let (Some(password), Some(inbox)) = (password, inbox)
+        if let Some(inbox) = inbox
+            && let Ok(credential) =
+                credentials::credential(&account, &secret, &tokens, &events).await
             && let Ok(mut connection) =
-                proto_imap::connect(&account.imap, &account.username, &password).await
+                proto_imap::connect(&account.imap, &account.username, &credential).await
         {
             if !connection.capabilities.idle {
                 connection.logout().await;
@@ -813,7 +989,7 @@ fn read_attachments(attachments: &[OutgoingAttachment]) -> Result<Vec<Attachment
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    use mail_model::{Account, Security, ServerEndpoint};
+    use mail_model::{Account, Authentication, Security, ServerEndpoint};
     use mail_store::Store;
 
     pub fn store() -> Store {
@@ -841,6 +1017,7 @@ pub(crate) mod test_support {
             smtp: endpoint,
             color: 0,
             created_at: 0,
+            authentication: Authentication::Password,
         }
     }
 }
@@ -997,7 +1174,7 @@ mod tests {
     #[test]
     fn a_worker_busy_since_before_the_app_was_suspended_is_replaced() {
         let fixture = Fixture::new(STANDARD);
-        fixture.engine.start_worker(account("alice"), None);
+        fixture.engine.start_worker(account("alice"), None, None);
         let heartbeat = |engine: &Engine| engine.accounts()["alice"].heartbeat.clone();
         let stuck = heartbeat(&fixture.engine);
         stuck.store(1_000, Ordering::SeqCst);
@@ -1497,5 +1674,69 @@ mod tests {
 
         assert_eq!(subjects(&found), vec!["Message 1"]);
         assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn a_mail_server_refusing_a_fresh_token_names_itself_and_the_address() {
+        assert!(matches!(
+            refused_sign_in(Error::Auth, "outlook.office365.com", "alice@gmail.com"),
+            Error::Server(message)
+                if message == "outlook.office365.com refused the sign-in of alice@gmail.com"
+        ));
+        assert!(matches!(
+            refused_sign_in(Error::Network("down".into()), "smtp.office365.com", "a@b.c"),
+            Error::Network(message) if message == "down"
+        ));
+    }
+
+    #[test]
+    fn an_address_already_added_is_refused_before_connecting() {
+        let directory =
+            std::env::temp_dir().join(format!("mail-sync-duplicate-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        Store::open(&directory.join("mail.db"))
+            .unwrap()
+            .insert_account(&account("carol"))
+            .unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let engine = Engine::open(&directory, runtime.handle().clone()).unwrap();
+        let unreachable = mail_model::ServerEndpoint {
+            host: "unreachable.invalid".into(),
+            port: 993,
+            security: mail_model::Security::Tls,
+        };
+        let config = AccountConfig {
+            email: " Carol@Example.com ".into(),
+            display_name: "Carol".into(),
+            username: "carol".into(),
+            imap: unreachable.clone(),
+            smtp: unreachable,
+        };
+        assert!(matches!(
+            runtime.block_on(engine.add_account(config, "secret".into())),
+            Err(Error::AccountExists)
+        ));
+        assert_eq!(engine.list_accounts().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn an_oauth_sign_in_only_accepts_the_answer_to_its_own_request() {
+        let directory =
+            std::env::temp_dir().join(format!("mail-sync-oauth-{}", uuid::Uuid::new_v4()));
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let engine = Engine::open(&directory, runtime.handle().clone()).unwrap();
+        assert!(matches!(
+            runtime.block_on(engine.add_oauth_account("openmailbox://oauth?code=x&state=y", "")),
+            Err(Error::InvalidInput(_))
+        ));
+        engine
+            .begin_sign_in(Authentication::Microsoft, None)
+            .unwrap();
+        assert!(matches!(
+            runtime
+                .block_on(engine.add_oauth_account("openmailbox://oauth?code=x&state=forged", "")),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(engine.list_accounts().unwrap().is_empty());
     }
 }

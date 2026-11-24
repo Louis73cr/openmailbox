@@ -146,6 +146,37 @@ const FfiConverterTypeServerEndpoint = (() => {
     return new FFIConverter();
 })();
 
+export enum Authentication {
+    Password,
+    Microsoft,
+    Google
+}
+
+const FfiConverterTypeAuthentication = (() => {
+    type TypeName = Authentication;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            switch (c.readI32()) {
+                case 1: return Authentication.Password;
+                case 2: return Authentication.Microsoft;
+                case 3: return Authentication.Google;
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            switch (value) {
+                case Authentication.Password: return c.writeI32(1);
+                case Authentication.Microsoft: return c.writeI32(2);
+                case Authentication.Google: return c.writeI32(3);
+            }
+        }
+        allocationSize(value: TypeName): number {
+            return 4;
+        }
+    }
+    return new FFIConverter();
+})();
+
 export type Account = {
     id: string,
     email: string,
@@ -153,7 +184,8 @@ export type Account = {
     username: string,
     imap: ServerEndpoint,
     smtp: ServerEndpoint,
-    color: number
+    color: number,
+    authentication: Authentication
 }
 
 /**
@@ -183,7 +215,8 @@ const FfiConverterTypeAccount = (() => {
                 username: FfiConverterString.readFromCursor(c), 
                 imap: FfiConverterTypeServerEndpoint.readFromCursor(c), 
                 smtp: FfiConverterTypeServerEndpoint.readFromCursor(c), 
-                color: FfiConverterUInt32.readFromCursor(c)
+                color: FfiConverterUInt32.readFromCursor(c), 
+                authentication: FfiConverterTypeAuthentication.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -194,6 +227,7 @@ const FfiConverterTypeAccount = (() => {
             FfiConverterTypeServerEndpoint.writeIntoCursor(value.imap, c);
             FfiConverterTypeServerEndpoint.writeIntoCursor(value.smtp, c);
             FfiConverterUInt32.writeIntoCursor(value.color, c);
+            FfiConverterTypeAuthentication.writeIntoCursor(value.authentication, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.id) +
@@ -202,7 +236,8 @@ const FfiConverterTypeAccount = (() => {
              FfiConverterString.allocationSize(value.username) +
              FfiConverterTypeServerEndpoint.allocationSize(value.imap) +
              FfiConverterTypeServerEndpoint.allocationSize(value.smtp) +
-             FfiConverterUInt32.allocationSize(value.color);
+             FfiConverterUInt32.allocationSize(value.color) +
+             FfiConverterTypeAuthentication.allocationSize(value.authentication);
             
         }
     };
@@ -965,6 +1000,49 @@ const FfiConverterTypeServerConfig = (() => {
     return new FFIConverter();
 })();
 
+export type SignInRequest = {
+    url: string,
+    redirectUri: string
+}
+
+/**
+ * Generated factory for {@link SignInRequest} record objects.
+ */
+export const SignInRequest = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<SignInRequest, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<SignInRequest>,
+    });
+})();
+
+const FfiConverterTypeSignInRequest = (() => {
+    type TypeName = SignInRequest;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                url: FfiConverterString.readFromCursor(c), 
+                redirectUri: FfiConverterString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.url, c);
+            FfiConverterString.writeIntoCursor(value.redirectUri, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.url) +
+             FfiConverterString.allocationSize(value.redirectUri);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
 export type ThreadFilter = {
     unread: boolean,
     flagged: boolean,
@@ -1199,7 +1277,9 @@ export enum CoreError_Tags {
     Server = "Server",
     Storage = "Storage",
     NotFound = "NotFound",
-    InvalidInput = "InvalidInput"
+    InvalidInput = "InvalidInput",
+    Cancelled = "Cancelled",
+    AccountExists = "AccountExists"
 }
 export const CoreError = (() => {
 
@@ -1413,6 +1493,60 @@ Readonly<{message: string}> {
 
     }
 
+    type Cancelled__interface = {
+        tag: CoreError_Tags.Cancelled
+    };
+    class Cancelled_ extends UniffiError implements Cancelled__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "CoreError";
+        readonly tag = CoreError_Tags.Cancelled;
+        constructor() {
+            super("CoreError", "Cancelled");
+        }
+
+        static new(): Cancelled_ {
+            return new Cancelled_();
+        }
+
+        static instanceOf(obj: any): obj is Cancelled_ {
+            return obj.tag === CoreError_Tags.Cancelled;
+        }
+        static hasInner(obj: any): obj is Cancelled_ {
+            return false;
+        }
+
+    }
+
+    type AccountExists__interface = {
+        tag: CoreError_Tags.AccountExists
+    };
+    class AccountExists_ extends UniffiError implements AccountExists__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "CoreError";
+        readonly tag = CoreError_Tags.AccountExists;
+        constructor() {
+            super("CoreError", "AccountExists");
+        }
+
+        static new(): AccountExists_ {
+            return new AccountExists_();
+        }
+
+        static instanceOf(obj: any): obj is AccountExists_ {
+            return obj.tag === CoreError_Tags.AccountExists;
+        }
+        static hasInner(obj: any): obj is AccountExists_ {
+            return false;
+        }
+
+    }
+
     function instanceOf(obj: any): obj is CoreError {
         return obj[uniffiTypeNameSymbol] === "CoreError";
     }
@@ -1424,12 +1558,14 @@ Readonly<{message: string}> {
   Server: Server_, 
   Storage: Storage_, 
   NotFound: NotFound_, 
-  InvalidInput: InvalidInput_
+  InvalidInput: InvalidInput_, 
+  Cancelled: Cancelled_, 
+  AccountExists: AccountExists_
     });
 
 })();
 export type CoreError = InstanceType<
-    typeof CoreError['Network' | 'Auth' | 'Server' | 'Storage' | 'NotFound' | 'InvalidInput']
+    typeof CoreError['Network' | 'Auth' | 'Server' | 'Storage' | 'NotFound' | 'InvalidInput' | 'Cancelled' | 'AccountExists']
 >;
 
 // FfiConverter for enum CoreError
@@ -1444,6 +1580,8 @@ const FfiConverterTypeCoreError = (() => {
                 case 4: return new CoreError.Storage({message: FfiConverterString.readFromCursor(c) });
                 case 5: return new CoreError.NotFound();
                 case 6: return new CoreError.InvalidInput({message: FfiConverterString.readFromCursor(c) });
+                case 7: return new CoreError.Cancelled();
+                case 8: return new CoreError.AccountExists();
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -1479,6 +1617,14 @@ const FfiConverterTypeCoreError = (() => {
                     c.writeI32(6);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.message, c);
+                    return;
+                }
+                case CoreError_Tags.Cancelled: {
+                    c.writeI32(7);
+                    return;
+                }
+                case CoreError_Tags.AccountExists: {
+                    c.writeI32(8);
                     return;
                 }
                 default:
@@ -1517,6 +1663,12 @@ const FfiConverterTypeCoreError = (() => {
                     let size = 4;
                     size += FfiConverterString.allocationSize(inner.message);
                     return size;
+                }
+                case CoreError_Tags.Cancelled: {
+                    return 4;
+                }
+                case CoreError_Tags.AccountExists: {
+                    return 4;
                 }
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
@@ -1769,7 +1921,8 @@ export enum CoreEvent_Tags {
     AccountsChanged = "AccountsChanged",
     SyncState = "SyncState",
     AuthRequired = "AuthRequired",
-    OpFailed = "OpFailed"
+    OpFailed = "OpFailed",
+    SecretChanged = "SecretChanged"
 }
 export const CoreEvent = (() => {
 
@@ -1921,6 +2074,37 @@ inner: {accountId: string; message: string }): OpFailed_ {
 
     }
 
+    type SecretChanged__interface = {
+        tag: CoreEvent_Tags.SecretChanged;
+        inner: 
+Readonly<{accountId: string; secret: string}>
+    };
+    class SecretChanged_ extends UniffiEnum implements SecretChanged__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "CoreEvent";
+        readonly tag = CoreEvent_Tags.SecretChanged;
+        readonly inner: 
+Readonly<{accountId: string; secret: string}>;
+        constructor(
+inner: {accountId: string; secret: string }) {
+            super("CoreEvent", "SecretChanged");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {accountId: string; secret: string }): SecretChanged_ {
+            return new SecretChanged_(inner);
+        }
+
+        static instanceOf(obj: any): obj is SecretChanged_ {
+            return obj.tag === CoreEvent_Tags.SecretChanged;
+        }
+
+    }
+
     function instanceOf(obj: any): obj is CoreEvent {
         return obj[uniffiTypeNameSymbol] === "CoreEvent";
     }
@@ -1931,12 +2115,13 @@ inner: {accountId: string; message: string }): OpFailed_ {
   AccountsChanged: AccountsChanged_, 
   SyncState: SyncState_, 
   AuthRequired: AuthRequired_, 
-  OpFailed: OpFailed_
+  OpFailed: OpFailed_, 
+  SecretChanged: SecretChanged_
     });
 
 })();
 export type CoreEvent = InstanceType<
-    typeof CoreEvent['MailboxesChanged' | 'AccountsChanged' | 'SyncState' | 'AuthRequired' | 'OpFailed']
+    typeof CoreEvent['MailboxesChanged' | 'AccountsChanged' | 'SyncState' | 'AuthRequired' | 'OpFailed' | 'SecretChanged']
 >;
 
 // FfiConverter for enum CoreEvent
@@ -1950,6 +2135,7 @@ const FfiConverterTypeCoreEvent = (() => {
                 case 3: return new CoreEvent.SyncState({accountId: FfiConverterString.readFromCursor(c), status: FfiConverterTypeSyncStatus.readFromCursor(c) });
                 case 4: return new CoreEvent.AuthRequired({accountId: FfiConverterString.readFromCursor(c) });
                 case 5: return new CoreEvent.OpFailed({accountId: FfiConverterString.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
+                case 6: return new CoreEvent.SecretChanged({accountId: FfiConverterString.readFromCursor(c), secret: FfiConverterString.readFromCursor(c) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -1983,6 +2169,13 @@ const FfiConverterTypeCoreEvent = (() => {
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.accountId, c);
                     FfiConverterString.writeIntoCursor(inner.message, c);
+                    return;
+                }
+                case CoreEvent_Tags.SecretChanged: {
+                    c.writeI32(6);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.accountId, c);
+                    FfiConverterString.writeIntoCursor(inner.secret, c);
                     return;
                 }
                 default:
@@ -2019,6 +2212,13 @@ const FfiConverterTypeCoreEvent = (() => {
                     let size = 4;
                     size += FfiConverterString.allocationSize(inner.accountId);
                     size += FfiConverterString.allocationSize(inner.message);
+                    return size;
+                }
+                case CoreEvent_Tags.SecretChanged: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.accountId);
+                    size += FfiConverterString.allocationSize(inner.secret);
                     return size;
                 }
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
@@ -2683,6 +2883,8 @@ const uniffiCallbackInterfaceEventListener: { vtable: any; register: () => void;
 export interface MailCoreLike {
     
     addAccount(config: AccountConfig, secret: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<Account>;
+    addOauthAccount(callbackUrl: string, displayName: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<Account>;
+    beginSignIn(provider: Authentication, loginHint: string | undefined) /*throws*/: SignInRequest;
     body(emailId: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<RenderedBody>;
 /**
  * Syncs the inboxes within `budget_ms` and returns the unread messages not notified yet.
@@ -2701,6 +2903,7 @@ export interface MailCoreLike {
     onBackground(): void;
     onForeground(): void;
     openMailbox(mailboxId: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
+    reauthorize(accountId: string, callbackUrl: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
     removeAccount(accountId: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
     renameAccount(accountId: string, displayName: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
     saveAttachment(emailId: string, index: number, directory: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<string>;
@@ -2794,6 +2997,66 @@ private constructor(pointer: UniffiHandle) {
             __error.stack = __stack;
         }
         throw __error;
+    }
+    }
+    
+    async addOauthAccount(callbackUrl: string, displayName: string, asyncOpts_?: { signal: AbortSignal }): Promise<Account> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_mail_ffi_fn_method_mailcore_add_oauth_account(
+                    uniffiTypeMailCoreObjectFactory.clonePointer(this),FfiConverterString.lower(callbackUrl, nativeModule().rustbuffer_alloc),FfiConverterString.lower(displayName, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterTypeAccount.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeCoreError.lift.bind(FfiConverterTypeCoreError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    beginSignIn(provider: Authentication, loginHint: string | undefined): SignInRequest /*throws*/ {
+    const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeCoreError.lift.bind(FfiConverterTypeCoreError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_mail_ffi_fn_method_mailcore_begin_sign_in(
+                uniffiTypeMailCoreObjectFactory.clonePointer(this),
+        FfiConverterTypeAuthentication.lower(provider, nativeModule().rustbuffer_alloc),
+        FfiConverterOptionalString.lower(loginHint, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterTypeSignInRequest.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
     }
     }
     
@@ -3184,6 +3447,33 @@ private constructor(pointer: UniffiHandle) {
             /*rustFutureFunc:*/ () => {
                 return nativeModule().ubrn_uniffi_mail_ffi_fn_method_mailcore_open_mailbox(
                     uniffiTypeMailCoreObjectFactory.clonePointer(this),FfiConverterString.lower(mailboxId, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeCoreError.lift.bind(FfiConverterTypeCoreError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    async reauthorize(accountId: string, callbackUrl: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_mail_ffi_fn_method_mailcore_reauthorize(
+                    uniffiTypeMailCoreObjectFactory.clonePointer(this),FfiConverterString.lower(accountId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(callbackUrl, nativeModule().rustbuffer_alloc)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_mail_ffi_rust_future_poll_void,
@@ -3783,6 +4073,12 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_add_account() !== 59215) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_add_account");
     }
+    if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_add_oauth_account() !== 38929) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_add_oauth_account");
+    }
+    if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_begin_sign_in() !== 26043) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_begin_sign_in");
+    }
     if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_body() !== 20776) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_body");
     }
@@ -3818,6 +4114,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_open_mailbox() !== 12471) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_open_mailbox");
+    }
+    if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_reauthorize() !== 47626) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_reauthorize");
     }
     if (nativeModule().ubrn_uniffi_mail_ffi_checksum_method_mailcore_remove_account() !== 38132) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_mail_ffi_checksum_method_mailcore_remove_account");
@@ -3875,6 +4174,7 @@ export default Object.freeze({
     FfiConverterTypeAccountConfig,
     FfiConverterTypeAddress,
     FfiConverterTypeAttachment,
+    FfiConverterTypeAuthentication,
     FfiConverterTypeCategory,
     FfiConverterTypeCoreError,
     FfiConverterTypeCoreEvent,
@@ -3894,6 +4194,7 @@ export default Object.freeze({
     FfiConverterTypeSecurity,
     FfiConverterTypeServerConfig,
     FfiConverterTypeServerEndpoint,
+    FfiConverterTypeSignInRequest,
     FfiConverterTypeSyncErrorKind,
     FfiConverterTypeSyncStatus,
     FfiConverterTypeThreadFilter,
