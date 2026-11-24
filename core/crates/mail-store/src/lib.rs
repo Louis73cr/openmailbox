@@ -29,6 +29,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0010_render_html_again.sql"),
     include_str!("migrations/0011_authentication.sql"),
     include_str!("migrations/0012_oauth_server.sql"),
+    include_str!("migrations/0013_original_sender.sql"),
 ];
 
 pub struct Store {
@@ -130,7 +131,8 @@ impl<T> StorageResult<T> for rusqlite::Result<T> {
 }
 
 pub(crate) const EMAIL_COLUMNS: &str = "e.id, e.account_id, e.thread_id, e.subject, e.from_json, e.to_json, \
-     e.cc_json, e.preview, e.received_at, e.is_seen, e.is_flagged, e.is_answered, e.has_attachment";
+     e.cc_json, e.preview, e.received_at, e.is_seen, e.is_flagged, e.is_answered, e.has_attachment, \
+     e.original_sender";
 
 pub(crate) fn email_from_row(row: &Row, offset: usize) -> rusqlite::Result<EmailSummary> {
     Ok(EmailSummary {
@@ -147,6 +149,7 @@ pub(crate) fn email_from_row(row: &Row, offset: usize) -> rusqlite::Result<Email
         is_flagged: row.get(offset + 10)?,
         is_answered: row.get(offset + 11)?,
         has_attachment: row.get(offset + 12)?,
+        original_sender: row.get(offset + 13)?,
     })
 }
 

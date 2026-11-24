@@ -334,7 +334,7 @@ impl Store {
             .query_map(params![account_id, received_since, after_email_id], |row| {
                 Ok(NewMessage {
                     email: email_from_row(row, 0)?,
-                    mailbox_id: row.get(13)?,
+                    mailbox_id: row.get(14)?,
                 })
             })
             .storage()?
@@ -477,7 +477,7 @@ impl Store {
             .query_map(params![match_expression, limit, scope, candidates], |row| {
                 Ok(SearchHit {
                     email: email_from_row(row, 0)?,
-                    mailbox_id: row.get(14)?,
+                    mailbox_id: row.get(15)?,
                 })
             })
             .storage()?
@@ -584,8 +584,8 @@ fn insert_email(
         .prepare_cached(
             "INSERT INTO email (account_id, thread_id, message_id, references_header, subject, from_json, to_json,
                cc_json, reply_to_json, received_at, size, preview, has_attachment, is_seen, is_flagged,
-               is_answered, is_draft, category, sender, signals)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
+               is_answered, is_draft, category, sender, signals, original_sender)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
              RETURNING id",
         )
         .storage()?
@@ -611,6 +611,7 @@ fn insert_email(
                 category.code(),
                 headers.from.first().map(|address| address.email.to_lowercase()),
                 headers.signals.bits(),
+                headers.original_sender,
             ],
             |row| row.get(0),
         )

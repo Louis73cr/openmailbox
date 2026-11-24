@@ -21,7 +21,8 @@ const SLOW_UPLINK_BYTES_PER_SECOND: u64 = 32 * 1024;
 const SUMMARY_HEADER_FIELDS: &str = "DATE FROM TO CC REPLY-TO SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES \
      CONTENT-TYPE CONTENT-TRANSFER-ENCODING MIME-VERSION \
      LIST-UNSUBSCRIBE LIST-UNSUBSCRIBE-POST LIST-ID PRECEDENCE AUTO-SUBMITTED X-AUTO-RESPONSE-SUPPRESS \
-     X-MAILER X-CSA-COMPLAINTS X-CAMPAIGN X-CAMPAIGNID X-MAILIN-CAMPAIGN X-MAILJET-CAMPAIGN";
+     X-MAILER X-CSA-COMPLAINTS X-CAMPAIGN X-CAMPAIGNID X-MAILIN-CAMPAIGN X-MAILJET-CAMPAIGN \
+     X-SIMPLELOGIN-ORIGINAL-FROM";
 const PREVIEW_BYTES: u32 = 2048;
 /// Without partial fetches, previews come from whole texts, so only small messages get one.
 const WHOLE_TEXT_PREVIEW_MAX_SIZE: u32 = 16 * 1024;
@@ -1342,7 +1343,7 @@ mod tests {
             let mut answered = false;
             while read.read_line(&mut line).await.unwrap_or(0) > 0 {
                 let tag = line.split(' ').next().unwrap_or_default().to_owned();
-                let answer = if line.contains("LOGIN") {
+                let answer = if line.contains(" LOGIN ") {
                     format!("{tag} OK LOGIN completed\r\n")
                 } else if line.contains("NOOP") {
                     format!("{tag} OK NOOP completed\r\n")

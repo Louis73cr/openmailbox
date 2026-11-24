@@ -9,7 +9,7 @@ use lettre::message::{
 use mail_model::{
     Address, Attachment, Error, ParsedHeaders, RenderedBody, Result, SendingSignals, Unsubscribe,
 };
-use mail_parser::{AddressList, Message};
+use mail_parser::{AddressList, HeaderForm, Message};
 
 mod charsets;
 mod code_pages;
@@ -83,7 +83,23 @@ pub fn parse_summary(header: &[u8], partial_text: &[u8]) -> ParsedHeaders {
             normalize_whitespace(preview.trim_end_matches('\u{fffd}'), PREVIEW_LENGTH)
         }),
         signals: sending_signals(&message),
+        original_sender: original_sender(&message),
     }
+}
+
+const ORIGINAL_SENDER_HEADERS: &[&str] = &["X-SimpleLogin-Original-From"];
+
+fn original_sender(message: &Message) -> Option<String> {
+    ORIGINAL_SENDER_HEADERS.iter().find_map(|name| {
+        let parsed = message
+            .headers()
+            .get(*name)?
+            .parse_as(HeaderForm::Addresses);
+        addresses(parsed.value().as_address())
+            .into_iter()
+            .next()
+            .map(|address| address.email)
+    })
 }
 
 const MARKETING_MAILERS: &[&str] = &[
@@ -439,6 +455,19 @@ Content-Type: multipart/alternative; boundary=\"b\"\r\n\r\n";
         assert_eq!(headers.in_reply_to.as_deref(), Some("middle@example.com"));
         assert_eq!(headers.preview.as_deref(), Some("Bonjour Bob, voici le"));
         assert!(!headers.has_attachment);
+    }
+
+    #[test]
+    fn summary_keeps_the_sender_behind_a_simplelogin_alias() {
+        let header = b"From: \"Claire - claire at atlas.example\" <reply+abc@simplelogin.co>\r\n\
+X-SimpleLogin-Original-From: =?utf-8?q?Claire_Dubois?= <Claire@Atlas.example>\r\n\r\n";
+        let headers = parse_summary(header, b"");
+        assert_eq!(headers.from[0].email, "reply+abc@simplelogin.co");
+        assert_eq!(
+            headers.original_sender.as_deref(),
+            Some("Claire@Atlas.example")
+        );
+        assert_eq!(parse_summary(HEADER, b"").original_sender, None);
     }
 
     #[test]

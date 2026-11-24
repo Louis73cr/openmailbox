@@ -71,7 +71,7 @@ function SearchResultRow({ thread, query, onOpen }: { thread: ThreadSummary; que
           <Reply size={15} strokeWidth={2.5} color={colors.primary} />
         ) : null}
       </View>
-      <ContactAvatar email={sender?.email} name={senderName} size={40} />
+      <ContactAvatar email={email.originalSender ?? sender?.email} name={senderName} size={40} />
       <View style={[styles.content, { borderBottomColor: colors.border }]}>
         <View style={styles.line}>
           <Highlighted
