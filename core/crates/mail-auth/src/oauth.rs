@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
 const PERSONAL_TENANT: &str = "9188040d-6c67-4c5b-b112-36a304b66dad";
+const GRAPH_SEND_SCOPE: &str = "https://graph.microsoft.com/Mail.Send";
 
 struct Provider {
     authorize_url: &'static str,
@@ -103,11 +104,15 @@ pub fn begin(
         verifier.as_bytes(),
     ));
     let state = uuid::Uuid::new_v4().simple().to_string();
+    let scope = match authentication {
+        Authentication::Microsoft => format!("{} {GRAPH_SEND_SCOPE}", provider.scope),
+        _ => provider.scope.to_owned(),
+    };
     let mut parameters = vec![
         ("client_id", provider.client_id),
         ("response_type", "code"),
         ("redirect_uri", provider.redirect_uri),
-        ("scope", provider.scope),
+        ("scope", scope.as_str()),
         ("state", state.as_str()),
         ("code_challenge", challenge.as_str()),
         ("code_challenge_method", "S256"),
@@ -152,18 +157,33 @@ pub fn authorization_code(callback_url: &str, pending: &PendingSignIn) -> Result
         .ok_or_else(|| Error::InvalidInput("sign-in answer without a code".into()))
 }
 
+fn exchange_form(pending: &PendingSignIn, code: &str) -> Vec<(&'static str, String)> {
+    let mut form = vec![
+        ("grant_type", "authorization_code".to_owned()),
+        ("code", code.to_owned()),
+        ("redirect_uri", pending.redirect_uri.clone()),
+        ("code_verifier", pending.verifier.clone()),
+    ];
+    if pending.provider == Authentication::Microsoft {
+        form.push(("scope", MICROSOFT.scope.to_owned()));
+    }
+    form
+}
+
 pub async fn exchange(pending: &PendingSignIn, code: &str) -> Result<Grant> {
-    let provider = provider(pending.provider)?;
-    request_token(
-        provider,
-        vec![
-            ("grant_type", "authorization_code".to_owned()),
-            ("code", code.to_owned()),
-            ("redirect_uri", pending.redirect_uri.clone()),
-            ("code_verifier", pending.verifier.clone()),
-        ],
-    )
-    .await
+    request_token(provider(pending.provider)?, exchange_form(pending, code)).await
+}
+
+fn graph_refresh_form(refresh_token: &str) -> Vec<(&'static str, String)> {
+    vec![
+        ("grant_type", "refresh_token".to_owned()),
+        ("refresh_token", refresh_token.to_owned()),
+        ("scope", format!("{GRAPH_SEND_SCOPE} offline_access")),
+    ]
+}
+
+pub async fn graph_grant(refresh_token: &str) -> Result<Grant> {
+    request_token(&MICROSOFT, graph_refresh_form(refresh_token)).await
 }
 
 fn refresh_form(
@@ -491,6 +511,37 @@ mod tests {
         assert!(microsoft.contains("https://outlook.office.com/IMAP.AccessAsUser.All"));
         assert!(microsoft.contains("offline_access"));
         assert_eq!(scope(refresh_form(Authentication::Google, "rt")), None);
+    }
+
+    fn form_value(form: &[(&str, String)], name: &str) -> Option<String> {
+        form.iter()
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| value.clone())
+    }
+
+    #[test]
+    fn microsoft_sign_in_also_asks_to_send_through_graph() {
+        let (request, pending) = begin(Authentication::Microsoft, None).unwrap();
+        assert!(scopes(&query(&request.url)).contains(&GRAPH_SEND_SCOPE.to_owned()));
+        let exchange = form_value(&exchange_form(&pending, "code"), "scope").unwrap();
+        assert!(exchange.contains("https://outlook.office.com/IMAP.AccessAsUser.All"));
+        assert!(!exchange.contains("graph.microsoft.com"));
+        let (_, google) = begin(Authentication::Google, None).unwrap();
+        assert_eq!(form_value(&exchange_form(&google, "code"), "scope"), None);
+    }
+
+    #[test]
+    fn a_graph_token_is_redeemed_for_mail_send_only() {
+        let form = graph_refresh_form("rt");
+        assert_eq!(
+            form_value(&form, "grant_type").as_deref(),
+            Some("refresh_token")
+        );
+        assert_eq!(form_value(&form, "refresh_token").as_deref(), Some("rt"));
+        assert_eq!(
+            form_value(&form, "scope").as_deref(),
+            Some("https://graph.microsoft.com/Mail.Send offline_access")
+        );
     }
 
     #[test]

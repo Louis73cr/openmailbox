@@ -5,8 +5,8 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use mail_model::{
-    Account, CoreEvent, Credential, Error, FetchedMessage, Mailbox, MailboxRole, RenderedBody,
-    Result, SyncErrorKind, SyncStatus, now_millis,
+    Account, Authentication, CoreEvent, Credential, Error, FetchedMessage, Mailbox, MailboxRole,
+    RenderedBody, Result, SyncErrorKind, SyncStatus, now_millis,
 };
 use mail_store::{MailboxSyncState, Store};
 use proto_imap::{ImapConnection, uid_set};
@@ -813,7 +813,7 @@ impl Worker {
                 recipients,
             } => {
                 let credential = self.credential().await?;
-                proto_smtp::send(
+                let sent = proto_smtp::send(
                     &self.account.smtp,
                     &self.account.username,
                     &credential,
@@ -821,8 +821,27 @@ impl Worker {
                     recipients,
                     raw.as_bytes(),
                 )
-                .await?;
-                if !self.account.is_gmail() {
+                .await;
+                let filed_by_server = match sent {
+                    Ok(()) => self.account.is_gmail(),
+                    Err(error) if sends_through_graph(self.account.authentication, &error) => {
+                        let token = credentials::graph_token(
+                            &self.account,
+                            &self.secret,
+                            &self.tokens,
+                            &self.events,
+                        )
+                        .await?;
+                        mail_auth::graph::send_mail(
+                            &token,
+                            &mail_mime::with_bcc_header(raw.as_bytes(), recipients),
+                        )
+                        .await?;
+                        true
+                    }
+                    Err(error) => return Err(error),
+                };
+                if !filed_by_server {
                     operations::enqueue(
                         &self.store,
                         &self.account.id,
@@ -889,9 +908,39 @@ fn group_by_mailbox(sources: &[Source]) -> BTreeMap<i64, Vec<u32>> {
     groups
 }
 
+fn sends_through_graph(authentication: Authentication, error: &Error) -> bool {
+    authentication == Authentication::Microsoft
+        && matches!(error, Error::Server(message) if message.contains("5.7.139"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_microsoft_mailbox_refusing_smtp_auth_sends_through_graph() {
+        let blocked = Error::Server("permanent error (535): 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled for the Mailbox.".into());
+        assert!(sends_through_graph(
+            mail_model::Authentication::Microsoft,
+            &blocked
+        ));
+        assert!(!sends_through_graph(
+            mail_model::Authentication::Google,
+            &blocked
+        ));
+        assert!(!sends_through_graph(
+            mail_model::Authentication::Password,
+            &blocked
+        ));
+        assert!(!sends_through_graph(
+            mail_model::Authentication::Microsoft,
+            &Error::Server("5.7.1 relay denied".into())
+        ));
+        assert!(!sends_through_graph(
+            mail_model::Authentication::Microsoft,
+            &Error::Auth
+        ));
+    }
 
     #[test]
     fn two_copies_of_a_message_take_different_uids() {

@@ -8,6 +8,7 @@ use crate::events::Events;
 use crate::worker::Secret;
 
 const REFRESH_MARGIN_MS: i64 = 5 * 60 * 1000;
+const GRAPH_CONSENT_NEEDED: &str = "Microsoft needs a new sign-in to send this message: open the account settings and choose Sign in Again.";
 
 pub type TokenCache = Arc<tokio::sync::Mutex<Option<(String, i64)>>>;
 
@@ -22,14 +23,13 @@ fn read(secret: &Secret) -> Option<String> {
         .clone()
 }
 
-pub fn keep_grant(
+fn store_refresh_token(
     account_id: &str,
-    grant: Grant,
+    refresh_token: Option<String>,
     secret: &Secret,
-    cached: &mut Option<(String, i64)>,
     events: &Events,
-) -> String {
-    if let Some(refresh_token) = grant.refresh_token {
+) {
+    if let Some(refresh_token) = refresh_token {
         let mut current = secret
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -41,8 +41,55 @@ pub fn keep_grant(
             });
         }
     }
+}
+
+pub fn keep_grant(
+    account_id: &str,
+    grant: Grant,
+    secret: &Secret,
+    cached: &mut Option<(String, i64)>,
+    events: &Events,
+) -> String {
+    store_refresh_token(account_id, grant.refresh_token, secret, events);
     *cached = Some((grant.access_token.clone(), grant.expires_at));
     grant.access_token
+}
+
+async fn graph_access_token<F, R>(
+    account_id: &str,
+    tokens: &TokenCache,
+    secret: &Secret,
+    events: &Events,
+    redeem: F,
+) -> Result<String>
+where
+    F: FnOnce(String) -> R,
+    R: Future<Output = Result<Grant>>,
+{
+    let _serialized = tokens.lock().await;
+    let refresh_token = read(secret).ok_or(Error::Auth)?;
+    let grant = redeem(refresh_token).await.map_err(|error| match error {
+        Error::Auth => Error::Server(GRAPH_CONSENT_NEEDED.into()),
+        other => other,
+    })?;
+    store_refresh_token(account_id, grant.refresh_token, secret, events);
+    Ok(grant.access_token)
+}
+
+pub async fn graph_token(
+    account: &Account,
+    secret: &Secret,
+    tokens: &TokenCache,
+    events: &Events,
+) -> Result<String> {
+    graph_access_token(
+        &account.id,
+        tokens,
+        secret,
+        events,
+        |refresh_token| async move { oauth::graph_grant(&refresh_token).await },
+    )
+    .await
 }
 
 async fn access_token<F, R>(
@@ -220,6 +267,48 @@ mod tests {
         assert!(seen.lock().unwrap().contains(&CoreEvent::AuthRequired {
             account_id: "a".into()
         }));
+    }
+
+    #[tokio::test]
+    async fn a_graph_token_leaves_the_mail_token_and_saves_a_rotated_secret() {
+        let events = Events::start();
+        let seen = recorded(&events);
+        let secret: Secret = Arc::new(RwLock::new(Some("rt".into())));
+        let tokens: TokenCache = Arc::new(tokio::sync::Mutex::new(Some((
+            "mail-at".into(),
+            now_millis() + 3_600_000,
+        ))));
+        let token = graph_access_token("a", &tokens, &secret, &events, |_| async {
+            Ok(grant("graph-at", Some("rt2")))
+        })
+        .await
+        .unwrap();
+        assert_eq!(token, "graph-at");
+        assert_eq!(
+            tokens.lock().await.as_ref().map(|(token, _)| token.clone()),
+            Some("mail-at".into())
+        );
+        assert_eq!(secret.read().unwrap().as_deref(), Some("rt2"));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(seen.lock().unwrap().contains(&CoreEvent::SecretChanged {
+            account_id: "a".into(),
+            secret: "rt2".into()
+        }));
+    }
+
+    #[tokio::test]
+    async fn a_graph_refusal_asks_to_sign_in_again_without_signing_out() {
+        let events = Events::start();
+        let seen = recorded(&events);
+        let secret: Secret = Arc::new(RwLock::new(Some("rt".into())));
+        let result = graph_access_token("a", &TokenCache::default(), &secret, &events, |_| async {
+            Err(Error::Auth)
+        })
+        .await;
+        assert!(matches!(result, Err(Error::Server(message)) if message.contains("Sign in Again")));
+        assert_eq!(secret.read().unwrap().as_deref(), Some("rt"));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(seen.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
