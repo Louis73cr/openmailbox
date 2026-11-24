@@ -163,7 +163,6 @@ pub struct SearchHit {
     pub mailbox_id: String,
 }
 
-/// Inbox categories, from the most to the least important.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum Category {
     Primary,
@@ -302,7 +301,6 @@ impl Destination {
     }
 }
 
-/// Where a move left the messages; `target_mailbox_id` is absent when they were deleted for good.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Relocation {
     pub email_ids: Vec<String>,
@@ -653,8 +651,6 @@ fn keywords(values: Vec<Keyword>) -> Vec<mail_model::Keyword> {
     values.into_iter().map(Into::into).collect()
 }
 
-/// A JavaScript reload creates a new `MailCore` while the previous one is still alive in the
-/// process: reusing it keeps a single sync engine per database.
 static OPEN_CORES: LazyLock<Mutex<HashMap<String, Arc<MailCore>>>> =
     LazyLock::new(Default::default);
 
@@ -812,7 +808,6 @@ impl MailCore {
         ))
     }
 
-    /// `category` keeps the threads of that category only; `None` lists them all.
     pub async fn list_threads(
         &self,
         scope: ThreadScope,
@@ -858,7 +853,6 @@ impl MailCore {
         ))
     }
 
-    /// Syncs the inboxes within `budget_ms` and returns the unread messages not notified yet.
     pub async fn check_new_mail(&self, budget_ms: u32) -> CoreResult<Vec<NewMessage>> {
         let budget = Duration::from_millis(budget_ms.into());
         let found = self
@@ -914,7 +908,6 @@ impl MailCore {
             .await
     }
 
-    /// Every mailbox when `mailbox_ids` is empty.
     pub async fn search(
         &self,
         query: String,
@@ -934,7 +927,6 @@ impl MailCore {
             .collect())
     }
 
-    /// Moves every message from `sender`, past and future, to `category`.
     pub async fn set_sender_category(&self, sender: String, category: Category) -> CoreResult<()> {
         self.blocking(move |engine| engine.set_sender_category(&sender, category.into()))
             .await
