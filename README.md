@@ -206,11 +206,11 @@ An EAS build needs the same framework, so build the core with `--release` before
 
 ### Local test server
 
-`yarn mail:start` runs GreenMail in Docker (IMAPS on 3993, SMTPS on 3465) and seeds it with demo
+`just greenmail` (or `yarn mail:start`) runs GreenMail in Docker (IMAPS on 3993, SMTPS on 3465) and seeds it with demo
 mail for `alice@example.com` (password `secret`). Development builds list it on the welcome screen.
 `yarn mail:seed` resets its content.
 
-`tools/mail-server/mail-server.sh oauth` runs Stalwart in Docker (HTTPS on 443, IMAPS on 993, SMTPS on
+`just stalwart` runs Stalwart in Docker (HTTPS on 443, IMAPS on 993, SMTPS on
 465) to test OAuth sign-in, with `carol@example.com` (password `secret-password`). Development builds
 list it as Stalwart; build the core with `yarn core:ios:dev` or `yarn core:android:dev` so it trusts
 the test certificate, and accept the certificate warning on the sign-in page. The Android emulator
