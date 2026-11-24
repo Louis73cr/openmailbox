@@ -163,6 +163,20 @@ describe('composer', () => {
     });
   });
 
+  describe('mailto links', () => {
+    it('fills in the message a mailto link describes', async () => {
+      mockParams = { mailto: 'mailto:bob@example.com?cc=carol@example.com&subject=Hello&body=See%20https%3A%2F%2Fopenmailbox.eu' };
+      renderWithProviders(<ComposeScreen />);
+
+      expect(screen.getByDisplayValue('Hello')).toBeOnTheScreen();
+      expect(enriched.setValue).toHaveBeenCalledWith('See <a href="https://openmailbox.eu">https://openmailbox.eu</a>');
+      await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
+      await waitFor(() => expect(core.send).toHaveBeenCalled());
+      const draft = core.send.mock.calls[0][0];
+      expect([draft.to, draft.cc, draft.subject]).toEqual([[{ email: 'bob@example.com' }], [{ email: 'carol@example.com' }], 'Hello']);
+    });
+  });
+
   describe('signatures', () => {
     const CHARLES = { html: '<b>Charles</b>', text: 'Charles' };
     const FOOTER = 'Sent from Open Mailbox (https://openmailbox.eu)';

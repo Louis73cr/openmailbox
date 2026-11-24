@@ -6,6 +6,9 @@ import { HtmlBody } from '@/features/reader/components/HtmlBody';
 import { lightTheme } from '@/theme';
 import i18n from '@/utils/i18n';
 
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), router: { push: (href: unknown) => mockPush(href) } }));
+
 describe('HtmlBody links', () => {
   beforeAll(() => i18n.changeLanguage('en'));
   beforeEach(() => jest.clearAllMocks());
@@ -36,6 +39,15 @@ describe('HtmlBody links', () => {
 
     expect(show()({ url: 'https://tracker.example/pixel', isTopFrame: false })).toBe(false);
 
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it('writes a new message for a mailto link', () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    expect(show()({ url: 'mailto:bob@example.com?subject=Hi' })).toBe(false);
+
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/compose', params: { mailto: 'mailto:bob@example.com?subject=Hi' } });
     expect(alert).not.toHaveBeenCalled();
   });
 });

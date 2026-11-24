@@ -16,7 +16,7 @@ import { RecipientField } from '@/features/composer/components/RecipientField';
 import { FORMAT_BAR_HEIGHT, KeyboardFormatBar } from '@/features/composer/components/KeyboardFormatBar';
 import { RichBody } from '@/features/composer/components/RichBody';
 import { editorHtml } from '@/features/composer/editorHtml';
-import { composeTitleKey, linkedHtml, prefill, quoteHtml, type ComposeMode } from '@/features/composer/prefill';
+import { composeTitleKey, linkedHtml, parseMailto, prefill, quoteHtml, type ComposeMode } from '@/features/composer/prefill';
 import { replySender, sendersOf } from '@/features/composer/senders';
 import { readSharedContent } from '@/features/composer/shared';
 import { HtmlBody } from '@/features/reader/components/HtmlBody';
@@ -42,6 +42,7 @@ type ComposeParams = {
   mailboxId?: string;
   accountId?: string;
   to?: string;
+  mailto?: string;
   shared?: string;
 };
 
@@ -145,6 +146,17 @@ export default function ComposeScreen() {
         .finally(() => setForwarding(false));
     }
   }, [prefilled, original, originalBody.isLoading, originalBody.data, senders, mode, t, params.emailId]);
+
+  useEffect(() => {
+    if (!params.mailto) return;
+    const fields = parseMailto(params.mailto);
+    setTo(fields.to);
+    setCc(fields.cc);
+    setBcc(fields.bcc);
+    setShowCopies(fields.cc.length + fields.bcc.length > 0);
+    setSubject(fields.subject);
+    if (fields.body) body.current?.setValue(linkedHtml(fields.body));
+  }, [params.mailto]);
 
   useEffect(() => {
     if (!params.shared) return;
