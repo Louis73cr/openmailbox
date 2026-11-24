@@ -128,6 +128,13 @@ where
     Ok(keep_grant(account_id, grant, secret, &mut cached, events))
 }
 
+pub fn token_credential(authentication: Authentication, token: String) -> Credential {
+    match authentication {
+        Authentication::Server => Credential::OAuthBearer(token),
+        _ => Credential::AccessToken(token),
+    }
+}
+
 pub async fn credential(
     account: &Account,
     secret: &Secret,
@@ -148,10 +155,7 @@ pub async fn credential(
                 },
             )
             .await?;
-            Ok(match provider {
-                Authentication::Server => Credential::OAuthBearer(token),
-                _ => Credential::AccessToken(token),
-            })
+            Ok(token_credential(provider, token))
         }
     }
 }

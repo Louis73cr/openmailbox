@@ -761,6 +761,43 @@ impl MailCore {
         })
     }
 
+    pub async fn probe_oauth(
+        &self,
+        email: String,
+        imap: ServerEndpoint,
+    ) -> CoreResult<Option<String>> {
+        let imap: mail_model::ServerEndpoint = imap.into();
+        self.asynchronous(async move |engine| engine.probe_oauth(&email, &imap).await)
+            .await
+    }
+
+    pub async fn begin_server_sign_in(
+        &self,
+        email: String,
+        servers: ServerConfig,
+    ) -> CoreResult<SignInRequest> {
+        let servers = mail_model::ServerConfig {
+            imap: servers.imap.into(),
+            smtp: servers.smtp.into(),
+            username: servers.username,
+        };
+        let request = self
+            .asynchronous(async move |engine| engine.begin_server_sign_in(&email, servers).await)
+            .await?;
+        Ok(SignInRequest {
+            url: request.url,
+            redirect_uri: request.redirect_uri,
+        })
+    }
+
+    pub fn begin_account_sign_in(&self, account_id: String) -> CoreResult<SignInRequest> {
+        let request = self.engine.begin_account_sign_in(&account_id)?;
+        Ok(SignInRequest {
+            url: request.url,
+            redirect_uri: request.redirect_uri,
+        })
+    }
+
     pub async fn add_oauth_account(
         &self,
         callback_url: String,

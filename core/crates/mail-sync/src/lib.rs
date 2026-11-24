@@ -78,7 +78,13 @@ pub struct Engine {
     foreground: AtomicBool,
     backgrounded_at: AtomicI64,
     ticker: Mutex<Option<JoinHandle<()>>>,
-    pending_sign_in: Mutex<Option<PendingSignIn>>,
+    pending_sign_in: Mutex<Option<PendingAccount>>,
+}
+
+struct PendingAccount {
+    sign_in: PendingSignIn,
+    email: Option<String>,
+    servers: Option<ServerConfig>,
 }
 
 impl Engine {
@@ -259,35 +265,120 @@ impl Engine {
         provider: Authentication,
         login_hint: Option<String>,
     ) -> Result<SignInRequest> {
-        let (request, pending) = oauth::begin(provider, login_hint.as_deref())?;
+        let (request, sign_in) = oauth::begin(provider, login_hint.as_deref())?;
+        self.remember(PendingAccount {
+            sign_in,
+            email: None,
+            servers: None,
+        });
+        Ok(request)
+    }
+
+    fn remember(&self, pending: PendingAccount) {
         *self
             .pending_sign_in
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(pending);
+    }
+
+    pub async fn probe_oauth(
+        &self,
+        email: &str,
+        imap: &mail_model::ServerEndpoint,
+    ) -> Result<Option<String>> {
+        let Some(configuration) = proto_imap::oauth_configuration(imap, email).await? else {
+            return Ok(None);
+        };
+        Ok(mail_auth::server::discover(&configuration)
+            .await
+            .ok()
+            .map(|metadata| metadata.issuer))
+    }
+
+    pub async fn begin_server_sign_in(
+        &self,
+        email: &str,
+        servers: ServerConfig,
+    ) -> Result<SignInRequest> {
+        let email = email.trim();
+        self.ensure_new(email)?;
+        let configuration = proto_imap::oauth_configuration(&servers.imap, email)
+            .await?
+            .ok_or_else(|| Error::Server("this server does not offer OAuth sign-in".into()))?;
+        let metadata = mail_auth::server::discover(&configuration).await?;
+        let server = mail_auth::server::register(&metadata).await?;
+        self.begin_at_server(&server, email, servers)
+    }
+
+    fn begin_at_server(
+        &self,
+        server: &mail_model::OAuthServer,
+        email: &str,
+        servers: ServerConfig,
+    ) -> Result<SignInRequest> {
+        let mut resources = vec![servers.imap.host.as_str()];
+        if servers.smtp.host != servers.imap.host {
+            resources.push(servers.smtp.host.as_str());
+        }
+        let (request, sign_in) = oauth::begin_server(server, email, &resources)?;
+        self.remember(PendingAccount {
+            sign_in,
+            email: Some(email.to_owned()),
+            servers: Some(servers),
+        });
         Ok(request)
+    }
+
+    pub fn begin_account_sign_in(&self, account_id: &str) -> Result<SignInRequest> {
+        let account = self.store.account(account_id)?;
+        match (account.authentication, &account.oauth_server) {
+            (Authentication::Password, _) => Err(Error::InvalidInput(
+                "this account signs in with a password".into(),
+            )),
+            (Authentication::Server, Some(server)) => self.begin_at_server(
+                server,
+                &account.email,
+                ServerConfig {
+                    imap: account.imap.clone(),
+                    smtp: account.smtp.clone(),
+                    username: account.username.clone(),
+                },
+            ),
+            (Authentication::Server, None) => Err(Error::InvalidInput(
+                "no OAuth server for this account".into(),
+            )),
+            (provider, _) => self.begin_sign_in(provider, Some(account.email)),
+        }
     }
 
     async fn finish_sign_in(
         &self,
         callback_url: &str,
-    ) -> Result<(Authentication, Grant, Identity, String)> {
+    ) -> Result<(PendingAccount, Grant, Identity, String)> {
         let pending = self
             .pending_sign_in
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .take()
             .ok_or_else(|| Error::InvalidInput("no sign-in in progress".into()))?;
-        let code = oauth::authorization_code(callback_url, &pending)?;
-        let grant = oauth::exchange(&pending, &code).await?;
+        let code = oauth::authorization_code(callback_url, &pending.sign_in)?;
+        let grant = oauth::exchange(&pending.sign_in, &code).await?;
         let identity = grant
             .identity
             .clone()
+            .or_else(|| {
+                pending.email.clone().map(|email| Identity {
+                    email,
+                    name: None,
+                    tenant: None,
+                })
+            })
             .ok_or_else(|| Error::Server("the provider did not give the address".into()))?;
         let refresh_token = grant
             .refresh_token
             .clone()
             .ok_or_else(|| Error::Server("the provider did not allow offline access".into()))?;
-        Ok((pending.provider, grant, identity, refresh_token))
+        Ok((pending, grant, identity, refresh_token))
     }
 
     pub async fn add_oauth_account(
@@ -295,11 +386,19 @@ impl Engine {
         callback_url: &str,
         display_name: &str,
     ) -> Result<Account> {
-        let (authentication, grant, identity, refresh_token) =
-            self.finish_sign_in(callback_url).await?;
+        let (pending, grant, identity, refresh_token) = self.finish_sign_in(callback_url).await?;
+        let authentication = pending.sign_in.provider;
         self.ensure_new(&identity.email)?;
-        let config = oauth::servers(authentication, &identity);
-        let credential = Credential::AccessToken(grant.access_token.clone());
+        let config = match pending.servers {
+            Some(mut servers) => {
+                if servers.username.trim().is_empty() {
+                    servers.username = identity.email.clone();
+                }
+                servers
+            }
+            None => oauth::servers(authentication, &identity),
+        };
+        let credential = credentials::token_credential(authentication, grant.access_token.clone());
         let connection = proto_imap::connect(&config.imap, &config.username, &credential)
             .await
             .map_err(|error| refused_sign_in(error, &config.imap.host, &identity.email))?;
@@ -326,7 +425,7 @@ impl Engine {
             color: self.store.next_account_color()?,
             created_at: now_millis(),
             authentication,
-            oauth_server: None,
+            oauth_server: pending.sign_in.server,
         };
         self.register(
             &account,
@@ -342,8 +441,8 @@ impl Engine {
 
     pub async fn reauthorize(&self, account_id: &str, callback_url: &str) -> Result<()> {
         let account = self.store.account(account_id)?;
-        let (authentication, grant, identity, refresh_token) =
-            self.finish_sign_in(callback_url).await?;
+        let (pending, grant, identity, refresh_token) = self.finish_sign_in(callback_url).await?;
+        let authentication = pending.sign_in.provider;
         if authentication != account.authentication
             || !identity.email.eq_ignore_ascii_case(&account.email)
         {
@@ -355,7 +454,7 @@ impl Engine {
         let connection = proto_imap::connect(
             &account.imap,
             &account.username,
-            &Credential::AccessToken(grant.access_token.clone()),
+            &credentials::token_credential(authentication, grant.access_token.clone()),
         )
         .await
         .map_err(|error| refused_sign_in(error, &account.imap.host, &identity.email))?;
@@ -1720,6 +1819,57 @@ mod tests {
             Err(Error::AccountExists)
         ));
         assert_eq!(engine.list_accounts().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn an_account_signs_in_again_where_it_first_signed_in() {
+        let directory =
+            std::env::temp_dir().join(format!("mail-sync-again-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        {
+            let store = Store::open(&directory.join("mail.db")).unwrap();
+            let mut server = account("server");
+            server.authentication = Authentication::Server;
+            server.oauth_server = Some(mail_model::OAuthServer {
+                issuer: "https://mail.example.org".into(),
+                authorization_endpoint: "https://mail.example.org/login".into(),
+                token_endpoint: "https://mail.example.org/auth/token".into(),
+                client_id: "swc1.abc".into(),
+            });
+            store.insert_account(&server).unwrap();
+            let mut microsoft = account("microsoft");
+            microsoft.authentication = Authentication::Microsoft;
+            store.insert_account(&microsoft).unwrap();
+            store.insert_account(&account("password")).unwrap();
+        }
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let engine = Engine::open(&directory, runtime.handle().clone()).unwrap();
+        let query = |url: &str| -> std::collections::HashMap<String, String> {
+            url::Url::parse(url)
+                .unwrap()
+                .query_pairs()
+                .into_owned()
+                .collect()
+        };
+
+        let server = engine.begin_account_sign_in("server").unwrap();
+        assert!(server.url.starts_with("https://mail.example.org/login?"));
+        assert_eq!(query(&server.url)["client_id"], "swc1.abc");
+        assert_eq!(query(&server.url)["login_hint"], "server@example.com");
+        assert_eq!(server.redirect_uri, "com.soluce.openmailbox:/oauth");
+
+        let microsoft = engine.begin_account_sign_in("microsoft").unwrap();
+        assert!(
+            microsoft
+                .url
+                .starts_with("https://login.microsoftonline.com/")
+        );
+        assert_eq!(query(&microsoft.url)["login_hint"], "microsoft@example.com");
+
+        assert!(matches!(
+            engine.begin_account_sign_in("password"),
+            Err(Error::InvalidInput(_))
+        ));
     }
 
     #[test]
