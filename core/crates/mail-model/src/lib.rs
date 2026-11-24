@@ -54,6 +54,7 @@ pub enum Authentication {
     Password,
     Microsoft,
     Google,
+    Server,
 }
 
 impl Authentication {
@@ -62,6 +63,7 @@ impl Authentication {
             Authentication::Password => "password",
             Authentication::Microsoft => "microsoft",
             Authentication::Google => "google",
+            Authentication::Server => "server",
         }
     }
 
@@ -69,9 +71,18 @@ impl Authentication {
         match value {
             "microsoft" => Authentication::Microsoft,
             "google" => Authentication::Google,
+            "server" => Authentication::Server,
             _ => Authentication::Password,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OAuthServer {
+    pub issuer: String,
+    pub authorization_endpoint: String,
+    pub token_endpoint: String,
+    pub client_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +125,7 @@ pub struct Account {
     pub color: u32,
     pub created_at: i64,
     pub authentication: Authentication,
+    pub oauth_server: Option<OAuthServer>,
 }
 
 impl Account {

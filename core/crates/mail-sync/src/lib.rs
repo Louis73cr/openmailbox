@@ -218,6 +218,7 @@ impl Engine {
             color: self.store.next_account_color()?,
             created_at: now_millis(),
             authentication: Authentication::Password,
+            oauth_server: None,
         };
         self.register(&account, secret, None)?;
         Ok(account)
@@ -325,6 +326,7 @@ impl Engine {
             color: self.store.next_account_color()?,
             created_at: now_millis(),
             authentication,
+            oauth_server: None,
         };
         self.register(
             &account,
@@ -1018,6 +1020,7 @@ pub(crate) mod test_support {
             color: 0,
             created_at: 0,
             authentication: Authentication::Password,
+            oauth_server: None,
         }
     }
 }

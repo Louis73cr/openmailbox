@@ -56,7 +56,9 @@ fn provider(authentication: Authentication) -> Result<&'static Provider> {
     match authentication {
         Authentication::Microsoft => Ok(&MICROSOFT),
         Authentication::Google => Ok(&GOOGLE),
-        Authentication::Password => Err(Error::InvalidInput("not an OAuth provider".into())),
+        Authentication::Password | Authentication::Server => {
+            Err(Error::InvalidInput("not an OAuth provider".into()))
+        }
     }
 }
 

@@ -4,7 +4,7 @@ use rusqlite::{OptionalExtension, Row, params};
 use crate::{StorageResult, Store};
 
 const ACCOUNT_COLUMNS: &str = "id, email, display_name, username, imap_host, imap_port, imap_security, \
-     smtp_host, smtp_port, smtp_security, color, created_at, authentication";
+     smtp_host, smtp_port, smtp_security, color, created_at, authentication, oauth_server";
 
 fn account_from_row(row: &Row) -> rusqlite::Result<Account> {
     Ok(Account {
@@ -25,6 +25,9 @@ fn account_from_row(row: &Row) -> rusqlite::Result<Account> {
         color: row.get(10)?,
         created_at: row.get(11)?,
         authentication: Authentication::parse(&row.get::<_, String>(12)?),
+        oauth_server: row
+            .get::<_, Option<String>>(13)?
+            .and_then(|json| serde_json::from_str(&json).ok()),
     })
 }
 
@@ -86,7 +89,7 @@ impl Store {
         self.write(|transaction| {
             transaction
                 .execute(
-                    &format!("INSERT INTO account ({ACCOUNT_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"),
+                    &format!("INSERT INTO account ({ACCOUNT_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"),
                     params![
                         account.id,
                         account.email,
@@ -101,6 +104,10 @@ impl Store {
                         account.color,
                         account.created_at,
                         account.authentication.as_str(),
+                        account
+                            .oauth_server
+                            .as_ref()
+                            .and_then(|server| serde_json::to_string(server).ok()),
                     ],
                 )
                 .storage()?;
@@ -190,6 +197,26 @@ mod tests {
         store.insert_account(&account("alice")).unwrap();
         assert!(store.has_account_for("ALICE@example.com").unwrap());
         assert!(!store.has_account_for("bob@example.com").unwrap());
+        std::fs::remove_dir_all(directory).ok();
+    }
+
+    #[test]
+    fn an_account_keeps_its_oauth_server() {
+        let (store, directory) = store();
+        let mut server = account("s");
+        server.authentication = Authentication::Server;
+        server.oauth_server = Some(mail_model::OAuthServer {
+            issuer: "https://mail.example.org".into(),
+            authorization_endpoint: "https://mail.example.org/login".into(),
+            token_endpoint: "https://mail.example.org/auth/token".into(),
+            client_id: "swc1.abc".into(),
+        });
+        store.insert_account(&server).unwrap();
+        store.insert_account(&account("p")).unwrap();
+        let stored = store.account("s").unwrap();
+        assert_eq!(stored.authentication, Authentication::Server);
+        assert_eq!(stored.oauth_server, server.oauth_server);
+        assert_eq!(store.account("p").unwrap().oauth_server, None);
         std::fs::remove_dir_all(directory).ok();
     }
 

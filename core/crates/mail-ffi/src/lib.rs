@@ -89,6 +89,7 @@ pub enum Authentication {
     Password,
     Microsoft,
     Google,
+    Server,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -458,6 +459,7 @@ impl From<mail_model::Authentication> for Authentication {
             mail_model::Authentication::Password => Authentication::Password,
             mail_model::Authentication::Microsoft => Authentication::Microsoft,
             mail_model::Authentication::Google => Authentication::Google,
+            mail_model::Authentication::Server => Authentication::Server,
         }
     }
 }
@@ -468,6 +470,7 @@ impl From<Authentication> for mail_model::Authentication {
             Authentication::Password => mail_model::Authentication::Password,
             Authentication::Microsoft => mail_model::Authentication::Microsoft,
             Authentication::Google => mail_model::Authentication::Google,
+            Authentication::Server => mail_model::Authentication::Server,
         }
     }
 }
