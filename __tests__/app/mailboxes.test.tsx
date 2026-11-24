@@ -1,7 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react-native';
 import { MailboxRole } from '@openmailbox/mail-core';
 
-import MailboxesScreen from '../../app/index';
+import MailboxesScreen from '../../app/(mail)/index';
 import { queryClient, queryKeys } from '@/core/queryClient';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useSyncStore } from '@/stores/syncStore';

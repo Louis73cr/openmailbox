@@ -2,7 +2,28 @@ import { memo, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from 'expo-router';
 
-import { documentFor, PAGE } from '../readerPage';
+import { ADAPT_COLOR, documentFor, PAGE } from '../readerPage';
+
+type AdaptColor = (color: string, background: boolean) => string | null;
+const adaptColor = new Function(`${ADAPT_COLOR}; return adaptColor;`)() as AdaptColor;
+
+/** Same recoloring as the phone (HtmlBody.tsx darken()), run from the parent on the sandboxed document. */
+function darken(document: Document) {
+  const view = document.defaultView;
+  if (!view) return;
+  const changes: [HTMLElement, string, string | null][] = [];
+  document.querySelectorAll<HTMLElement>('body, body *').forEach((element) => {
+    const style = view.getComputedStyle(element);
+    changes.push([element, 'color', adaptColor(style.color, false)]);
+    changes.push([element, 'background-color', adaptColor(style.backgroundColor, true)]);
+    for (const side of ['top', 'right', 'bottom', 'left']) {
+      if (parseFloat(style.getPropertyValue(`border-${side}-width`))) {
+        changes.push([element, `border-${side}-color`, adaptColor(style.getPropertyValue(`border-${side}-color`), true)]);
+      }
+    }
+  });
+  for (const [element, property, value] of changes) if (value) element.style.setProperty(property, value, 'important');
+}
 
 const INITIAL_HEIGHT = 120;
 
@@ -13,7 +34,6 @@ interface HtmlBodyProps {
 }
 
 // Web: a sandboxed iframe (no scripts) replaces the WebView; the parent measures it and opens links.
-// ponytail: no dark-mode color adaptation of the mail itself, port fitAndMeasure's darken() if wanted.
 function HtmlBodyImpl({ html, allowRemoteContent, background }: HtmlBodyProps) {
   const { dark } = useTheme();
   const base = dark ? PAGE.dark : PAGE.light;
@@ -25,6 +45,7 @@ function HtmlBodyImpl({ html, allowRemoteContent, background }: HtmlBodyProps) {
   const onLoad = () => {
     const document = frame.current?.contentDocument;
     if (!document) return;
+    if (dark) darken(document);
     const measure = () => setHeight(Math.max(INITIAL_HEIGHT, Math.ceil(document.documentElement.scrollHeight)));
     measure();
     new ResizeObserver(measure).observe(document.documentElement);

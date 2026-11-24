@@ -323,7 +323,8 @@
     "unknownSender": "Mittente sconosciuto",
     "unread": "Da leggere",
     "unreadCount_one": "{{count}} da leggere",
-    "unreadCount_other": "{{count}} da leggere"
+    "unreadCount_other": "{{count}} da leggere",
+    "noSelection": "Nessun messaggio selezionato"
   },
   "undo": {
     "archived": "Archiviato",

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Inbox, Settings, TriangleAlert } from 'lucide-react-native';
 import { MailboxRole, type Account, type Mailbox } from '@openmailbox/mail-core';
 
+import { routeScreen, useInPane } from '@/navigation/pane';
 import { BottomBar } from '@/components/BottomBar';
 import { useAccounts, useMailboxes } from '@/core/hooks';
 import { UNIFIED_SCOPE } from '@/core/queryClient';
@@ -115,7 +116,7 @@ function AccountSection({ account, name, mailboxes }: { account: Account; name: 
   );
 }
 
-export default function MailboxesScreen() {
+export function MailboxesScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
@@ -125,6 +126,7 @@ export default function MailboxesScreen() {
   const syncLabel = useSyncLabel(accounts.map((account) => account.id));
   const [query, setQuery] = useState('');
   const [searchActive, setSearchActive] = useState(false);
+  const inPane = useInPane();
 
   const mailboxesByAccount = useMemo(() => {
     const grouped = new Map<string, Mailbox[]>();
@@ -235,7 +237,7 @@ export default function MailboxesScreen() {
         </View>
         {list}
       </SafeAreaView>
-      <BottomBar />
+      {inPane ? null : <BottomBar />}
     </ViewContainer>
   );
 }
@@ -252,3 +254,4 @@ const styles = StyleSheet.create({
   warning: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12 },
   loadingFolders: { paddingHorizontal: 4 },
 });
+export default routeScreen(MailboxesScreen);

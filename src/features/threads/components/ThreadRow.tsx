@@ -10,6 +10,7 @@ import { Checkbox, Typography } from '@/ui/components';
 import { displayName } from '@/utils/addresses';
 import { formatListDate } from '@/utils/dates';
 import { haptic, ImpactFeedbackStyle } from '@/utils/haptics';
+import { useSelectedThreadId } from '@/navigation/pane';
 
 interface ThreadRowProps {
   thread: ThreadSummary;
@@ -20,6 +21,7 @@ interface ThreadRowProps {
 }
 
 function ThreadRowImpl({ thread, accountAccent, onOpen, onLongPress, selected }: ThreadRowProps) {
+  const open = useSelectedThreadId() === thread.threadId;
   const { colors } = useTheme();
   const { t } = useTranslation();
   const sender = thread.latest.from[0];
@@ -40,7 +42,10 @@ function ThreadRowImpl({ thread, accountAccent, onOpen, onLongPress, selected }:
           : undefined
       }
       delayLongPress={350}
-      style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.pressed : colors.background }]}
+      style={({ pressed }) => [
+        styles.row,
+        { backgroundColor: pressed || open ? colors.pressed : colors.background },
+      ]}
     >
       {selected !== undefined ? (
         <View style={styles.checkbox}>

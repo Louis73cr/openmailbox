@@ -323,7 +323,8 @@
     "unknownSender": "Onbekende afzender",
     "unread": "Ongelezen",
     "unreadCount_one": "{{count}} ongelezen",
-    "unreadCount_other": "{{count}} ongelezen"
+    "unreadCount_other": "{{count}} ongelezen",
+    "noSelection": "Geen bericht geselecteerd"
   },
   "undo": {
     "archived": "Gearchiveerd",

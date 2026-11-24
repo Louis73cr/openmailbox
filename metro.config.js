@@ -9,10 +9,15 @@ config.resolver.blockList = [
   new RegExp(`^${path.resolve(__dirname, 'core').split(path.sep).join(separator)}${separator}.*`),
   new RegExp(`${separator}android${separator}(?:.*${separator})?(?:build|\\.cxx|\\.gradle)${separator}.*`),
 ];
-const webStub = path.resolve(__dirname, 'web/native-stub.js');
+const WEB_REPLACEMENTS = {
+  '@expo/ui/swift-ui': 'web/native-stub.js',
+  '@expo/ui/swift-ui/modifiers': 'web/native-stub.js',
+  'expo-glass-effect': 'web/glass.tsx',
+  'react-native-webview': 'web/webview.tsx',
+};
 config.resolver.resolveRequest = (context, moduleName, platform) =>
-  platform === 'web' && moduleName.startsWith('@expo/ui/swift-ui')
-    ? { type: 'sourceFile', filePath: webStub }
+  platform === 'web' && WEB_REPLACEMENTS[moduleName]
+    ? { type: 'sourceFile', filePath: path.resolve(__dirname, WEB_REPLACEMENTS[moduleName]) }
     :
   context.resolveRequest(
     // Web libraries (tiptap) rely on package exports, which native keeps off.

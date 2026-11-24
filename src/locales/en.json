@@ -323,7 +323,8 @@
     "unknownSender": "Unknown sender",
     "unread": "Unread",
     "unreadCount_one": "{{count}} unread",
-    "unreadCount_other": "{{count}} unread"
+    "unreadCount_other": "{{count}} unread",
+    "noSelection": "No message selected"
   },
   "undo": {
     "archived": "Archived",

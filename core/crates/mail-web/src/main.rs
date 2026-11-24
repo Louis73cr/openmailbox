@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::net::{IpAddr, ToSocketAddrs};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -91,6 +92,8 @@ impl App {
             .map_err(|e| fail(StatusCode::INTERNAL_SERVER_ERROR, e))?;
         let (events, _) = broadcast::channel(256);
         core.subscribe(Arc::new(Sink(events.clone())));
+        // The server keeps syncing (and feeding notifications) whether or not a tab is open.
+        core.on_foreground();
         let secrets = std::fs::read(dir.join("secrets.json"))
             .ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
@@ -223,10 +226,6 @@ async fn dispatch(user: &UserCore, method: &str, args: Vec<Value>) -> Result<Res
             core.on_foreground();
             reply(Ok(()))
         }
-        "onBackground" => {
-            core.on_background();
-            reply(Ok(()))
-        }
         _ => return Err(fail(StatusCode::NOT_FOUND, "unknown method")),
     })
 }
@@ -316,6 +315,90 @@ async fn upload(
     }
 }
 
+fn is_public(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            let [a, b, ..] = v4.octets();
+            !(v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+                || (a == 100 && (b & 0xc0) == 64))
+        }
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => is_public(IpAddr::V4(v4)),
+            None => {
+                let first = v6.segments()[0];
+                !(v6.is_loopback() || v6.is_unspecified() || (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80)
+            }
+        },
+    }
+}
+
+const MAX_IMAGE_BYTES: u64 = 512 * 1024;
+
+/// Fetches a public https image (sender avatars): browsers can't, favicons send no CORS headers.
+/// Every hop of a redirect is checked so the proxy never reaches the local network.
+fn fetch_image(mut url: url::Url) -> Option<(String, Vec<u8>)> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .max_redirects(0)
+        .http_status_as_error(false)
+        .timeout_global(Some(std::time::Duration::from_secs(10)))
+        .build()
+        .into();
+    for _ in 0..4 {
+        if url.scheme() != "https" {
+            return None;
+        }
+        let addresses = (url.host_str()?, url.port_or_known_default()?).to_socket_addrs().ok()?;
+        // ponytail: DNS is resolved twice (here and by ureq), a rebinding race remains; pin the IP if it matters.
+        if !addresses.into_iter().all(|address| is_public(address.ip())) {
+            return None;
+        }
+        let mut response = agent.get(url.as_str()).call().ok()?;
+        if response.status().is_redirection() {
+            let location = response.headers().get(header::LOCATION)?.to_str().ok()?;
+            url = url.join(location).ok()?;
+            continue;
+        }
+        if !response.status().is_success() {
+            return None;
+        }
+        let kind = response.headers().get(header::CONTENT_TYPE)?.to_str().ok()?.to_owned();
+        if !kind.starts_with("image/") {
+            return None;
+        }
+        let bytes = response.body_mut().with_config().limit(MAX_IMAGE_BYTES).read_to_vec().ok()?;
+        return (!bytes.is_empty()).then_some((kind, bytes));
+    }
+    None
+}
+
+async fn image(State(app): State<Shared>, headers: HeaderMap, Query(query): Query<HashMap<String, String>>) -> Response {
+    if let Err(response) = app.user(&headers) {
+        return response;
+    }
+    let Some(url) = query.get("url").and_then(|url| url::Url::parse(url).ok()) else {
+        return fail(StatusCode::BAD_REQUEST, "bad url");
+    };
+    match tokio::task::spawn_blocking(move || fetch_image(url)).await.ok().flatten() {
+        Some((kind, bytes)) => (
+            [
+                (header::CONTENT_TYPE, kind),
+                (header::CACHE_CONTROL, "private, max-age=604800".to_owned()),
+                (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_owned()),
+                // SVG logos stay inert even if opened directly.
+                (header::CONTENT_SECURITY_POLICY, "default-src 'none'; style-src 'unsafe-inline'; sandbox".to_owned()),
+            ],
+            bytes,
+        )
+            .into_response(),
+        None => fail(StatusCode::NOT_FOUND, "no image"),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let env = |key: &str, default: &str| std::env::var(key).unwrap_or_else(|_| default.into());
@@ -331,6 +414,7 @@ async fn main() {
         .route("/api/events", get(events))
         .route("/api/attachment/{email}/{index}", get(attachment))
         .route("/api/upload", post(upload))
+        .route("/api/image", get(image))
         .layer(axum::extract::DefaultBodyLimit::max(50 * 1024 * 1024))
         .fallback_service(ServeDir::new(&web).fallback(ServeFile::new(web.join("index.html"))))
         .with_state(app);
@@ -363,5 +447,11 @@ mod tests {
         assert!(inside("/data/u/uploads/a/f.pdf", Path::new("/data/u/uploads")));
         assert!(!inside("/data/u/uploads/../secrets.json", Path::new("/data/u/uploads")));
         assert!(!inside("/etc/passwd", Path::new("/data/u/uploads")));
+        for private in ["127.0.0.1", "10.1.2.3", "192.168.9.185", "100.64.0.1", "169.254.1.1", "::1", "fd00::1", "::ffff:192.168.1.1"] {
+            assert!(!is_public(private.parse().unwrap()), "{private}");
+        }
+        assert!(is_public("1.1.1.1".parse().unwrap()));
+        assert!(fetch_image(url::Url::parse("https://127.0.0.1/x.png").unwrap()).is_none());
+        assert!(fetch_image(url::Url::parse("http://example.com/x.png").unwrap()).is_none());
     }
 }

@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { Category, Destination, MailboxRole } from '@openmailbox/mail-core';
 
-import MailboxScreen from '../../app/mailbox/[id]';
+import MailboxScreen from '../../app/(mail)/mailbox/[id]';
 import { EMPTY_THREAD_FILTER } from '@/core/hooks';
 import { queryClient, queryKeys } from '@/core/queryClient';
 import { DEFAULT_FILTER_CRITERIA } from '@/features/threads/threadFilter';

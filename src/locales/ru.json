@@ -329,7 +329,8 @@
     "unreadCount_few": "{{count}} непрочитанных",
     "unreadCount_many": "{{count}} непрочитанных",
     "unreadCount_one": "{{count}} непрочитанное",
-    "unreadCount_other": "{{count}} непрочитанных"
+    "unreadCount_other": "{{count}} непрочитанных",
+    "noSelection": "Сообщение не выбрано"
   },
   "undo": {
     "archived": "В архиве",

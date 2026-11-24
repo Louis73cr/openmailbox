@@ -1144,6 +1144,8 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tower-http",
+ "ureq",
+ "url",
  "uuid",
 ]
 

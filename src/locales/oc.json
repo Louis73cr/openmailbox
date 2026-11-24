@@ -323,7 +323,8 @@
     "unknownSender": "Expeditor desconegut",
     "unread": "Pas legit",
     "unreadCount_one": "{{count}} pas legit",
-    "unreadCount_other": "{{count}} pas legits"
+    "unreadCount_other": "{{count}} pas legits",
+    "noSelection": "Cap de messatge seleccionat"
   },
   "undo": {
     "archived": "Archivat",

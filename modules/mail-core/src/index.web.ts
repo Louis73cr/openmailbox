@@ -77,7 +77,8 @@ export class MailCore implements MailCoreLike {
   openMailbox = (mailboxId: string) => call<void>('openMailbox', mailboxId);
   loadOlder = (mailboxId: string) => call<void>('loadOlder', mailboxId);
   onForeground = () => void call('onForeground');
-  onBackground = () => void call('onBackground');
+  /** The server keeps syncing for notifications and other tabs: a hidden tab changes nothing. */
+  onBackground = () => {};
 }
 
 /** Whether the server keeps a password for this account (web only). */

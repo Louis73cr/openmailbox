@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { Alert, Linking } from 'react-native';
 import { Destination, Keyword, MailboxRole, UnsubscribeOutcome } from '@openmailbox/mail-core';
 
-import ThreadScreen from '../../app/thread/[threadId]';
+import ThreadScreen from '../../app/(mail)/thread/[threadId]';
 import { queryClient, queryKeys } from '@/core/queryClient';
 import i18n from '@/utils/i18n';
 

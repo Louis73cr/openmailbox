@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from 'expo-router';
-import { StyleSheet, type AccessibilityProps } from 'react-native';
+import { StyleSheet, View, type AccessibilityProps } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import AnimatedPressable from './AnimatedPressable';
@@ -62,15 +62,20 @@ function IconButton({
           style={[StyleSheet.absoluteFill, { borderRadius }]}
         />
       )}
-      {label ? (
-        <Typography variant="body1" weight="600" numberOfLines={1}>
-          {label}
-        </Typography>
-      ) : (
-        children
-      )}
+      {/* A View keeps the content above the absolutely positioned glass on web. */}
+      <View pointerEvents="none" style={styles.content}>
+        {label ? (
+          <Typography variant="body1" weight="600" numberOfLines={1}>
+            {label}
+          </Typography>
+        ) : (
+          children
+        )}
+      </View>
     </AnimatedPressable>
   );
 }
+
+const styles = StyleSheet.create({ content: { alignItems: 'center', justifyContent: 'center' } });
 
 export default React.memo(IconButton);

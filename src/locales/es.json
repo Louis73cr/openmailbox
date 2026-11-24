@@ -323,7 +323,8 @@
     "unknownSender": "Remitente desconocido",
     "unread": "No leído",
     "unreadCount_one": "{{count}} sin leer",
-    "unreadCount_other": "{{count}} sin leer"
+    "unreadCount_other": "{{count}} sin leer",
+    "noSelection": "Ningún mensaje seleccionado"
   },
   "undo": {
     "archived": "Archivado",

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
+import { Stack, useRouter, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Inbox } from 'lucide-react-native';
 import { MailboxRole, type ThreadSummary } from '@openmailbox/mail-core';
+import { routeScreen, useInPane, usePaneParams } from '@/navigation/pane';
 import type { ThreadActionId } from '@/features/threads/threadActions';
 
 import { BottomBar } from '@/components/BottomBar';
@@ -64,8 +65,9 @@ function usePullToRefresh(accountIds: string[]) {
   return { refreshing: requestedAt !== null, refresh };
 }
 
-export default function MailboxScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+export function MailboxScreen() {
+  const { id } = usePaneParams<{ id: string }>();
+  const inPane = useInPane();
   const scope = id ?? UNIFIED_SCOPE;
   const unified = scope === UNIFIED_SCOPE;
   const { t } = useTranslation();
@@ -414,7 +416,7 @@ export default function MailboxScreen() {
     <ViewContainer>
       <SafeAreaView edges={['top']} style={styles.flex}>
         <ScreenHeader
-          onBack={selection.active ? undefined : goBack}
+          onBack={selection.active || inPane ? undefined : goBack}
           left={
             selection.active ? (
               <IconButton
@@ -457,3 +459,4 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 120 },
   footer: { marginVertical: 20, alignSelf: 'center' },
 });
+export default routeScreen(MailboxScreen);

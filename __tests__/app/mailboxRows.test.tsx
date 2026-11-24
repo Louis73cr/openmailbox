@@ -1,7 +1,7 @@
 import { act, screen } from '@testing-library/react-native';
 import type { ThreadSummary } from '@openmailbox/mail-core';
 
-import MailboxScreen from '../../app/mailbox/[id]';
+import MailboxScreen from '../../app/(mail)/mailbox/[id]';
 import { queryClient, queryKeys } from '@/core/queryClient';
 import { useSettingsStore } from '@/stores/settingsStore';
 import i18n from '@/utils/i18n';

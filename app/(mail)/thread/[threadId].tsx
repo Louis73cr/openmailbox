@@ -3,11 +3,12 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useFocusEffect, useIsPreview, useLocalSearchParams, useRouter, useTheme } from 'expo-router';
+import { Stack, useFocusEffect, useIsPreview, useRouter, useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ellipsis, Flag, FolderInput, Forward, Reply, ReplyAll, Trash2 } from 'lucide-react-native';
 import { Category, Keyword, type ThreadSummary } from '@openmailbox/mail-core';
 
+import { routeScreen, useInPane, usePaneParams } from '@/navigation/pane';
 import { setThreadRead, type ThreadReference } from '@/core/actions';
 import { useMailboxes, useThreadEmails } from '@/core/hooks';
 import { mailCore } from '@/core/mailCore';
@@ -31,8 +32,9 @@ const REPLY_MENU: ThreadActionId[] = [
   ...COMPOSE_ACTIONS, 'flag', 'unflag', 'markRead', 'markUnread', 'archive', 'moveToInbox', 'junk', 'notJunk',
 ];
 
-export default function ThreadScreen() {
-  const { threadId, mailboxId } = useLocalSearchParams<{ threadId: string; mailboxId?: string }>();
+export function ThreadScreen() {
+  const { threadId, mailboxId } = usePaneParams<{ threadId: string; mailboxId?: string }>();
+  const inPane = useInPane();
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
@@ -152,7 +154,7 @@ export default function ThreadScreen() {
   return (
     <ViewContainer grouped>
       <SafeAreaView edges={NATIVE_CHROME ? [] : ['top']} style={styles.flex}>
-        {NATIVE_CHROME ? null : <ScreenHeader onBack={goBack} />}
+        {NATIVE_CHROME || inPane ? null : <ScreenHeader onBack={goBack} />}
         {emailsQuery.isLoading ? (
           <EmptyState loading title="" />
         ) : emails.length === 0 ? (
@@ -286,3 +288,4 @@ const styles = StyleSheet.create({
   swipeCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   toolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
 });
+export default routeScreen(ThreadScreen);
