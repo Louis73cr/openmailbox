@@ -96,6 +96,8 @@ Want early access? Beta builds are available, reach out at
 - Messages are stored on the device (SQLite) and searchable offline with full-text search, in the
   current mailbox or all of them, matches highlighted
 - Every action is applied locally first, then replayed against the server
+- Message previews come from the server when it can make them (IMAP PREVIEW), so listing new mail
+  downloads far less
 - Moves to the archive, trash, junk or any folder can be **undone for five seconds**
 
 ### Made for the phone
