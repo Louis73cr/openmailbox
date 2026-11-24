@@ -10,6 +10,8 @@ jest.mock('@/core/mailCore', () => {
   const core = {
     addAccount: jest.fn(),
     addOauthAccount: jest.fn(),
+    beginAccountSignIn: jest.fn(),
+    beginServerSignIn: jest.fn(),
     beginSignIn: jest.fn(),
     body: jest.fn(async () => ({ text: '', hasRemoteContent: false, attachments: [] })),
     discover: jest.fn(),
@@ -22,6 +24,7 @@ jest.mock('@/core/mailCore', () => {
     onBackground: jest.fn(),
     onForeground: jest.fn(),
     openMailbox: jest.fn(async () => undefined),
+    probeOauth: jest.fn(async () => undefined),
     reauthorize: jest.fn(async () => undefined),
     removeAccount: jest.fn(async () => undefined),
     renameAccount: jest.fn(async () => undefined),

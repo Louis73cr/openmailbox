@@ -58,7 +58,7 @@ describe('account settings', () => {
 
   it('signs in again only once while a sign-in is running', async () => {
     queryClient.setQueryData(queryKeys.accounts, [makeAccount({ authentication: Authentication.Microsoft })]);
-    core.beginSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
+    core.beginAccountSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
     (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({ type: 'success', url: 'openmailbox://oauth?code=c' });
     let finish: () => void = () => undefined;
     core.reauthorize.mockReturnValueOnce(new Promise<void>((resolve) => (finish = resolve)));
@@ -71,7 +71,7 @@ describe('account settings', () => {
 
     await act(async () => finish());
     expect(await screen.findByText('Signed in.')).toBeOnTheScreen();
-    expect(core.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(core.beginAccountSignIn).toHaveBeenCalledTimes(1);
   });
 
   it('lists sender identities and opens them', () => {
@@ -123,7 +123,7 @@ describe('account settings', () => {
         imap: { host: 'outlook.office365.com', port: 993, security: Security.Tls },
       }),
     ]);
-    core.beginSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
+    core.beginAccountSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
     (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({ type: 'success', url: 'openmailbox://oauth?code=c' });
     renderWithProviders(<AccountSettingsScreen />);
     expect(screen.queryByLabelText('Password')).toBeNull();
@@ -132,14 +132,14 @@ describe('account settings', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Sign in Again' }));
 
     await waitFor(() => expect(core.reauthorize).toHaveBeenCalledWith('account-1', 'openmailbox://oauth?code=c'));
-    expect(core.beginSignIn).toHaveBeenCalledWith(Authentication.Microsoft, 'alice@example.com');
+    expect(core.beginAccountSignIn).toHaveBeenCalledWith('account-1');
     expect(await screen.findByText('Signed in.')).toBeOnTheScreen();
     expect(useSyncStore.getState().authRequired['account-1']).toBe(false);
   });
 
   it('says why signing in again failed and stays quiet when it was cancelled', async () => {
     queryClient.setQueryData(queryKeys.accounts, [makeAccount({ authentication: Authentication.Microsoft })]);
-    core.beginSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
+    core.beginAccountSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
     (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({ type: 'cancel' });
     renderWithProviders(<AccountSettingsScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Sign in Again' }));

@@ -17,7 +17,7 @@ import { ChevronRight, Heart } from 'lucide-react-native';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { FormSection, Typography } from '@/ui/components';
 
-import { LOCAL_TEST_PROVIDER, PROVIDERS, type MailProvider, type ProviderIdentifier } from '../providers';
+import { LOCAL_STALWART_PROVIDER, LOCAL_TEST_PROVIDER, PROVIDERS, type MailProvider, type ProviderIdentifier } from '../providers';
 import { ProviderMark } from './ProviderMark';
 import { SignInError } from './SignInError';
 
@@ -54,6 +54,10 @@ function ProviderRow({ provider, onSelect, busy = false, disabled = false }: Pro
         ) : provider.identifier === 'microsoft' ? (
           <Typography variant="caption" color={colors.textSecondary}>
             {t('accounts.setup.microsoftHint')}
+          </Typography>
+        ) : provider.identifier === 'stalwart' ? (
+          <Typography variant="caption" color={colors.textSecondary}>
+            {t('accounts.setup.localStalwartHint')}
           </Typography>
         ) : provider.identifier === 'local' ? (
           <Typography variant="caption" color={colors.textSecondary}>
@@ -126,6 +130,7 @@ export function ProviderList({ onSelect, pending = null, error = null }: Provide
       {__DEV__ ? (
         <FormSection title={t('accounts.setup.development')}>
           <ProviderRow provider={LOCAL_TEST_PROVIDER} onSelect={onSelect} />
+          <ProviderRow provider={LOCAL_STALWART_PROVIDER} onSelect={onSelect} />
         </FormSection>
       ) : null}
     </View>

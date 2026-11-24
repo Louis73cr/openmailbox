@@ -3,7 +3,7 @@ import { Authentication, Security, type ServerConfig } from '@openmailbox/mail-c
 
 import { organizationDomain } from '@/utils/addresses';
 
-export type ProviderIdentifier = 'gmail' | 'microsoft' | 'icloud' | 'ovhcloud' | 'ionos' | 'yahoo' | 'other' | 'local';
+export type ProviderIdentifier = 'gmail' | 'microsoft' | 'stalwart' | 'icloud' | 'ovhcloud' | 'ionos' | 'yahoo' | 'other' | 'local';
 
 export interface BrandMark {
   background: string;
@@ -23,6 +23,7 @@ export interface MailProvider {
   appPasswordHelp?: string;
   oauth?: Authentication;
   oauthOnly?: boolean;
+  probesOAuth?: boolean;
   servers?: ServerConfig;
   editableServers?: boolean;
   account?: { email: string; password: string };
@@ -140,7 +141,7 @@ export const PROVIDERS: MailProvider[] = [
     appPasswordHelp: 'https://help.yahoo.com/kb/SLN15241.html',
     servers: servers('imap.mail.yahoo.com', 'smtp.mail.yahoo.com'),
   },
-  { identifier: 'other', name: '', domains: [] },
+  { identifier: 'other', name: '', domains: [], probesOAuth: true },
 ];
 
 export interface OvhOffer {
@@ -193,6 +194,19 @@ export const LOCAL_TEST_PROVIDER: MailProvider = {
   servers: {
     imap: { host: LOCAL_HOST, port: 3993, security: Security.Tls },
     smtp: { host: LOCAL_HOST, port: 3465, security: Security.Tls },
+    username: 'alice@example.com',
+  },
+};
+
+export const LOCAL_STALWART_PROVIDER: MailProvider = {
+  identifier: 'stalwart',
+  name: 'Stalwart',
+  domains: [],
+  probesOAuth: true,
+  account: { email: 'alice@example.com', password: '' },
+  servers: {
+    imap: { host: 'localhost', port: 993, security: Security.Tls },
+    smtp: { host: 'localhost', port: 465, security: Security.Tls },
     username: 'alice@example.com',
   },
 };

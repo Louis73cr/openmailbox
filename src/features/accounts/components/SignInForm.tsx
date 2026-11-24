@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { Eye, EyeOff, Server } from 'lucide-react-native';
 import { Security, type Account, type ServerEndpoint } from '@openmailbox/mail-core';
 
 import { Button, FormField, FormSection, IconButton, SegmentedControl, Typography } from '@/ui/components';
@@ -90,8 +90,10 @@ function ProviderButton({
     >
       {loading ? (
         <ActivityIndicator size="small" color={palette.text} />
-      ) : (
+      ) : provider.brand ? (
         <ProviderMark brand={provider.brand} size={20} bare />
+      ) : (
+        <Server size={20} color={palette.text} />
       )}
       <Typography variant="body1" weight="600" color={palette.text}>
         {label}
@@ -113,7 +115,9 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
   const { colors } = useTheme();
   const setup = useAccountSetup(provider, onDone);
   const oauth = useOAuthSignIn(onDone);
-  const [withPassword, setWithPassword] = useState(!provider.oauth);
+  const [withPassword, setWithPassword] = useState(false);
+  const serverOAuth = setup.oauth;
+  const serverHost = serverOAuth ? serverOAuth.issuer.replace(/^https:\/\//, '').split('/')[0] : null;
   const [passwordVisible, setPasswordVisible] = useState(false);
   const host = setup.servers?.imap.host;
   const status =
@@ -131,7 +135,42 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
     </View>
   ) : null;
 
-  if (!withPassword) {
+  if (serverOAuth && serverHost && !withPassword) {
+    return (
+      <View style={styles.form}>
+        <FormSection>
+          <FormField
+            label={t('accounts.setup.email')}
+            value={setup.email}
+            onChangeText={setup.setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+          />
+        </FormSection>
+        <ProviderButton
+          provider={provider}
+          label={t('accounts.setup.signInWith', { provider: serverHost })}
+          loading={oauth.pending !== null}
+          onPress={() => oauth.signInToServer(provider, setup.email, serverOAuth.servers)}
+        />
+        {oauth.error ? <SignInError message={oauth.error} /> : null}
+        <Typography variant="caption" color={colors.textSecondary} align="center" style={styles.privacy}>
+          {t('accounts.setup.oauthPrivacy', { provider: serverHost })}
+        </Typography>
+        <Button
+          variant="link"
+          title={t('accounts.setup.usePassword')}
+          disabled={oauth.pending !== null}
+          onPress={() => setWithPassword(true)}
+        />
+      </View>
+    );
+  }
+
+  if (provider.oauth && !withPassword) {
     return (
       <View style={styles.form}>
         <ProviderButton

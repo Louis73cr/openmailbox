@@ -127,6 +127,41 @@ describe('onboarding', () => {
     expect(screen.getByRole('button', { name: 'Zimbra' })).toBeOnTheScreen();
   });
 
+  it('offers to sign in on the server page when the mail server supports it', async () => {
+    core.discover.mockResolvedValue({
+      imap: { host: 'mail.example.org', port: 993, security: Security.Tls },
+      smtp: { host: 'mail.example.org', port: 465, security: Security.Tls },
+      username: 'alice@example.org',
+    });
+    core.probeOauth.mockResolvedValue('https://mail.example.org');
+    renderWithProviders(<OnboardingScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'Other' }));
+    fireEvent.changeText(screen.getByLabelText('Email'), 'alice@example.org');
+
+    expect(await screen.findByRole('button', { name: 'Sign in with mail.example.org' }, { timeout: 3000 })).toBeOnTheScreen();
+    expect(core.probeOauth).toHaveBeenCalledWith('alice@example.org', { host: 'mail.example.org', port: 993, security: Security.Tls });
+    expect(screen.queryByLabelText('Password')).toBeNull();
+
+    fireEvent.press(screen.getByText('Use a password instead'));
+    expect(screen.getByLabelText('Password')).toBeOnTheScreen();
+  });
+
+  it('keeps the password form when the mail server has no OAuth', async () => {
+    core.discover.mockResolvedValue({
+      imap: { host: 'imap.example.net', port: 993, security: Security.Tls },
+      smtp: { host: 'smtp.example.net', port: 465, security: Security.Tls },
+      username: 'alice@example.net',
+    });
+    core.probeOauth.mockResolvedValue(undefined);
+    renderWithProviders(<OnboardingScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'Other' }));
+    fireEvent.changeText(screen.getByLabelText('Email'), 'alice@example.net');
+
+    await waitFor(() => expect(core.probeOauth).toHaveBeenCalled(), { timeout: 3000 });
+    expect(screen.getByLabelText('Password')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /Sign in with/ })).toBeNull();
+  });
+
   it('says when the account is already added', async () => {
     core.addAccount.mockRejectedValue(new CoreError.AccountExists());
     renderWithProviders(<OnboardingScreen />);
