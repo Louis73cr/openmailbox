@@ -32,6 +32,7 @@ jest.mock('@/core/mailCore', () => {
     search: jest.fn(async () => []),
     suggestAddresses: jest.fn(async () => []),
     send: jest.fn(async () => undefined),
+    setAccountColor: jest.fn(async () => undefined),
     setKeywords: jest.fn(async () => undefined),
     setSenderCategory: jest.fn(async () => undefined),
     setThreadKeywords: jest.fn(async () => undefined),

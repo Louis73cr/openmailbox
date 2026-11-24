@@ -1,5 +1,7 @@
 use mail_model::Authentication;
 
+use super::ACCOUNT_COLOR_COUNT;
+
 use crate::test_support::{account, store};
 
 #[test]
@@ -46,5 +48,52 @@ fn an_account_keeps_how_it_signs_in() {
         store.account("p").unwrap().authentication,
         Authentication::Password
     );
+    std::fs::remove_dir_all(directory).ok();
+}
+
+#[test]
+fn a_new_account_gets_a_color_no_other_account_has() {
+    let (store, directory) = store();
+    for index in 0..ACCOUNT_COLOR_COUNT {
+        let color = store.next_account_color().unwrap();
+        assert!(color < ACCOUNT_COLOR_COUNT);
+        let mut next = account(&format!("a{index}"));
+        next.color = color;
+        store.insert_account(&next).unwrap();
+    }
+    let mut colors: Vec<u32> = store
+        .list_accounts()
+        .unwrap()
+        .iter()
+        .map(|account| account.color)
+        .collect();
+    colors.sort();
+    assert_eq!(colors, (0..ACCOUNT_COLOR_COUNT).collect::<Vec<_>>());
+    std::fs::remove_dir_all(directory).ok();
+}
+
+#[test]
+fn a_removed_account_gives_its_color_back() {
+    let (store, directory) = store();
+    for index in 0..ACCOUNT_COLOR_COUNT {
+        let mut next = account(&format!("a{index}"));
+        next.color = index;
+        store.insert_account(&next).unwrap();
+    }
+    store.delete_account("a5").unwrap();
+    assert_eq!(store.next_account_color().unwrap(), 5);
+    std::fs::remove_dir_all(directory).ok();
+}
+
+#[test]
+fn an_account_keeps_the_color_chosen_for_it() {
+    let (store, directory) = store();
+    store.insert_account(&account("a")).unwrap();
+    store.set_account_color("a", 7).unwrap();
+    assert_eq!(store.account("a").unwrap().color, 7);
+    store
+        .set_account_color("a", ACCOUNT_COLOR_COUNT + 2)
+        .unwrap();
+    assert_eq!(store.account("a").unwrap().color, 2);
     std::fs::remove_dir_all(directory).ok();
 }

@@ -9,6 +9,8 @@
   "accounts": {
     "add": "Apondre un compte",
     "accountName": "Compte",
+    "color": "Color",
+    "colorHint": "Marca aqueste compte dins la lista de las bóstias e dins « Totas las bóstias ».",
     "moveDown": "Davalar",
     "moveUp": "Montar",
     "namesHint": "Lo nom del compte es pas afichat que dins Open Mailbox. Los destinataris veson lo nom de l’expeditor.",
@@ -106,6 +108,21 @@
     "promotions": "Promocions",
     "transactions": "Transaccions",
     "updates": "Actualitats"
+  },
+  "colors": {
+    "black": "Negre",
+    "grey": "Gris",
+    "red": "Roge",
+    "orange": "Irange",
+    "yellow": "Jaune",
+    "green": "Verd",
+    "blue": "Blau",
+    "purple": "Violet",
+    "pink": "Ròse",
+    "cyan": "Cian",
+    "indigo": "Indi",
+    "brown": "Marron",
+    "mint": "Menta"
   },
   "common": {
     "back": "Tornar",
@@ -256,17 +273,6 @@
     "bulletList": "Lista amb piuses",
     "clearFormatting": "Escafar la mesa en forma",
     "codePlaceholder": "Picatz l’HTML aquí…",
-    "colors": {
-      "black": "Negre",
-      "grey": "Gris",
-      "red": "Roge",
-      "orange": "Irange",
-      "yellow": "Jaune",
-      "green": "Verd",
-      "blue": "Blau",
-      "purple": "Violet",
-      "pink": "Ròse"
-    },
     "highlight": "Evidenciar",
     "italic": "Italica",
     "link": "Ligam",

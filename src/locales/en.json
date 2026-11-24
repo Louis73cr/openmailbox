@@ -9,6 +9,8 @@
   "accounts": {
     "add": "Add Account",
     "accountName": "Account Name",
+    "color": "Color",
+    "colorHint": "Marks this account in the mailbox list and in All Inboxes.",
     "moveDown": "Move Down",
     "moveUp": "Move Up",
     "namesHint": "The account name is only shown in Open Mailbox. Recipients see the sender name.",
@@ -106,6 +108,21 @@
     "promotions": "Promotions",
     "transactions": "Transactions",
     "updates": "Updates"
+  },
+  "colors": {
+    "black": "Black",
+    "grey": "Grey",
+    "red": "Red",
+    "orange": "Orange",
+    "yellow": "Yellow",
+    "green": "Green",
+    "blue": "Blue",
+    "purple": "Purple",
+    "pink": "Pink",
+    "cyan": "Cyan",
+    "indigo": "Indigo",
+    "brown": "Brown",
+    "mint": "Mint"
   },
   "common": {
     "back": "Back",
@@ -256,17 +273,6 @@
     "bulletList": "Bulleted List",
     "clearFormatting": "Clear Formatting",
     "codePlaceholder": "Type HTML here…",
-    "colors": {
-      "black": "Black",
-      "grey": "Grey",
-      "red": "Red",
-      "orange": "Orange",
-      "yellow": "Yellow",
-      "green": "Green",
-      "blue": "Blue",
-      "purple": "Purple",
-      "pink": "Pink"
-    },
     "highlight": "Highlight",
     "italic": "Italic",
     "link": "Link",

@@ -12,6 +12,7 @@ import { queryClient, queryKeys } from '@/core/queryClient';
 import { deleteSecret, saveSecret } from '@/core/secrets';
 import { accountName } from '@/features/accounts/accountName';
 import { describeCoreError } from '@/features/accounts/coreErrors';
+import { AccountColorRow } from '@/features/accounts/components/AccountColorRow';
 import { ProviderMark } from '@/features/accounts/components/ProviderMark';
 import { providerForAccount, providerName } from '@/features/accounts/providers';
 import { SettingsPage } from '@/features/settings/components/SettingsPage';
@@ -166,6 +167,10 @@ export default function AccountSettingsScreen() {
           chevron={false}
           onPress={() => router.push({ pathname: '/settings/identity', params: { accountId: account.id } })}
         />
+      </FormSection>
+
+      <FormSection>
+        <AccountColorRow account={account} />
       </FormSection>
 
       <View style={styles.group}>

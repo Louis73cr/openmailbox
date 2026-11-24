@@ -838,6 +838,11 @@ impl MailCore {
             .await
     }
 
+    pub async fn set_account_color(&self, account_id: String, color: u32) -> CoreResult<()> {
+        self.blocking(move |engine| engine.set_account_color(&account_id, color))
+            .await
+    }
+
     pub async fn remove_account(&self, account_id: String) -> CoreResult<()> {
         self.blocking(move |engine| engine.remove_account(&account_id))
             .await

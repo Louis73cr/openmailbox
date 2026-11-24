@@ -530,6 +530,12 @@ impl Engine {
         Ok(())
     }
 
+    pub fn set_account_color(&self, account_id: &str, color: u32) -> Result<()> {
+        self.store.set_account_color(account_id, color)?;
+        self.events.emit(CoreEvent::AccountsChanged);
+        Ok(())
+    }
+
     pub fn remove_account(&self, account_id: &str) -> Result<()> {
         if let Some(handle) = self.accounts().remove(account_id) {
             handle.worker.abort();

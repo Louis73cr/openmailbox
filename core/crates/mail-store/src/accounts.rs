@@ -3,6 +3,8 @@ use rusqlite::{OptionalExtension, Row, params};
 
 use crate::{StorageResult, Store};
 
+const ACCOUNT_COLOR_COUNT: u32 = 12;
+
 const ACCOUNT_COLUMNS: &str = "id, email, display_name, username, imap_host, imap_port, imap_security, \
      smtp_host, smtp_port, smtp_security, color, created_at, authentication, oauth_server";
 
@@ -152,11 +154,30 @@ impl Store {
         let connection = self.read();
         connection
             .query_row(
-                "SELECT COALESCE(MAX(color) + 1, 0) FROM account",
-                [],
+                "WITH RECURSIVE palette(color) AS (
+                   SELECT 0 UNION ALL SELECT color + 1 FROM palette WHERE color + 1 < ?1
+                 )
+                 SELECT palette.color FROM palette
+                 LEFT JOIN account ON account.color % ?1 = palette.color
+                 GROUP BY palette.color
+                 ORDER BY COUNT(account.id), random()
+                 LIMIT 1",
+                [ACCOUNT_COLOR_COUNT],
                 |row| row.get(0),
             )
             .storage()
+    }
+
+    pub fn set_account_color(&self, account_id: &str, color: u32) -> Result<()> {
+        self.write(|transaction| {
+            transaction
+                .execute(
+                    "UPDATE account SET color = ?2 WHERE id = ?1",
+                    params![account_id, color % ACCOUNT_COLOR_COUNT],
+                )
+                .storage()?;
+            Ok(())
+        })
     }
 
     pub fn rename_account(&self, account_id: &str, display_name: &str) -> Result<()> {

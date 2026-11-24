@@ -9,6 +9,8 @@
   "accounts": {
     "add": "Ajouter un compte",
     "accountName": "Nom du compte",
+    "color": "Couleur",
+    "colorHint": "Signale ce compte dans la liste des boîtes et dans « Toutes les boîtes ».",
     "moveDown": "Descendre",
     "moveUp": "Monter",
     "namesHint": "Le nom du compte n’est affiché que dans Open Mailbox. Les destinataires voient le nom de l’expéditeur.",
@@ -106,6 +108,21 @@
     "promotions": "Promotions",
     "transactions": "Transactions",
     "updates": "Mises à jour"
+  },
+  "colors": {
+    "black": "Noir",
+    "grey": "Gris",
+    "red": "Rouge",
+    "orange": "Orange",
+    "yellow": "Jaune",
+    "green": "Vert",
+    "blue": "Bleu",
+    "purple": "Violet",
+    "pink": "Rose",
+    "cyan": "Cyan",
+    "indigo": "Indigo",
+    "brown": "Marron",
+    "mint": "Menthe"
   },
   "common": {
     "back": "Retour",
@@ -256,17 +273,6 @@
     "bulletList": "Liste à puces",
     "clearFormatting": "Effacer la mise en forme",
     "codePlaceholder": "Saisissez le HTML ici…",
-    "colors": {
-      "black": "Noir",
-      "grey": "Gris",
-      "red": "Rouge",
-      "orange": "Orange",
-      "yellow": "Jaune",
-      "green": "Vert",
-      "blue": "Bleu",
-      "purple": "Violet",
-      "pink": "Rose"
-    },
     "highlight": "Surligner",
     "italic": "Italique",
     "link": "Lien",
