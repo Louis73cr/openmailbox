@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CoreError, Security, type Account, type ServerConfig } from '@openmailbox/mail-core';
 
@@ -11,6 +11,13 @@ import { describeCoreError } from './coreErrors';
 import type { MailProvider } from './providers';
 
 export type SetupPhase = 'idle' | 'discovering' | 'connecting';
+
+const PROBE_DELAY_MS = 600;
+
+export interface ServerOAuth {
+  issuer: string;
+  servers: ServerConfig;
+}
 
 function emptyServers(email: string): ServerConfig {
   return {
@@ -29,6 +36,32 @@ export function useAccountSetup(provider: MailProvider, onDone: (account: Accoun
   const [manual, setManual] = useState(provider.identifier === 'local' || !!provider.editableServers);
   const [phase, setPhase] = useState<SetupPhase>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [oauth, setOauth] = useState<ServerOAuth | null>(null);
+  const [probing, setProbing] = useState(false);
+  const probeHost = servers?.imap.host;
+  const probePort = servers?.imap.port;
+
+  useEffect(() => {
+    if (!provider.probesOAuth || !isEmail(email)) {
+      setProbing(false);
+      return;
+    }
+    let current = true;
+    setProbing(true);
+    const timer = setTimeout(async () => {
+      const configuration = servers ?? (await mailCore().discover(email).catch(() => null));
+      const issuer = configuration?.imap.host
+        ? await mailCore().probeOauth(email, configuration.imap).catch(() => undefined)
+        : undefined;
+      if (!current) return;
+      setOauth(issuer && configuration ? { issuer, servers: configuration } : null);
+      setProbing(false);
+    }, PROBE_DELAY_MS);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [provider.probesOAuth, email, probeHost, probePort]);
 
   const updateEmail = (value: string) => {
     setEmail(value.trim());
@@ -83,6 +116,8 @@ export function useAccountSetup(provider: MailProvider, onDone: (account: Accoun
     email,
     password,
     displayName,
+    oauth,
+    canUseOAuth: oauth !== null && !probing && isEmail(email),
     servers,
     manual,
     phase,

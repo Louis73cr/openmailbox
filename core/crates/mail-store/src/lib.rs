@@ -28,6 +28,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0009_stored_signals.sql"),
     include_str!("migrations/0010_render_html_again.sql"),
     include_str!("migrations/0011_authentication.sql"),
+    include_str!("migrations/0012_oauth_server.sql"),
 ];
 
 pub struct Store {
@@ -200,6 +201,7 @@ pub(crate) mod test_support {
             color: 0,
             created_at: 0,
             authentication: mail_model::Authentication::Password,
+            oauth_server: None,
         }
     }
 }

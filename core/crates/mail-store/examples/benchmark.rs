@@ -66,6 +66,7 @@ fn account(id: &str) -> Account {
         color: 0,
         created_at: 0,
         authentication: mail_model::Authentication::Password,
+        oauth_server: None,
     }
 }
 

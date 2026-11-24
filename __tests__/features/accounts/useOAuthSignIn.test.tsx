@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { Authentication, CoreError } from '@openmailbox/mail-core';
+import { Authentication, CoreError, Security } from '@openmailbox/mail-core';
 
 import { queryClient, queryKeys } from '@/core/queryClient';
 import { PROVIDERS } from '@/features/accounts/providers';
@@ -10,6 +10,12 @@ import i18n from '@/utils/i18n';
 import { core, makeAccount } from '../../helpers/fixtures';
 
 const MICROSOFT = PROVIDERS.find((provider) => provider.identifier === 'microsoft')!;
+const OTHER = PROVIDERS.find((provider) => provider.identifier === 'other')!;
+const SERVERS = {
+  imap: { host: 'mail.example.org', port: 993, security: Security.Tls },
+  smtp: { host: 'mail.example.org', port: 465, security: Security.Tls },
+  username: 'alice@example.org',
+};
 const openAuthSession = WebBrowser.openAuthSessionAsync as jest.Mock;
 const SIGN_IN = { url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' };
 const ANSWER = 'openmailbox://oauth?code=c&state=s';
@@ -68,6 +74,34 @@ describe('OAuth sign-in', () => {
     await act(() => result.current.signIn(MICROSOFT));
 
     expect(result.current.error).toBeNull();
+    expect(result.current.pending).toBeNull();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it('signs in to the OAuth server found behind the mail servers', async () => {
+    const account = makeAccount({ email: 'alice@example.org', authentication: Authentication.Server });
+    core.beginServerSignIn.mockResolvedValue({ url: 'https://mail.example.org/login', redirectUri: 'com.soluce.openmailbox:/oauth' });
+    openAuthSession.mockResolvedValue({ type: 'success', url: 'com.soluce.openmailbox:/oauth?code=c' });
+    core.addOauthAccount.mockResolvedValue(account);
+    core.listAccounts.mockResolvedValue([account]);
+    const { result, onDone } = setup();
+
+    await act(() => result.current.signInToServer(OTHER, 'alice@example.org', SERVERS));
+
+    expect(core.beginServerSignIn).toHaveBeenCalledWith('alice@example.org', SERVERS);
+    expect(openAuthSession).toHaveBeenCalledWith('https://mail.example.org/login', 'com.soluce.openmailbox:/oauth');
+    expect(core.addOauthAccount).toHaveBeenCalledWith('com.soluce.openmailbox:/oauth?code=c', '');
+    expect(onDone).toHaveBeenCalledWith(account);
+  });
+
+  it('says when the server cannot start a sign-in', async () => {
+    core.beginServerSignIn.mockRejectedValue(new CoreError.Server({ message: 'registration refused' }));
+    const { result, onDone } = setup();
+
+    await act(() => result.current.signInToServer(OTHER, 'alice@example.org', SERVERS));
+
+    expect(openAuthSession).not.toHaveBeenCalled();
+    expect(result.current.error).toContain('registration refused');
     expect(result.current.pending).toBeNull();
     expect(onDone).not.toHaveBeenCalled();
   });

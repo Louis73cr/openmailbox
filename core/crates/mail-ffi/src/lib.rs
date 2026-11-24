@@ -89,6 +89,7 @@ pub enum Authentication {
     Password,
     Microsoft,
     Google,
+    Server,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -458,6 +459,7 @@ impl From<mail_model::Authentication> for Authentication {
             mail_model::Authentication::Password => Authentication::Password,
             mail_model::Authentication::Microsoft => Authentication::Microsoft,
             mail_model::Authentication::Google => Authentication::Google,
+            mail_model::Authentication::Server => Authentication::Server,
         }
     }
 }
@@ -468,6 +470,7 @@ impl From<Authentication> for mail_model::Authentication {
             Authentication::Password => mail_model::Authentication::Password,
             Authentication::Microsoft => mail_model::Authentication::Microsoft,
             Authentication::Google => mail_model::Authentication::Google,
+            Authentication::Server => mail_model::Authentication::Server,
         }
     }
 }
@@ -752,6 +755,43 @@ impl MailCore {
         login_hint: Option<String>,
     ) -> CoreResult<SignInRequest> {
         let request = self.engine.begin_sign_in(provider.into(), login_hint)?;
+        Ok(SignInRequest {
+            url: request.url,
+            redirect_uri: request.redirect_uri,
+        })
+    }
+
+    pub async fn probe_oauth(
+        &self,
+        email: String,
+        imap: ServerEndpoint,
+    ) -> CoreResult<Option<String>> {
+        let imap: mail_model::ServerEndpoint = imap.into();
+        self.asynchronous(async move |engine| engine.probe_oauth(&email, &imap).await)
+            .await
+    }
+
+    pub async fn begin_server_sign_in(
+        &self,
+        email: String,
+        servers: ServerConfig,
+    ) -> CoreResult<SignInRequest> {
+        let servers = mail_model::ServerConfig {
+            imap: servers.imap.into(),
+            smtp: servers.smtp.into(),
+            username: servers.username,
+        };
+        let request = self
+            .asynchronous(async move |engine| engine.begin_server_sign_in(&email, servers).await)
+            .await?;
+        Ok(SignInRequest {
+            url: request.url,
+            redirect_uri: request.redirect_uri,
+        })
+    }
+
+    pub fn begin_account_sign_in(&self, account_id: String) -> CoreResult<SignInRequest> {
+        let request = self.engine.begin_account_sign_in(&account_id)?;
         Ok(SignInRequest {
             url: request.url,
             redirect_uri: request.redirect_uri,

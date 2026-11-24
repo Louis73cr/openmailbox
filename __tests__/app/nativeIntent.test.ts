@@ -4,6 +4,7 @@ describe('native intent', () => {
   it('stays on the current screen when a sign-in page answers', () => {
     expect(redirectSystemPath({ path: 'com.soluce.openmailbox:/oauth2redirect?code=x', initial: false })).toBe('');
     expect(redirectSystemPath({ path: 'openmailbox://oauth?code=x', initial: false })).toBe('');
+    expect(redirectSystemPath({ path: 'com.soluce.openmailbox:/oauth?code=x&iss=https%3A%2F%2Flocalhost', initial: false })).toBe('');
     expect(redirectSystemPath({ path: 'com.googleusercontent.apps.1-a:/oauth2redirect?code=x', initial: true })).toBe('/');
   });
 

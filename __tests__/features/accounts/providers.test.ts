@@ -1,6 +1,7 @@
 import { Authentication, Security } from '@openmailbox/mail-core';
 
 import {
+  LOCAL_STALWART_PROVIDER,
   LOCAL_TEST_PROVIDER,
   OVH_OFFERS,
   PROVIDERS,
@@ -66,6 +67,20 @@ describe('providers', () => {
     expect(emailPro.servers.smtp.port).toBe(587);
     expect(emailPro.servers.smtp.security).toBe(Security.StartTls);
     expect(OVH_OFFERS.slice(1).every((offer) => offer.editableHost)).toBe(true);
+  });
+
+  it('points a development entry at a local Stalwart that offers OAuth', () => {
+    expect(LOCAL_STALWART_PROVIDER.servers?.imap).toEqual({ host: 'localhost', port: 993, security: Security.Tls });
+    expect(LOCAL_STALWART_PROVIDER.servers?.smtp).toEqual({ host: 'localhost', port: 465, security: Security.Tls });
+    expect(LOCAL_STALWART_PROVIDER.account?.email).toBe('carol@example.com');
+    expect(LOCAL_STALWART_PROVIDER.probesOAuth).toBe(true);
+    expect(PROVIDERS.find((provider) => provider.identifier === 'other')?.probesOAuth).toBe(true);
+  });
+
+  it('tells the local Stalwart from GreenMail by their port', () => {
+    const local = (port: number) => ({ imap: { host: LOCAL_TEST_PROVIDER.servers!.imap.host, port } });
+    expect(providerForAccount(local(3993))?.provider.identifier).toBe('local');
+    expect(providerForAccount(local(993))?.provider.identifier).toBe('stalwart');
   });
 
   it('points the development entry at the local GreenMail server', () => {

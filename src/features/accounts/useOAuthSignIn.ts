@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as WebBrowser from 'expo-web-browser';
-import { CoreError, type Account } from '@openmailbox/mail-core';
+import { CoreError, type Account, type ServerConfig, type SignInRequest } from '@openmailbox/mail-core';
 
 import { mailCore } from '@/core/mailCore';
 import { queryClient, queryKeys } from '@/core/queryClient';
@@ -14,12 +14,11 @@ export function useOAuthSignIn(onDone: (account: Account) => void) {
   const [pending, setPending] = useState<ProviderIdentifier | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const signIn = async (provider: MailProvider) => {
-    if (!provider.oauth) return;
+  const run = async (provider: MailProvider, start: () => SignInRequest | Promise<SignInRequest>) => {
     setError(null);
     setPending(provider.identifier);
     try {
-      const request = mailCore().beginSignIn(provider.oauth, undefined);
+      const request = await start();
       const answer = await WebBrowser.openAuthSessionAsync(request.url, request.redirectUri);
       if (answer.type !== 'success') return;
       const account = await mailCore().addOauthAccount(answer.url, '');
@@ -32,5 +31,14 @@ export function useOAuthSignIn(onDone: (account: Account) => void) {
     }
   };
 
-  return { signIn, pending, error };
+  const signIn = async (provider: MailProvider) => {
+    const authentication = provider.oauth;
+    if (authentication === undefined) return;
+    await run(provider, () => mailCore().beginSignIn(authentication, undefined));
+  };
+
+  const signInToServer = (provider: MailProvider, email: string, servers: ServerConfig) =>
+    run(provider, () => mailCore().beginServerSignIn(email, servers));
+
+  return { signIn, signInToServer, pending, error };
 }

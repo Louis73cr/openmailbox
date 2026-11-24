@@ -3,7 +3,7 @@ import { Authentication, Security, type ServerConfig } from '@openmailbox/mail-c
 
 import { organizationDomain } from '@/utils/addresses';
 
-export type ProviderIdentifier = 'gmail' | 'microsoft' | 'icloud' | 'ovhcloud' | 'ionos' | 'yahoo' | 'other' | 'local';
+export type ProviderIdentifier = 'gmail' | 'microsoft' | 'stalwart' | 'icloud' | 'ovhcloud' | 'ionos' | 'yahoo' | 'other' | 'local';
 
 export interface BrandMark {
   background: string;
@@ -23,6 +23,7 @@ export interface MailProvider {
   appPasswordHelp?: string;
   oauth?: Authentication;
   oauthOnly?: boolean;
+  probesOAuth?: boolean;
   servers?: ServerConfig;
   editableServers?: boolean;
   account?: { email: string; password: string };
@@ -140,7 +141,7 @@ export const PROVIDERS: MailProvider[] = [
     appPasswordHelp: 'https://help.yahoo.com/kb/SLN15241.html',
     servers: servers('imap.mail.yahoo.com', 'smtp.mail.yahoo.com'),
   },
-  { identifier: 'other', name: '', domains: [] },
+  { identifier: 'other', name: '', domains: [], probesOAuth: true },
 ];
 
 export interface OvhOffer {
@@ -197,6 +198,19 @@ export const LOCAL_TEST_PROVIDER: MailProvider = {
   },
 };
 
+export const LOCAL_STALWART_PROVIDER: MailProvider = {
+  identifier: 'stalwart',
+  name: 'Stalwart',
+  domains: [],
+  probesOAuth: true,
+  account: { email: 'carol@example.com', password: '' },
+  servers: {
+    imap: { host: LOCAL_HOST, port: 993, security: Security.Tls },
+    smtp: { host: LOCAL_HOST, port: 465, security: Security.Tls },
+    username: 'carol@example.com',
+  },
+};
+
 export function providerForAddress(email: string): MailProvider | undefined {
   const domain = email.split('@')[1]?.toLowerCase();
   return domain ? PROVIDERS.find((provider) => provider.domains.includes(domain)) : undefined;
@@ -205,9 +219,11 @@ export function providerForAddress(email: string): MailProvider | undefined {
 const serverKind = (host: string) => host.split('.')[0].replace(/\d+$/, '');
 const brandName = (host: string) => organizationDomain(host).split('.')[0];
 
-export function providerForAccount(account: { imap: { host: string } }): { provider: MailProvider; offer?: string } | undefined {
+export function providerForAccount(account: { imap: { host: string; port?: number } }): { provider: MailProvider; offer?: string } | undefined {
   const host = account.imap.host.trim().toLowerCase();
-  if (host === LOCAL_TEST_PROVIDER.servers?.imap.host) return { provider: LOCAL_TEST_PROVIDER };
+  if (host === LOCAL_TEST_PROVIDER.servers?.imap.host) {
+    return { provider: account.imap.port === LOCAL_STALWART_PROVIDER.servers?.imap.port ? LOCAL_STALWART_PROVIDER : LOCAL_TEST_PROVIDER };
+  }
   const ovh = OVH_OFFERS.find((offer) => brandName(offer.servers.imap.host) === brandName(host));
   if (ovh) {
     const offer = OVH_OFFERS.find((candidate) => serverKind(candidate.servers.imap.host) === serverKind(host));

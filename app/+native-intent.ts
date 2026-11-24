@@ -1,4 +1,4 @@
-const SIGN_IN_ANSWER = /^[\w.+-]+:\/(\/oauth|oauth2redirect)\b/;
+const SIGN_IN_ANSWER = /^[\w.+-]+:\/\/?(oauth|oauth2redirect)\b/;
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }): string {
   if (SIGN_IN_ANSWER.test(path)) return initial ? '/' : '';

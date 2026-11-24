@@ -23,7 +23,14 @@ describe('onboarding', () => {
     for (const name of ['Google', 'Microsoft', 'iCloud', 'OVHcloud', 'IONOS', 'Yahoo', 'Other']) {
       expect(screen.getByRole('button', { name })).toBeOnTheScreen();
     }
-    expect(screen.getByText('Outlook, Hotmail, Live, Microsoft 365')).toBeOnTheScreen();
+    for (const hint of [
+      'Gmail, Google Workspace',
+      'Outlook, Hotmail, Live, Microsoft 365',
+      'icloud.com, me.com, mac.com',
+      'MX Plan, Email Pro, Exchange, Zimbra',
+    ]) {
+      expect(screen.getByText(hint)).toBeOnTheScreen();
+    }
     expect(screen.getByRole('button', { name: 'Language' })).toBeOnTheScreen();
   });
 
@@ -125,6 +132,64 @@ describe('onboarding', () => {
 
     fireEvent.press(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('button', { name: 'Zimbra' })).toBeOnTheScreen();
+  });
+
+  it('offers to sign in on the server page when the mail server supports it', async () => {
+    core.discover.mockResolvedValue({
+      imap: { host: 'mail.example.org', port: 993, security: Security.Tls },
+      smtp: { host: 'mail.example.org', port: 465, security: Security.Tls },
+      username: 'alice@example.org',
+    });
+    core.probeOauth.mockResolvedValue('https://mail.example.org');
+    renderWithProviders(<OnboardingScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'Other' }));
+    fireEvent.changeText(screen.getByLabelText('Email'), 'alice@example.org');
+
+    expect(await screen.findByRole('button', { name: 'Sign in with mail.example.org' }, { timeout: 3000 })).toBeOnTheScreen();
+    expect(core.probeOauth).toHaveBeenCalledWith('alice@example.org', { host: 'mail.example.org', port: 993, security: Security.Tls });
+    expect(screen.queryByLabelText('Password')).toBeNull();
+
+    fireEvent.press(screen.getByText('Use a password instead'));
+    expect(screen.getByLabelText('Password')).toBeOnTheScreen();
+  });
+
+  it('keeps the server sign-in on screen while the address is edited and checked again', async () => {
+    core.discover.mockResolvedValue({
+      imap: { host: 'mail.example.org', port: 993, security: Security.Tls },
+      smtp: { host: 'mail.example.org', port: 465, security: Security.Tls },
+      username: 'alice@example.org',
+    });
+    core.probeOauth.mockResolvedValue('https://mail.example.org');
+    renderWithProviders(<OnboardingScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'Other' }));
+    fireEvent.changeText(screen.getByLabelText('Email'), 'alice@example.org');
+    await screen.findByRole('button', { name: 'Sign in with mail.example.org' }, { timeout: 3000 });
+
+    fireEvent.changeText(screen.getByLabelText('Email'), 'bob@');
+    expect(screen.queryByLabelText('Password')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sign in with mail.example.org' })).toBeDisabled();
+
+    fireEvent.changeText(screen.getByLabelText('Email'), 'bob@example.org');
+    expect(screen.getByRole('button', { name: 'Sign in with mail.example.org' })).toBeDisabled();
+    await waitFor(() => expect(core.probeOauth).toHaveBeenCalledWith('bob@example.org', expect.anything()), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sign in with mail.example.org' })).toBeEnabled());
+    expect(screen.queryByLabelText('Password')).toBeNull();
+  });
+
+  it('keeps the password form when the mail server has no OAuth', async () => {
+    core.discover.mockResolvedValue({
+      imap: { host: 'imap.example.net', port: 993, security: Security.Tls },
+      smtp: { host: 'smtp.example.net', port: 465, security: Security.Tls },
+      username: 'alice@example.net',
+    });
+    core.probeOauth.mockResolvedValue(undefined);
+    renderWithProviders(<OnboardingScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'Other' }));
+    fireEvent.changeText(screen.getByLabelText('Email'), 'alice@example.net');
+
+    await waitFor(() => expect(core.probeOauth).toHaveBeenCalled(), { timeout: 3000 });
+    expect(screen.getByLabelText('Password')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /Sign in with/ })).toBeNull();
   });
 
   it('says when the account is already added', async () => {

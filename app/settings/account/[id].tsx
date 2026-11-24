@@ -74,7 +74,7 @@ export default function AccountSettingsScreen() {
     setUpdating(true);
     setPasswordMessage(null);
     try {
-      const request = mailCore().beginSignIn(account.authentication, account.email);
+      const request = mailCore().beginAccountSignIn(account.id);
       const answer = await WebBrowser.openAuthSessionAsync(request.url, request.redirectUri);
       if (answer.type !== 'success') return;
       await mailCore().reauthorize(account.id, answer.url);
