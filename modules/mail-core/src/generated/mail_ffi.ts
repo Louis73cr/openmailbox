@@ -1278,7 +1278,8 @@ export enum CoreError_Tags {
     Storage = "Storage",
     NotFound = "NotFound",
     InvalidInput = "InvalidInput",
-    Cancelled = "Cancelled"
+    Cancelled = "Cancelled",
+    AccountExists = "AccountExists"
 }
 export const CoreError = (() => {
 
@@ -1519,6 +1520,33 @@ Readonly<{message: string}> {
 
     }
 
+    type AccountExists__interface = {
+        tag: CoreError_Tags.AccountExists
+    };
+    class AccountExists_ extends UniffiError implements AccountExists__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "CoreError";
+        readonly tag = CoreError_Tags.AccountExists;
+        constructor() {
+            super("CoreError", "AccountExists");
+        }
+
+        static new(): AccountExists_ {
+            return new AccountExists_();
+        }
+
+        static instanceOf(obj: any): obj is AccountExists_ {
+            return obj.tag === CoreError_Tags.AccountExists;
+        }
+        static hasInner(obj: any): obj is AccountExists_ {
+            return false;
+        }
+
+    }
+
     function instanceOf(obj: any): obj is CoreError {
         return obj[uniffiTypeNameSymbol] === "CoreError";
     }
@@ -1531,12 +1559,13 @@ Readonly<{message: string}> {
   Storage: Storage_, 
   NotFound: NotFound_, 
   InvalidInput: InvalidInput_, 
-  Cancelled: Cancelled_
+  Cancelled: Cancelled_, 
+  AccountExists: AccountExists_
     });
 
 })();
 export type CoreError = InstanceType<
-    typeof CoreError['Network' | 'Auth' | 'Server' | 'Storage' | 'NotFound' | 'InvalidInput' | 'Cancelled']
+    typeof CoreError['Network' | 'Auth' | 'Server' | 'Storage' | 'NotFound' | 'InvalidInput' | 'Cancelled' | 'AccountExists']
 >;
 
 // FfiConverter for enum CoreError
@@ -1552,6 +1581,7 @@ const FfiConverterTypeCoreError = (() => {
                 case 5: return new CoreError.NotFound();
                 case 6: return new CoreError.InvalidInput({message: FfiConverterString.readFromCursor(c) });
                 case 7: return new CoreError.Cancelled();
+                case 8: return new CoreError.AccountExists();
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -1593,6 +1623,10 @@ const FfiConverterTypeCoreError = (() => {
                     c.writeI32(7);
                     return;
                 }
+                case CoreError_Tags.AccountExists: {
+                    c.writeI32(8);
+                    return;
+                }
                 default:
                     // Throwing from here means that CoreError_Tags hasn't matched an ordinal.
                     throw new UniffiInternalError.UnexpectedEnumCase();
@@ -1631,6 +1665,9 @@ const FfiConverterTypeCoreError = (() => {
                     return size;
                 }
                 case CoreError_Tags.Cancelled: {
+                    return 4;
+                }
+                case CoreError_Tags.AccountExists: {
                     return 4;
                 }
                 default: throw new UniffiInternalError.UnexpectedEnumCase();

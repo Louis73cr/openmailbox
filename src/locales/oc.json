@@ -153,6 +153,7 @@
     "yesterday": "Ièr"
   },
   "errors": {
+    "accountExists": "Aqueste compte es ja apondut.",
     "auth": "Lo servidor a refusat l'adreça o lo senhal.",
     "generic": "Una error s'es producha. Tornatz ensajar.",
     "invalidInput": "Valor invalida : {{message}}",

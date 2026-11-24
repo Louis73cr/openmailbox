@@ -153,6 +153,7 @@
     "yesterday": "Gestern"
   },
   "errors": {
+    "accountExists": "Dieses Konto wurde bereits hinzugefügt.",
     "auth": "Der Server hat die Adresse oder das Passwort abgelehnt.",
     "generic": "Etwas ist schiefgelaufen. Versuche es erneut.",
     "invalidInput": "Ungültiger Wert: {{message}}",

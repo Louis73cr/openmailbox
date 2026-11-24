@@ -153,6 +153,7 @@
     "yesterday": "Yesterday"
   },
   "errors": {
+    "accountExists": "This account is already added.",
     "auth": "The server rejected the email address or password.",
     "generic": "Something went wrong. Try again.",
     "invalidInput": "Invalid value: {{message}}",

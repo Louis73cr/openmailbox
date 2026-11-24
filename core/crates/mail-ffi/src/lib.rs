@@ -23,6 +23,8 @@ pub enum CoreError {
     InvalidInput { message: String },
     #[error("cancelled")]
     Cancelled,
+    #[error("account already added")]
+    AccountExists,
 }
 
 impl From<mail_model::Error> for CoreError {
@@ -36,6 +38,7 @@ impl From<mail_model::Error> for CoreError {
             Error::NotFound => CoreError::NotFound,
             Error::InvalidInput(message) => CoreError::InvalidInput { message },
             Error::Cancelled => CoreError::Cancelled,
+            Error::AccountExists => CoreError::AccountExists,
         }
     }
 }

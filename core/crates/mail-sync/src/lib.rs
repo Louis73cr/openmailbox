@@ -203,6 +203,7 @@ impl Engine {
     }
 
     pub async fn add_account(&self, config: AccountConfig, secret: String) -> Result<Account> {
+        self.ensure_new(&config.email)?;
         let credential = Credential::Password(secret.clone());
         let connection = proto_imap::connect(&config.imap, &config.username, &credential).await?;
         connection.logout().await;
@@ -220,6 +221,13 @@ impl Engine {
         };
         self.register(&account, secret, None)?;
         Ok(account)
+    }
+
+    fn ensure_new(&self, email: &str) -> Result<()> {
+        if self.store.has_account_for(email)? {
+            return Err(Error::AccountExists);
+        }
+        Ok(())
     }
 
     fn register(
@@ -288,6 +296,7 @@ impl Engine {
     ) -> Result<Account> {
         let (authentication, grant, identity, refresh_token) =
             self.finish_sign_in(callback_url).await?;
+        self.ensure_new(&identity.email)?;
         let config = oauth::servers(authentication, &identity);
         let credential = Credential::AccessToken(grant.access_token.clone());
         let connection = proto_imap::connect(&config.imap, &config.username, &credential)
@@ -1678,6 +1687,36 @@ mod tests {
             refused_sign_in(Error::Network("down".into()), "smtp.office365.com", "a@b.c"),
             Error::Network(message) if message == "down"
         ));
+    }
+
+    #[test]
+    fn an_address_already_added_is_refused_before_connecting() {
+        let directory =
+            std::env::temp_dir().join(format!("mail-sync-duplicate-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        Store::open(&directory.join("mail.db"))
+            .unwrap()
+            .insert_account(&account("carol"))
+            .unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let engine = Engine::open(&directory, runtime.handle().clone()).unwrap();
+        let unreachable = mail_model::ServerEndpoint {
+            host: "unreachable.invalid".into(),
+            port: 993,
+            security: mail_model::Security::Tls,
+        };
+        let config = AccountConfig {
+            email: " Carol@Example.com ".into(),
+            display_name: "Carol".into(),
+            username: "carol".into(),
+            imap: unreachable.clone(),
+            smtp: unreachable,
+        };
+        assert!(matches!(
+            runtime.block_on(engine.add_account(config, "secret".into())),
+            Err(Error::AccountExists)
+        ));
+        assert_eq!(engine.list_accounts().unwrap().len(), 1);
     }
 
     #[test]

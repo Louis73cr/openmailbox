@@ -153,6 +153,7 @@
     "yesterday": "Gisteren"
   },
   "errors": {
+    "accountExists": "Dit account is al toegevoegd.",
     "auth": "De server heeft het adres of het wachtwoord geweigerd.",
     "generic": "Er ging iets mis. Probeer het opnieuw.",
     "invalidInput": "Ongeldige waarde: {{message}}",

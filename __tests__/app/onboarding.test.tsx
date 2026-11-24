@@ -127,6 +127,18 @@ describe('onboarding', () => {
     expect(screen.getByRole('button', { name: 'Zimbra' })).toBeOnTheScreen();
   });
 
+  it('says when the account is already added', async () => {
+    core.addAccount.mockRejectedValue(new CoreError.AccountExists());
+    renderWithProviders(<OnboardingScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'IONOS' }));
+    fireEvent.changeText(screen.getByLabelText('Email'), 'alice@ionos.example');
+    fireEvent.changeText(screen.getByLabelText('Password'), 'secret');
+    fireEvent.press(screen.getByText('Sign In'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('This account is already added.');
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
   it('shows why signing in failed next to the form', async () => {
     core.discover.mockRejectedValue(new Error('offline'));
     renderWithProviders(<OnboardingScreen />);

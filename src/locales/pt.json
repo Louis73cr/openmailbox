@@ -153,6 +153,7 @@
     "yesterday": "Ontem"
   },
   "errors": {
+    "accountExists": "Esta conta já foi adicionada.",
     "auth": "O servidor recusou o endereço ou a palavra-passe.",
     "generic": "Ocorreu um erro. Tente novamente.",
     "invalidInput": "Valor inválido: {{message}}",

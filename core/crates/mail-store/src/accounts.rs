@@ -135,6 +135,16 @@ impl Store {
             .ok_or(Error::NotFound)
     }
 
+    pub fn has_account_for(&self, email: &str) -> Result<bool> {
+        self.read()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM account WHERE lower(email) = lower(trim(?1)))",
+                [email],
+                |row| row.get(0),
+            )
+            .storage()
+    }
+
     pub fn next_account_color(&self) -> Result<u32> {
         let connection = self.read();
         connection
@@ -173,6 +183,15 @@ mod tests {
     use mail_model::Authentication;
 
     use crate::test_support::{account, store};
+
+    #[test]
+    fn an_address_is_known_whatever_its_case() {
+        let (store, directory) = store();
+        store.insert_account(&account("alice")).unwrap();
+        assert!(store.has_account_for("ALICE@example.com").unwrap());
+        assert!(!store.has_account_for("bob@example.com").unwrap());
+        std::fs::remove_dir_all(directory).ok();
+    }
 
     #[test]
     fn an_account_keeps_how_it_signs_in() {

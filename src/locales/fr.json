@@ -153,6 +153,7 @@
     "yesterday": "Hier"
   },
   "errors": {
+    "accountExists": "Ce compte est déjà ajouté.",
     "auth": "Le serveur a refusé l'adresse ou le mot de passe.",
     "generic": "Une erreur est survenue. Réessayez.",
     "invalidInput": "Valeur invalide : {{message}}",

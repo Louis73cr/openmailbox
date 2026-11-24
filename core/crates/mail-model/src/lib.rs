@@ -20,6 +20,8 @@ pub enum Error {
     InvalidInput(String),
     #[error("cancelled")]
     Cancelled,
+    #[error("account already added")]
+    AccountExists,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
