@@ -77,6 +77,12 @@ describe('providers', () => {
     expect(PROVIDERS.find((provider) => provider.identifier === 'other')?.probesOAuth).toBe(true);
   });
 
+  it('tells the local Stalwart from GreenMail by their port', () => {
+    const local = (port: number) => ({ imap: { host: LOCAL_TEST_PROVIDER.servers!.imap.host, port } });
+    expect(providerForAccount(local(3993))?.provider.identifier).toBe('local');
+    expect(providerForAccount(local(993))?.provider.identifier).toBe('stalwart');
+  });
+
   it('points the development entry at the local GreenMail server', () => {
     expect(LOCAL_TEST_PROVIDER.account).toEqual({ email: 'alice@example.com', password: 'secret' });
     expect(LOCAL_TEST_PROVIDER.servers?.imap.port).toBe(3993);

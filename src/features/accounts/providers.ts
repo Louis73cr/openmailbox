@@ -219,9 +219,11 @@ export function providerForAddress(email: string): MailProvider | undefined {
 const serverKind = (host: string) => host.split('.')[0].replace(/\d+$/, '');
 const brandName = (host: string) => organizationDomain(host).split('.')[0];
 
-export function providerForAccount(account: { imap: { host: string } }): { provider: MailProvider; offer?: string } | undefined {
+export function providerForAccount(account: { imap: { host: string; port?: number } }): { provider: MailProvider; offer?: string } | undefined {
   const host = account.imap.host.trim().toLowerCase();
-  if (host === LOCAL_TEST_PROVIDER.servers?.imap.host) return { provider: LOCAL_TEST_PROVIDER };
+  if (host === LOCAL_TEST_PROVIDER.servers?.imap.host) {
+    return { provider: account.imap.port === LOCAL_STALWART_PROVIDER.servers?.imap.port ? LOCAL_STALWART_PROVIDER : LOCAL_TEST_PROVIDER };
+  }
   const ovh = OVH_OFFERS.find((offer) => brandName(offer.servers.imap.host) === brandName(host));
   if (ovh) {
     const offer = OVH_OFFERS.find((candidate) => serverKind(candidate.servers.imap.host) === serverKind(host));
