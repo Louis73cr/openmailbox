@@ -13,4 +13,9 @@ install -d -m 700 "$backup"
 gpg --batch --armor --export-secret-keys "$fingerprint" | gh secret set APT_GPG_PRIVATE_KEY --repo "$repo"
 echo "Key $fingerprint stored as GitHub secret; backup in $backup/private.asc"
 gh workflow run desktop-apt.yml --repo "$repo" --ref web
-echo "Build started: gh run watch --repo $repo"
+sleep 10
+run=$(gh run list --repo "$repo" --workflow desktop-apt.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$run" --repo "$repo" --exit-status
+# Serve the gh-pages branch (created by the first publish) at https://louis73cr.github.io/openmailbox
+gh api -X POST "repos/$repo/pages" -f 'source[branch]=gh-pages' -f 'source[path]=/' >/dev/null 2>&1 || true
+echo "APT repository: https://louis73cr.github.io/openmailbox (online in a minute or two)"
