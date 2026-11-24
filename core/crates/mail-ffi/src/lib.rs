@@ -8,6 +8,7 @@ use mail_sync::Engine;
 uniffi::setup_scaffolding!();
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(tag = "tag", content = "inner", rename_all_fields = "camelCase"))]
 pub enum CoreError {
     #[error("network: {message}")]
     Network { message: String },
@@ -50,12 +51,15 @@ fn parse_ids(values: &[String]) -> CoreResult<Vec<i64>> {
 }
 
 #[derive(Debug, Clone, Copy, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr))]
+#[repr(u8)]
 pub enum Security {
     Tls,
     StartTls,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ServerEndpoint {
     pub host: String,
     pub port: u16,
@@ -63,6 +67,7 @@ pub struct ServerEndpoint {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ServerConfig {
     pub imap: ServerEndpoint,
     pub smtp: ServerEndpoint,
@@ -70,6 +75,7 @@ pub struct ServerConfig {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct AccountConfig {
     pub email: String,
     pub display_name: String,
@@ -79,6 +85,7 @@ pub struct AccountConfig {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Account {
     pub id: String,
     pub email: String,
@@ -90,6 +97,8 @@ pub struct Account {
 }
 
 #[derive(Debug, Clone, Copy, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr))]
+#[repr(u8)]
 pub enum MailboxRole {
     Inbox,
     Sent,
@@ -102,6 +111,7 @@ pub enum MailboxRole {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Mailbox {
     pub id: String,
     pub account_id: String,
@@ -115,12 +125,14 @@ pub struct Mailbox {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Address {
     pub name: Option<String>,
     pub email: String,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct EmailSummary {
     pub id: String,
     pub account_id: String,
@@ -138,6 +150,7 @@ pub struct EmailSummary {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct SearchHit {
     pub email: EmailSummary,
     pub mailbox_id: String,
@@ -145,6 +158,8 @@ pub struct SearchHit {
 
 /// Inbox categories, from the most to the least important.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr))]
+#[repr(u8)]
 pub enum Category {
     Primary,
     Transactions,
@@ -175,6 +190,7 @@ impl From<Category> for mail_model::Category {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ThreadSummary {
     pub key: String,
     pub thread_id: String,
@@ -190,18 +206,21 @@ pub struct ThreadSummary {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct NewMessage {
     pub mailbox_id: String,
     pub email: EmailSummary,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ThreadPage {
     pub threads: Vec<ThreadSummary>,
     pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Attachment {
     pub index: u32,
     pub filename: String,
@@ -210,6 +229,7 @@ pub struct Attachment {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct RenderedBody {
     pub html: Option<String>,
     pub text: String,
@@ -219,6 +239,7 @@ pub struct RenderedBody {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Unsubscribe {
     pub https_url: Option<String>,
     pub mailto: Option<String>,
@@ -226,12 +247,14 @@ pub struct Unsubscribe {
 }
 
 #[derive(Debug, Clone, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(tag = "tag", content = "inner", rename_all_fields = "camelCase"))]
 pub enum UnsubscribeOutcome {
     Done,
     OpenInBrowser { url: String },
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Draft {
     pub account_id: String,
     pub to: Vec<Address>,
@@ -246,6 +269,7 @@ pub struct Draft {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct OutgoingAttachment {
     pub path: String,
     pub filename: String,
@@ -253,6 +277,8 @@ pub struct OutgoingAttachment {
 }
 
 #[derive(Debug, Clone, Copy, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr))]
+#[repr(u8)]
 pub enum Keyword {
     Seen,
     Flagged,
@@ -260,6 +286,7 @@ pub enum Keyword {
 }
 
 #[derive(Debug, Clone, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(tag = "tag", content = "inner", rename_all_fields = "camelCase"))]
 pub enum Destination {
     Mailbox { mailbox_id: String },
     Inbox,
@@ -284,6 +311,7 @@ impl Destination {
 
 /// Where a move left the messages; `target_mailbox_id` is absent when they were deleted for good.
 #[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Relocation {
     pub email_ids: Vec<String>,
     pub target_mailbox_id: Option<String>,
@@ -299,12 +327,14 @@ impl From<mail_sync::Relocation> for Relocation {
 }
 
 #[derive(Debug, Clone, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(tag = "tag", content = "inner", rename_all_fields = "camelCase"))]
 pub enum ThreadScope {
     Unified,
     Mailbox { mailbox_id: String },
 }
 
 #[derive(Debug, Clone, Default, uniffi::Record)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ThreadFilter {
     pub unread: bool,
     pub flagged: bool,
@@ -334,6 +364,8 @@ impl TryFrom<ThreadFilter> for mail_model::ThreadFilter {
 }
 
 #[derive(Debug, Clone, Copy, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr))]
+#[repr(u8)]
 pub enum SyncErrorKind {
     Network,
     Auth,
@@ -341,6 +373,7 @@ pub enum SyncErrorKind {
 }
 
 #[derive(Debug, Clone, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(tag = "tag", content = "inner", rename_all_fields = "camelCase"))]
 pub enum SyncStatus {
     Idle {
         last_synced_at: Option<f64>,
@@ -354,6 +387,7 @@ pub enum SyncStatus {
 }
 
 #[derive(Debug, Clone, uniffi::Enum)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(tag = "tag", content = "inner", rename_all_fields = "camelCase"))]
 pub enum CoreEvent {
     MailboxesChanged {
         mailbox_ids: Vec<String>,

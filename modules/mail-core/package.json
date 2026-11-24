@@ -19,5 +19,6 @@
     "android": {
       "javaPackageName": "com.openmailbox.mailcore"
     }
-  }
+  },
+  "browser": "src/index.web.ts"
 }

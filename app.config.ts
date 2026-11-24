@@ -12,7 +12,8 @@ const config: ExpoConfig = {
   version,
   orientation: 'default',
   userInterfaceStyle: 'automatic',
-  platforms: ['ios', 'android'],
+  platforms: ['ios', 'android', 'web'],
+  web: { output: 'single', bundler: 'metro', favicon: './assets/icon.png' },
   icon: './assets/icon.png',
   assetBundlePatterns: ['**/*'],
 

@@ -13,7 +13,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const themePreference = useSettingsStore((state) => state.themePreference);
   const resolved = themePreference === 'system' ? (systemScheme ?? 'light') : themePreference;
 
-  useEffect(() => Appearance.setColorScheme(themePreference === 'system' ? 'unspecified' : themePreference), [themePreference]);
+  useEffect(() => Appearance.setColorScheme?.(themePreference === 'system' ? 'unspecified' : themePreference), [themePreference]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
