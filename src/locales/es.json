@@ -9,6 +9,8 @@
   "accounts": {
     "add": "Añadir cuenta",
     "accountName": "Cuenta",
+    "color": "Color",
+    "colorHint": "Identifica esta cuenta en la lista de buzones y en Todas las bandejas.",
     "moveDown": "Bajar",
     "moveUp": "Subir",
     "namesHint": "El nombre de la cuenta solo se muestra en Open Mailbox. Los destinatarios ven el nombre del remitente.",
@@ -107,6 +109,21 @@
     "transactions": "Transacciones",
     "updates": "Actualizaciones"
   },
+  "colors": {
+    "black": "Negro",
+    "grey": "Gris",
+    "red": "Rojo",
+    "orange": "Naranja",
+    "yellow": "Amarillo",
+    "green": "Verde",
+    "blue": "Azul",
+    "purple": "Morado",
+    "pink": "Rosa",
+    "cyan": "Cian",
+    "indigo": "Índigo",
+    "brown": "Marrón",
+    "mint": "Menta"
+  },
   "common": {
     "back": "Atrás",
     "cancel": "Cancelar",
@@ -202,6 +219,7 @@
     "openLink": "Abrir",
     "openLinkTitle": "¿Abrir este enlace?",
     "remoteContentBlocked": "Las imágenes remotas están bloqueadas.",
+    "searchFor": "Buscar «{{name}}»",
     "share": "Compartir",
     "threadGone": "Esta conversación ya no está disponible.",
     "toRecipients": "Para: {{recipients}}",
@@ -255,17 +273,6 @@
     "bulletList": "Lista con viñetas",
     "clearFormatting": "Borrar formato",
     "codePlaceholder": "Escribe el HTML aquí…",
-    "colors": {
-      "black": "Negro",
-      "grey": "Gris",
-      "red": "Rojo",
-      "orange": "Naranja",
-      "yellow": "Amarillo",
-      "green": "Verde",
-      "blue": "Azul",
-      "purple": "Morado",
-      "pink": "Rosa"
-    },
     "highlight": "Resaltar",
     "italic": "Cursiva",
     "link": "Enlace",

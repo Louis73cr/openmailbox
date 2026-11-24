@@ -9,6 +9,8 @@
   "accounts": {
     "add": "Voeg account toe",
     "accountName": "Accountnaam",
+    "color": "Kleur",
+    "colorHint": "Markeert dit account in de lijst met postvakken en in Alle inkomende.",
     "moveDown": "Omlaag",
     "moveUp": "Omhoog",
     "namesHint": "De accountnaam is alleen zichtbaar in Open Mailbox. Ontvangers zien de naam van de afzender.",
@@ -107,6 +109,21 @@
     "transactions": "Transacties",
     "updates": "Updates"
   },
+  "colors": {
+    "black": "Zwart",
+    "grey": "Grijs",
+    "red": "Rood",
+    "orange": "Oranje",
+    "yellow": "Geel",
+    "green": "Groen",
+    "blue": "Blauw",
+    "purple": "Paars",
+    "pink": "Roze",
+    "cyan": "Cyaan",
+    "indigo": "Indigo",
+    "brown": "Bruin",
+    "mint": "Mint"
+  },
   "common": {
     "back": "Terug",
     "cancel": "Annuleer",
@@ -202,6 +219,7 @@
     "openLink": "Open",
     "openLinkTitle": "Deze link openen?",
     "remoteContentBlocked": "Externe afbeeldingen zijn geblokkeerd.",
+    "searchFor": "Zoek naar ‘{{name}}’",
     "share": "Delen",
     "threadGone": "Dit gesprek is niet meer beschikbaar.",
     "toRecipients": "Aan: {{recipients}}",
@@ -255,17 +273,6 @@
     "bulletList": "Lijst met opsommingstekens",
     "clearFormatting": "Opmaak wissen",
     "codePlaceholder": "Typ hier HTML…",
-    "colors": {
-      "black": "Zwart",
-      "grey": "Grijs",
-      "red": "Rood",
-      "orange": "Oranje",
-      "yellow": "Geel",
-      "green": "Groen",
-      "blue": "Blauw",
-      "purple": "Paars",
-      "pink": "Roze"
-    },
     "highlight": "Markeren",
     "italic": "Cursief",
     "link": "Link",

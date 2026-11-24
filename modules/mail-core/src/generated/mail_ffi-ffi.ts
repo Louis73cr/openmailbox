@@ -98,6 +98,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_mail_ffi_fn_method_mailcore_save_attachment(uniffiSelf: bigint, emailId: Uint8Array, index: number, directory: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_search(uniffiSelf: bigint, query: Uint8Array, limit: number, mailboxIds: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_send(uniffiSelf: bigint, draft: Uint8Array): bigint;
+    ubrn_uniffi_mail_ffi_fn_method_mailcore_set_account_color(uniffiSelf: bigint, accountId: Uint8Array, color: number): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_set_keywords(uniffiSelf: bigint, emailIds: Uint8Array, add: Uint8Array, remove: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_set_sender_category(uniffiSelf: bigint, sender: Uint8Array, category: Uint8Array): bigint;
     ubrn_uniffi_mail_ffi_fn_method_mailcore_set_thread_keywords(uniffiSelf: bigint, mailboxId: Uint8Array, threadId: Uint8Array, add: Uint8Array, remove: Uint8Array): bigint;
@@ -135,6 +136,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_save_attachment(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_search(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_send(): number;
+    ubrn_uniffi_mail_ffi_checksum_method_mailcore_set_account_color(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_set_keywords(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_set_sender_category(): number;
     ubrn_uniffi_mail_ffi_checksum_method_mailcore_set_thread_keywords(): number;

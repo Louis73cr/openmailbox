@@ -9,6 +9,8 @@
   "accounts": {
     "add": "Aggiungi account",
     "accountName": "Nome account",
+    "color": "Colore",
+    "colorHint": "Contrassegna questo account nell’elenco delle caselle e in Tutte le caselle.",
     "moveDown": "Sposta giù",
     "moveUp": "Sposta su",
     "namesHint": "Il nome dell’account è visibile solo in Open Mailbox. I destinatari vedono il nome del mittente.",
@@ -107,6 +109,21 @@
     "transactions": "Transazioni",
     "updates": "Aggiornamenti"
   },
+  "colors": {
+    "black": "Nero",
+    "grey": "Grigio",
+    "red": "Rosso",
+    "orange": "Arancione",
+    "yellow": "Giallo",
+    "green": "Verde",
+    "blue": "Blu",
+    "purple": "Viola",
+    "pink": "Rosa",
+    "cyan": "Ciano",
+    "indigo": "Indaco",
+    "brown": "Marrone",
+    "mint": "Menta"
+  },
   "common": {
     "back": "Indietro",
     "cancel": "Annulla",
@@ -202,6 +219,7 @@
     "openLink": "Apri",
     "openLinkTitle": "Aprire questo link?",
     "remoteContentBlocked": "Le immagini remote sono bloccate.",
+    "searchFor": "Cerca “{{name}}”",
     "share": "Condividi",
     "threadGone": "Questa conversazione non è più disponibile.",
     "toRecipients": "A: {{recipients}}",
@@ -255,17 +273,6 @@
     "bulletList": "Elenco puntato",
     "clearFormatting": "Cancella formattazione",
     "codePlaceholder": "Scrivi qui l’HTML…",
-    "colors": {
-      "black": "Nero",
-      "grey": "Grigio",
-      "red": "Rosso",
-      "orange": "Arancione",
-      "yellow": "Giallo",
-      "green": "Verde",
-      "blue": "Blu",
-      "purple": "Viola",
-      "pink": "Rosa"
-    },
     "highlight": "Evidenzia",
     "italic": "Corsivo",
     "link": "Link",

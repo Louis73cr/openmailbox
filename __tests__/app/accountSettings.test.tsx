@@ -49,6 +49,16 @@ describe('account settings', () => {
     expect(core.renameAccount).not.toHaveBeenCalled();
   });
 
+  it('picks the color that marks the account from its row', async () => {
+    renderWithProviders(<AccountSettingsScreen />);
+    expect(screen.queryByRole('radio', { name: 'Mint' })).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Color, Blue' }));
+    expect(screen.getByRole('radio', { name: 'Blue' })).toBeChecked();
+    fireEvent.press(screen.getByRole('radio', { name: 'Mint' }));
+    expect(core.setAccountColor).toHaveBeenCalledWith('account-1', 11);
+    expect(await screen.findByRole('button', { name: 'Color, Mint' })).toBeOnTheScreen();
+  });
+
   it('shows the whole address of the account as text', () => {
     renderWithProviders(<AccountSettingsScreen />);
     expect(screen.queryByDisplayValue('alice@example.com')).toBeNull();
