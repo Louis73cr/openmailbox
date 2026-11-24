@@ -226,6 +226,10 @@ yarn test
 yarn typecheck
 ```
 
+Core tests live in `core/tests/`, one folder per crate. Each source file pulls its own tests in with
+`#[path]`, so they still reach private items; `mail_sync/greenmail.rs` and `mail_sync/stalwart.rs`
+run against the local mail servers.
+
 App tests live in `__tests__/`, grouped like the sources, and use Jest with React Native Testing
 Library. They load the generated bindings for their types but replace the core itself with the fake
 in `jest.setup.js`, so they run without a native build.

@@ -31,3 +31,11 @@ uuid = { workspace = true }
 [[example]]
 name = "sync_benchmark"
 required-features = ["test-ca"]
+
+[[test]]
+name = "greenmail"
+path = "../../tests/mail_sync/greenmail.rs"
+
+[[test]]
+name = "stalwart"
+path = "../../tests/mail_sync/stalwart.rs"
