@@ -235,7 +235,7 @@ export function MailboxScreen() {
       ListHeaderComponent={
         <View style={styles.header}>
           {NATIVE_CHROME ? null : (
-            <Typography variant="h1" numberOfLines={1}>
+            <Typography variant={inPane ? 'h3' : 'h1'} numberOfLines={1}>
               {title}
             </Typography>
           )}
@@ -422,7 +422,7 @@ export function MailboxScreen() {
               <IconButton
                 glass
                 round
-                size={40}
+                size={inPane ? 32 : 40}
                 label={allSelected ? t('threads.deselectAll') : t('threads.selectAll')}
                 onPress={toggleAll}
               />
@@ -432,7 +432,7 @@ export function MailboxScreen() {
             <IconButton
               glass
               round
-              size={40}
+              size={inPane ? 32 : 40}
               label={selection.active ? t('threads.selectDone') : t('threads.select')}
               onPress={selection.active ? selection.end : selection.start}
               disabled={!selection.active && data.length === 0}

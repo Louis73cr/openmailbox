@@ -8,8 +8,8 @@ import { UNIFIED_SCOPE } from '@/core/queryClient';
 import { PaneContext, SplitHiddenContext, useSplitLayout } from '@/navigation/pane';
 import { EmptyState } from '@/ui/components';
 import { setSplitBack } from '@/utils/navigation';
+import { Sidebar } from '@/navigation/Sidebar';
 
-import { MailboxesScreen } from './index';
 import { MailboxScreen } from './mailbox/[id]';
 import { ThreadScreen } from './thread/[threadId]';
 
@@ -37,9 +37,7 @@ function MailSplit() {
   return (
     <View style={styles.row}>
       <View style={[styles.sidebar, border]}>
-        <PaneContext.Provider value={{ params: {} }}>
-          <MailboxesScreen />
-        </PaneContext.Provider>
+        <Sidebar current={mailbox} />
       </View>
       <View style={[styles.list, border]}>
         <PaneContext.Provider value={{ params: { id: mailbox }, selectedThreadId: threadId }}>
@@ -76,7 +74,7 @@ export default function MailLayout() {
 
 const styles = StyleSheet.create({
   row: { flex: 1, flexDirection: 'row' },
-  sidebar: { width: 300 },
-  list: { width: 440 },
+  sidebar: { width: 240 },
+  list: { width: 420 },
   reader: { flex: 1 },
 });
