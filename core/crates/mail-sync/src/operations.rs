@@ -116,11 +116,6 @@ pub fn enqueue_keywords(
     Ok(())
 }
 
-/// A message moved locally has no UID in its new mailbox until the server confirms the move.
-/// Moving it again must act on the location still known to the server, which lives in the
-/// pending `Move` operation: that operation gives up the message and the new one takes it over.
-/// When the first move already reached the server, the source keeps no UID and the worker finds
-/// the message by its Message-ID when the operation runs.
 pub fn enqueue_relocation(
     store: &Store,
     account_id: &str,
@@ -193,8 +188,6 @@ pub fn enqueue_relocation(
     Ok(())
 }
 
-/// UIDs of `mailbox_id` that a waiting move or delete already took out locally: a sync during the
-/// undo hold must not bring them back.
 pub fn held_uids(store: &Store, account_id: &str, mailbox_id: i64) -> Result<HashSet<u32>> {
     let mut held = HashSet::new();
     for kind in ["move", "delete"] {

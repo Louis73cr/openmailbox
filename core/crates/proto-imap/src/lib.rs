@@ -16,7 +16,6 @@ use tokio_rustls::rustls::pki_types::ServerName;
 
 const NETWORK_TIMEOUT: Duration = Duration::from_secs(45);
 const NOOP_TIMEOUT: Duration = Duration::from_secs(10);
-/// The slowest uplink a large upload is given time for.
 const SLOW_UPLINK_BYTES_PER_SECOND: u64 = 32 * 1024;
 const SUMMARY_HEADER_FIELDS: &str = "DATE FROM TO CC REPLY-TO SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES \
      CONTENT-TYPE CONTENT-TRANSFER-ENCODING MIME-VERSION \
@@ -24,12 +23,10 @@ const SUMMARY_HEADER_FIELDS: &str = "DATE FROM TO CC REPLY-TO SUBJECT MESSAGE-ID
      X-MAILER X-CSA-COMPLAINTS X-CAMPAIGN X-CAMPAIGNID X-MAILIN-CAMPAIGN X-MAILJET-CAMPAIGN \
      X-SIMPLELOGIN-ORIGINAL-FROM X-ANONADDY-ORIGINAL-SENDER";
 const PREVIEW_BYTES: u32 = 2048;
-/// Without partial fetches, previews come from whole texts, so only small messages get one.
 const WHOLE_TEXT_PREVIEW_MAX_SIZE: u32 = 16 * 1024;
 
 type Session = async_imap::Session<TlsStream<TcpStream>>;
 
-/// Hosts whose FETCH responses for partial sections (`BODY[TEXT]<0>`) cannot be parsed.
 static HOSTS_WITHOUT_PARTIAL_FETCH: LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> =
     LazyLock::new(Default::default);
 
@@ -398,8 +395,6 @@ fn declared_role(attributes: &[NameAttribute]) -> Option<MailboxRole> {
     })
 }
 
-/// Keeps each role on one mailbox: the one the server declares (SPECIAL-USE) over a name guess,
-/// then the shallowest, so a stray `INBOX.INBOX.Sent` listed first cannot take Sent from `INBOX.Sent`.
 fn keep_one_mailbox_per_role(mailboxes: &mut [RemoteMailbox], declared: &[bool]) {
     let mut best: std::collections::HashMap<MailboxRole, usize> = Default::default();
     for (index, mailbox) in mailboxes.iter().enumerate() {
@@ -537,12 +532,10 @@ impl ImapConnection {
         Ok(())
     }
 
-    /// Whether the connection still answers, within a few seconds.
     pub async fn noop(&mut self) -> Result<()> {
         timed_within(NOOP_TIMEOUT, self.session.noop()).await
     }
 
-    /// The INTERNALDATE of the message at `sequence` in the selected mailbox.
     pub async fn internal_date(&mut self, sequence: u32) -> Result<Option<i64>> {
         let fetches: Vec<Fetch> = timed(async {
             self.session
@@ -793,9 +786,6 @@ impl ImapConnection {
     }
 }
 
-/// async-imap ends SELECT, STATUS and SEARCH replies at the end of the stream without an error, so
-/// a connection the server closed half-way reads as an empty mailbox: synced as is, that empties it
-/// on the phone. Every complete SELECT, and the STATUS we send, carries UIDVALIDITY.
 fn complete(mailbox: async_imap::types::Mailbox) -> Result<async_imap::types::Mailbox> {
     match mailbox.uid_validity {
         Some(_) => Ok(mailbox),
@@ -819,9 +809,6 @@ where
     complete(mailbox)
 }
 
-/// Dovecot answers STATUS on the selected mailbox from the session's own view, which only takes
-/// in mail delivered since on a NOOP: without one, a new message stays unseen until the
-/// connection idles long enough to be checked.
 async fn status_complete<T>(
     session: &mut async_imap::Session<T>,
     remote_name: &str,
@@ -837,8 +824,6 @@ where
     complete(timed(session.status(remote_name, items)).await?)
 }
 
-/// UID SEARCH, where an empty result is confirmed with a NOOP: a closed connection answers
-/// "nothing found" too (see [`complete`]), and NOOP does fail on one.
 async fn search_complete<T>(
     session: &mut async_imap::Session<T>,
     query: String,
@@ -1060,8 +1045,6 @@ fn item_value(raw: &[u8], at: usize) -> Option<(Option<Vec<u8>>, usize)> {
     }
 }
 
-/// APPEND as async-imap does it, except that untagged responses arriving before the continuation
-/// (an EXISTS for a message just delivered to the selected mailbox) are skipped instead of failing.
 async fn append_seen<T>(
     session: &mut async_imap::Session<T>,
     remote_name: &str,

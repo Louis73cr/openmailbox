@@ -138,7 +138,6 @@ impl Store {
         })
     }
 
-    /// Returns whether any link was cleared.
     pub fn clear_unconfirmed_links(&self, mailbox_id: i64) -> Result<bool> {
         self.write(|transaction| {
             let email_ids: Vec<i64> = transaction
@@ -447,14 +446,11 @@ impl Store {
         })
     }
 
-    /// Messages matching `query`, newest first, in `mailbox_ids` or in every mailbox when it is
-    /// empty. Each comes with the mailbox to open it in: its inbox copy when it has one.
     pub fn search(&self, query: &str, limit: u32, mailbox_ids: &[i64]) -> Result<Vec<SearchHit>> {
         let match_expression = fts_query(query);
         if match_expression.is_empty() {
             return Ok(Vec::new());
         }
-        // ponytail: a scoped search looks at the newest 5,000 matches only; widen if users miss older ones.
         let candidates = if mailbox_ids.is_empty() { limit } else { 5_000 };
         let scope = serde_json::to_string(mailbox_ids).unwrap_or_else(|_| "[]".to_owned());
         let connection = self.read();
@@ -506,9 +502,6 @@ fn find_by_message_id(
         .storage()
 }
 
-/// IMAP keeps flags per copy while the store keeps one email per Message-ID. When an email has
-/// several copies (the inbox and the Sent copy of a message sent to oneself), a flag set on any
-/// copy wins, otherwise every sync of each folder would flip the flags of the other.
 fn apply_flags(transaction: &Transaction, email_id: i64, incoming: Flags) -> Result<Option<i64>> {
     let (thread_id, current, copies): (i64, Flags, i64) = transaction
         .prepare_cached(

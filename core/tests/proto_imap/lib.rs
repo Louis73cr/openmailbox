@@ -207,8 +207,6 @@ fn large_appends_get_time_for_a_slow_uplink() {
     assert!(transfer_timeout(34_000_000) >= Duration::from_secs(17 * 60));
 }
 
-/// A fake server that logs in, then answers the next command with `reply` and hangs up when
-/// `hang_up` (as a server closing an idle connection does), or keeps answering NOOPs.
 async fn scripted_session(
     reply: &'static str,
     hang_up: bool,
@@ -269,8 +267,6 @@ async fn a_complete_select_reports_its_uidvalidity() {
 async fn the_selected_mailbox_status_includes_mail_delivered_since_it_was_selected() {
     use tokio::io::{AsyncBufReadExt, BufReader};
 
-    // Like Dovecot: STATUS on the selected mailbox answers from the session's view, which
-    // only takes in the message delivered meanwhile on the next NOOP.
     let (client, server) = tokio::io::duplex(4096);
     tokio::spawn(async move {
         let (read, mut write) = tokio::io::split(server);

@@ -46,7 +46,6 @@ impl Store {
         account_id: &str,
         remote_mailboxes: &[RemoteMailbox],
     ) -> Result<()> {
-        // Every account has an INBOX: a listing without one is a failed LIST, not an empty account.
         if !remote_mailboxes
             .iter()
             .any(|mailbox| mailbox.role == Some(MailboxRole::Inbox))

@@ -44,7 +44,6 @@ function MessageCardImpl({ email, expanded, onToggle }: MessageCardProps) {
   return (
     <View style={styles.message}>
       {showDetails ? (
-        // Not inside a Pressable: each name is a native menu, which a parent press would close.
         <View style={styles.header}>
           <ContactAvatar email={email.originalSender ?? sender?.email} name={senderName} size={44} />
           <View style={styles.headerText}>

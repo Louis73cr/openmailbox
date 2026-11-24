@@ -58,8 +58,6 @@ fn parse_cursor(cursor: Option<&str>) -> (i64, i64) {
         .unwrap_or((i64::MAX, i64::MAX))
 }
 
-// ponytail: scans the JSON recipients of each candidate thread; add a recipients table if
-// `benchmark:store` shows it.
 fn addressed_to_account(column: &str) -> String {
     format!(
         "EXISTS (SELECT 1 FROM email x JOIN email_mailbox xm ON xm.email_id = x.id

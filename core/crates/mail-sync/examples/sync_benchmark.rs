@@ -1,10 +1,3 @@
-//! End-to-end sync benchmark against the local mail server.
-//!
-//! tools/mail-server/mail-server.sh start        (SMTP, used to validate the account)
-//! tools/mail-server/mail-server.sh performance  (Dovecot IMAP on port 3994, 10,000 messages)
-//! OPENMAILBOX_TEST_CA="$(cat tools/mail-server/.certificates/ca.pem)" \
-//!   cargo run --release -p mail-sync --features test-ca --example sync_benchmark [imap port]
-
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 

@@ -172,7 +172,6 @@ fn programs_sending_in_the_users_name_are_not_primary() {
         automated: true,
         ..SendingSignals::default()
     };
-    // Having written to oneself does not make one's own address a correspondent.
     let alice = Address {
         name: None,
         email: "alice@example.com".into(),
@@ -418,7 +417,6 @@ fn new_rules_classify_stored_mail_again_without_its_headers() {
         .unwrap();
     drop(store);
     let path = directory.join("mail.db");
-    // As an older classifier, with other rules, could have left it.
     Connection::open(&path)
         .unwrap()
         .execute_batch(

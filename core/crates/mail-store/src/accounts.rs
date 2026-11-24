@@ -32,9 +32,6 @@ fn account_from_row(row: &Row) -> rusqlite::Result<Account> {
 }
 
 impl Store {
-    /// The notification watermark: messages received at or after this time, and stored after this
-    /// email id, have not been notified. Dates from servers often have one-second precision, so the
-    /// time alone cannot tell apart two messages received in the same second.
     pub fn notified_until(&self, account_id: &str) -> Result<(i64, i64)> {
         self.read()
             .query_row(
@@ -61,7 +58,6 @@ impl Store {
         })
     }
 
-    /// Moves the notification watermark past every message already in the account's inbox.
     pub fn advance_notified_until(&self, account_id: &str) -> Result<()> {
         self.write(|transaction| {
             transaction

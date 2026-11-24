@@ -33,7 +33,6 @@ const PERIODIC_SYNC_INTERVAL: Duration = Duration::from_secs(3 * 60);
 const IDLE_RENEWAL: Duration = Duration::from_secs(25 * 60);
 const IDLE_RECONNECT_DELAY: Duration = Duration::from_secs(30);
 const UNSUBSCRIBE_TIMEOUT: Duration = Duration::from_secs(15);
-/// Longer than any single network step, the upload of 25 MB on a slow uplink included.
 const STALLED_WORKER_TIMEOUT_MS: i64 = 20 * 60 * 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,7 +44,6 @@ pub enum Destination {
     Trash,
 }
 
-/// Where a move left the messages. `target_mailbox_id` is `None` when they were deleted for good.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Relocation {
     pub email_ids: Vec<i64>,
@@ -63,7 +61,6 @@ struct AccountHandle {
 }
 
 impl AccountHandle {
-    /// Dead, or stuck on a command that made no progress since `before`.
     fn stalled(&self, before: i64) -> bool {
         let busy_since = self.heartbeat.load(Ordering::SeqCst);
         self.worker.is_finished() || (busy_since != 0 && busy_since <= before)
@@ -164,8 +161,6 @@ impl Engine {
         }
     }
 
-    /// Replaces stalled workers, as restarting the app would: the new one starts on a fresh
-    /// connection, and the commands queued on the old one are dropped.
     fn restart_stalled_workers(&self, before: i64) {
         for handle in self.accounts().values_mut() {
             if !handle.stalled(before) {
@@ -563,7 +558,6 @@ impl Engine {
             .list_threads(scope, filter, category, cursor, limit)
     }
 
-    /// Moves every message from `sender`, past and future, to `category`.
     pub fn set_sender_category(&self, sender: &str, category: Category) -> Result<()> {
         let mailbox_ids = self.store.set_sender_category(sender, category)?;
         self.events.mailboxes_changed(mailbox_ids);
@@ -653,7 +647,6 @@ impl Engine {
         )
     }
 
-    /// `hold` keeps the move in the queue that long, so it can still be taken back for free.
     pub fn move_thread(
         &self,
         mailbox_id: i64,
@@ -723,8 +716,6 @@ impl Engine {
         self.queue_send(draft, true)
     }
 
-    /// Queues the message; `remember_recipients` ranks them in suggestions, which list addresses
-    /// written to only to unsubscribe must not be.
     fn queue_send(&self, draft: Draft, remember_recipients: bool) -> Result<()> {
         if draft.to.is_empty() && draft.cc.is_empty() && draft.bcc.is_empty() {
             return Err(Error::InvalidInput("no recipient".into()));
@@ -797,8 +788,6 @@ impl Engine {
         Ok(())
     }
 
-    /// One-click unsubscribe when the list offers it, then a mail to the list's address, and as a
-    /// last resort the list's web page, which the app opens.
     pub fn unsubscribe(&self, email_id: i64) -> Result<UnsubscribeOutcome> {
         let not_a_list = || Error::InvalidInput("not from a mailing list".into());
         let unsubscribe = self
@@ -881,8 +870,6 @@ impl Engine {
     }
 
     pub fn on_foreground(self: &Arc<Self>) {
-        // A command still on the network from before the app was suspended waits on a dead
-        // socket; a worker that died would never sync again.
         self.restart_stalled_workers(self.backgrounded_at.load(Ordering::SeqCst));
         if self.foreground.swap(true, Ordering::SeqCst) {
             return;
@@ -928,8 +915,6 @@ impl Engine {
         }
     }
 
-    /// Brings every inbox up to date within `budget` and returns the unread messages that arrived
-    /// since the last check or since the app last went to the background, each one only once.
     pub async fn check_new_mail(&self, budget: Duration) -> Result<Vec<NewMessage>> {
         let replies: Vec<oneshot::Receiver<()>> = self
             .accounts()

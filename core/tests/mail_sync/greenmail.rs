@@ -631,7 +631,6 @@ async fn background_check_reports_new_mail() {
 #[ignore = "requires tools/mail-server/mail-server.sh and the test-ca feature"]
 async fn classifies_mail_from_the_headers_the_server_sends() {
     let token = uuid::Uuid::new_v4().simple().to_string();
-    // Only their headers tell the first two from mail a person wrote.
     let cases = [
         (
             "Boutique <contact@shop.example>",

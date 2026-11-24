@@ -1,17 +1,5 @@
-//! Inbox categories, decided on the device from how a message was sent, after Apple Mail's:
-//! Primary holds what people write and what cannot wait (sign-in codes, security alerts,
-//! bounces), Transactions receipts, orders, deliveries and bookings, Updates newsletters and
-//! notifications, Promotions offers and other marketing.
-//!
-//! Rules rather than a model: the headers bulk senders must set (`List-Unsubscribe`, `List-Id`,
-//! `Precedence`, `Auto-Submitted`), the sender's address and the words of the subject. The store
-//! puts people the user writes to, and senders the user moved by hand, before these rules.
-
-/// Raised whenever the rules below change: stored messages are then classified again.
 pub const CLASSIFIER_VERSION: i64 = 5;
 
-/// Ordered from the most to the least important: a thread takes the most important category of
-/// its messages, so a personal reply lifts a newsletter thread into Primary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
 pub enum Category {
     #[default]
@@ -36,21 +24,15 @@ impl Category {
     }
 }
 
-/// What the headers say about how a message was sent.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SendingSignals {
-    /// Sent to a list: `List-Unsubscribe`, `List-Id` or `Precedence: bulk`.
     pub bulk: bool,
-    /// Sent by a program: `Auto-Submitted` other than `no`, or `X-Auto-Response-Suppress`.
     pub automated: bool,
-    /// Sent through a marketing platform, or as a campaign.
     pub marketing: bool,
-    /// One-click unsubscription (RFC 8058), which mailbox providers ask of bulk senders.
     pub one_click: bool,
 }
 
 impl SendingSignals {
-    /// How the signals are kept with a message, so new rules can classify it without its headers.
     pub fn bits(self) -> i64 {
         i64::from(self.bulk)
             | i64::from(self.automated) << 1
@@ -68,7 +50,6 @@ impl SendingSignals {
     }
 }
 
-/// Local parts, without their separators, of senders nobody answers.
 const NO_REPLY: &[&str] = &[
     "noreply",
     "donotreply",
@@ -83,7 +64,6 @@ const NO_REPLY: &[&str] = &[
     "nietantwoorden",
 ];
 
-/// Words of the local parts, or of the subdomains, programs send from.
 const PROGRAM_SENDERS: &[&str] = &[
     "notification",
     "notifications",
@@ -142,7 +122,6 @@ const PROGRAM_SENDERS: &[&str] = &[
     "bienvenue",
 ];
 
-/// First labels of the domains mail platforms send from (`email.brand.example`).
 const SENDING_SUBDOMAINS: &[&str] = &[
     "email",
     "emails",
@@ -167,7 +146,6 @@ const SENDING_SUBDOMAINS: &[&str] = &[
     "accounts",
 ];
 
-/// Words of the local parts, or of the subdomains, that receipts, orders and bookings come from.
 const TRANSACTION_SENDERS: &[&str] = &[
     "receipt",
     "receipts",
@@ -226,7 +204,6 @@ const TRANSACTION_SENDERS: &[&str] = &[
     "billetterie",
 ];
 
-/// Words of the local parts of senders that only sell.
 const MARKETING_SENDERS: &[&str] = &[
     "marketing",
     "market",
@@ -248,7 +225,6 @@ const MARKETING_SENDERS: &[&str] = &[
     "campaigns",
 ];
 
-/// Subdomains marketing is sent from, with how much they tell.
 const MARKETING_SUBDOMAINS: &[(&str, i32)] = &[
     ("marketing", 3),
     ("mkt", 3),
@@ -276,7 +252,6 @@ const MARKETING_SUBDOMAINS: &[(&str, i32)] = &[
     ("inspiration", 2),
 ];
 
-/// Local parts that greet rather than name someone: a list sent from one leans to marketing.
 const GREETING_SENDERS: &[&str] = &[
     "info",
     "infos",
@@ -293,7 +268,6 @@ const GREETING_SENDERS: &[&str] = &[
     "newsletter",
 ];
 
-/// Social networks, forums and development platforms: what they send is updates.
 const PLATFORMS: &[&str] = &[
     "github.com",
     "gitlab.com",
@@ -337,7 +311,6 @@ const PLATFORMS: &[&str] = &[
     "producthunt.com",
 ];
 
-/// What a server's spam filter writes in front of the subjects it suspects.
 const SPAM_TAGS: &[&str] = &[
     "[spam",
     "***spam",
@@ -347,7 +320,6 @@ const SPAM_TAGS: &[&str] = &[
     "spam:",
 ];
 
-/// Bounces: the user's own message did not arrive.
 const BOUNCES: &[&str] = &[
     "undelivered mail",
     "undeliverable",
@@ -370,7 +342,6 @@ const BOUNCES: &[&str] = &[
     "недоставлен*",
 ];
 
-/// What someone is waiting for or must see now: codes, confirmations, sign-in links, alerts.
 const TIME_SENSITIVE: &[&str] = &[
     "verify your",
     "please verify",
@@ -530,10 +501,8 @@ const TIME_SENSITIVE: &[&str] = &[
     "compte suspendu",
 ];
 
-/// Words that come with a one-time code.
 const CODE_WORDS: &[&str] = &["code", "codigo", "codice", "код", "pin", "otp"];
 
-/// Subject words of receipts, payments, deliveries and bookings, in the app's languages.
 const TRANSACTIONS: &[&str] = &[
     "order confirmation",
     "order confirmed",
@@ -685,7 +654,6 @@ const TRANSACTIONS: &[&str] = &[
     "confirmation de vol",
 ];
 
-/// Subject words that tell of a transaction only with a "your" or a reference number.
 const TRANSACTIONS_WEAK: &[&str] = &[
     "order",
     "orders",
@@ -763,14 +731,12 @@ const TRANSACTIONS_WEAK: &[&str] = &[
     "рейс",
 ];
 
-/// Words that address the user's own account, order or trip.
 const POSSESSIVES: &[&str] = &[
     "your", "votre", "vos", "ton", "ta", "tes", "dein*", "ihr", "ihre", "ihren", "ihrer", "ihres",
     "su", "sus", "tu", "tus", "tuo", "tua", "tuoi", "tue", "uw", "jouw", "seu", "sua", "seus",
     "suas", "ваш*", "твой", "твоя", "твои",
 ];
 
-/// Subject words of newsletters, which talk about orders and payments without being receipts.
 const NEWSLETTERS: &[&str] = &[
     "news",
     "newsletter*",
@@ -782,7 +748,6 @@ const NEWSLETTERS: &[&str] = &[
     "edition",
 ];
 
-/// Subject words of offers and sales.
 const PROMOTIONS: &[&str] = &[
     "sale",
     "sales",
@@ -886,7 +851,6 @@ const PROMOTIONS: &[&str] = &[
     "подарок*",
 ];
 
-/// Lowercase, without the accents of Latin letters, so the lists above hold one spelling.
 fn fold(text: &str) -> String {
     text.chars()
         .flat_map(char::to_lowercase)
@@ -905,7 +869,6 @@ fn fold(text: &str) -> String {
         .collect()
 }
 
-/// Runs of letters and digits.
 fn words(text: &str) -> Vec<&str> {
     text.split(|character: char| !character.is_alphanumeric())
         .filter(|word| !word.is_empty())
@@ -917,8 +880,6 @@ fn mentions(words: &[&str], terms: &[&str]) -> bool {
         Some(stem) => word.starts_with(stem),
         None => word == part,
     };
-    // Without collecting the terms' words: every stored message goes through here when the rules
-    // change.
     terms.iter().any(|term| {
         (0..words.len()).any(|start| {
             let mut next = words[start..].iter();
@@ -928,7 +889,6 @@ fn mentions(words: &[&str], terms: &[&str]) -> bool {
     })
 }
 
-/// "#4521", "n° 2026-04101", "CE880000FR": an order, an invoice or a parcel being referred to.
 fn mentions_a_reference(text: &str, words: &[&str]) -> bool {
     let numbered = |marker: &str| {
         text.match_indices(marker).any(|(index, _)| {
@@ -944,7 +904,6 @@ fn mentions_a_reference(text: &str, words: &[&str]) -> bool {
         })
 }
 
-/// "-40 %", "0,99 €", "$30".
 fn mentions_an_amount(text: &str) -> bool {
     const CURRENCIES: &[char] = &['€', '$', '£', '¥', '₽', '₹'];
     text.char_indices().any(|(index, character)| {
@@ -967,8 +926,6 @@ fn mentions_an_emoji(text: &str) -> bool {
     })
 }
 
-/// Replies, forwards and `[owner/repo]` notifications quote what people wrote, which says nothing
-/// of how urgent the message is.
 fn quotes_content(text: &str) -> bool {
     const REPLIES: &[&str] = &[
         "re:", "re :", "fwd:", "fw:", "tr:", "tr :", "aw:", "wg:", "rv:", "r:",
@@ -981,7 +938,6 @@ fn quotes_content(text: &str) -> bool {
         })
 }
 
-/// "Your code: 482910", but not a promotion code nor a year.
 fn mentions_a_code(text: &str, words: &[&str]) -> bool {
     mentions(words, CODE_WORDS)
         && !mentions(words, PROMOTIONS)
@@ -993,14 +949,12 @@ fn mentions_a_code(text: &str, words: &[&str]) -> bool {
         })
 }
 
-/// The category of a message from what it says about itself. `sender` is the From address.
 pub fn classify(sender: Option<&str>, subject: Option<&str>, signals: SendingSignals) -> Category {
     let sender = fold(sender.unwrap_or_default());
     let (local_part, domain) = sender.rsplit_once('@').unwrap_or((sender.as_str(), ""));
     let local = words(local_part);
     let joined = local.concat();
     let labels: Vec<&str> = domain.split('.').collect();
-    // `news` in `news.brand.example`, `rides` and `marketing` in `rides-marketing.brand.example`.
     let subdomain: Vec<&str> = labels[..labels.len().saturating_sub(2)]
         .iter()
         .flat_map(|label| words(label))

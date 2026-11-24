@@ -146,7 +146,6 @@ fn sending_signals(message: &Message) -> SendingSignals {
         automated: (!auto_submitted.is_empty() && auto_submitted.trim() != "no")
             || precedence.trim() == "auto_reply"
             || headers.contains("X-Auto-Response-Suppress"),
-        // Certified Senders Alliance members are commercial senders; the others name the campaign.
         marketing: CAMPAIGN_HEADERS.iter().any(|name| headers.contains(*name))
             || MARKETING_MAILERS
                 .iter()
@@ -346,7 +345,6 @@ pub struct OutgoingMessage<'a> {
     pub bcc: &'a [Address],
     pub subject: &'a str,
     pub body_text: &'a str,
-    /// Sent along the text as multipart/alternative, so a reply keeps the formatting it quotes.
     pub body_html: Option<&'a str>,
     pub in_reply_to: Option<&'a str>,
     pub references: &'a [String],

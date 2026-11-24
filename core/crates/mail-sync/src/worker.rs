@@ -17,7 +17,6 @@ use crate::events::Events;
 use crate::operations::{self, MAX_ATTEMPTS, Operation, Source};
 
 const FETCH_BATCH_SIZE: usize = 50;
-/// Batches of older inbox messages whose headers one sync checks again, so it stays quick.
 const RECLASSIFY_BATCHES: usize = 20;
 const CONNECTION_IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const CONNECTION_CHECK_AFTER_MS: i64 = 30 * 1000;
@@ -54,7 +53,6 @@ pub enum Command {
 
 pub type Secret = Arc<RwLock<Option<String>>>;
 
-/// When the running command last made progress, in milliseconds; 0 while the worker waits.
 pub type Heartbeat = Arc<AtomicI64>;
 
 pub struct Worker {
@@ -67,8 +65,6 @@ pub struct Worker {
     heartbeat: Heartbeat,
     deferred: VecDeque<Command>,
     connection: Option<ImapConnection>,
-    /// When the kept connection was last used, in milliseconds of wall time, which goes on while
-    /// the phone sleeps.
     connection_used_at: i64,
     active_mailboxes: VecDeque<i64>,
     mailbox_list_refreshed_at: Option<Instant>,
@@ -268,8 +264,6 @@ impl Worker {
 
     async fn take_connection(&mut self) -> Result<ImapConnection> {
         if let Some(mut connection) = self.connection.take() {
-            // Servers and NATs drop idle connections without a word: one left aside a while is
-            // checked first, so the command that needs it does not fail on a dead socket.
             let idle = now_millis() - self.connection_used_at > CONNECTION_CHECK_AFTER_MS;
             if !idle || connection.noop().await.is_ok() {
                 return Ok(connection);
@@ -338,8 +332,6 @@ impl Worker {
         if force || stale_list {
             self.refresh_mailbox_list().await?;
         }
-        // The newest page of every mailbox comes first, so a new account shows its Sent mail
-        // without waiting for a month of inbox.
         let mut unfinished = Vec::new();
         let targets = self.targets(mailbox_ids)?;
         for mailbox in &targets {
@@ -353,7 +345,6 @@ impl Worker {
         for mailbox in unfinished {
             self.sync_mailbox(mailbox, force, None).await?;
         }
-        // After new mail, so it is not kept waiting.
         for mailbox in &targets {
             if mailbox.role == Some(MailboxRole::Inbox) {
                 self.reclassify_older_messages(mailbox).await?;
@@ -418,8 +409,6 @@ impl Worker {
         result
     }
 
-    /// Inbox messages stored before their sending headers were fetched get their category from
-    /// those headers, a few batches per sync.
     async fn reclassify_older_messages(&mut self, mailbox: &Mailbox) -> Result<()> {
         for _ in 0..RECLASSIFY_BATCHES {
             let uids = self
@@ -446,8 +435,6 @@ impl Worker {
         Ok(())
     }
 
-    /// With a `page`, fetches at most that many new messages, newest first, and returns false
-    /// when more are left for a later call without one.
     async fn sync_mailbox(
         &mut self,
         mailbox: &Mailbox,
@@ -505,7 +492,6 @@ impl Worker {
         }
         let local_uids: HashSet<u32> = self.store.local_uids(mailbox.id)?.into_iter().collect();
         if local_uids.is_empty() && selected.messages > 0 {
-            // A quiet mailbox (Sent, Archive) still shows its latest page, however old.
             let first_of_page = selected
                 .messages
                 .saturating_sub(FETCH_BATCH_SIZE as u32 - 1)
@@ -582,8 +568,6 @@ impl Worker {
             .map(|update| (update.uid, update.flags))
             .collect();
         let local_changes_pending = self.store.has_pending_operations(&self.account.id)?;
-        // New messages were announced batch by batch; the rest only when it changed something, as
-        // each announcement makes the app reload what it shows.
         let mut changed = !removed.is_empty();
         if !local_changes_pending {
             changed |= self.store.update_flags(mailbox.id, &updates)?;
@@ -714,8 +698,6 @@ impl Worker {
         Ok(())
     }
 
-    /// Fills in the UID of messages whose last move reached the server before their new
-    /// mailbox was synced, by looking them up by Message-ID. Messages no longer there are dropped.
     async fn locate_on_server(&mut self, sources: &[Source]) -> Result<Vec<Source>> {
         let mut located = Vec::with_capacity(sources.len());
         let mut claimed: HashSet<(i64, u32)> = sources
@@ -882,13 +864,10 @@ fn fetched_message(summary: proto_imap::FetchedSummary) -> FetchedMessage {
     }
 }
 
-/// A connection the server closed half-way answers a FETCH with nothing, then fails on the next
-/// write: what the user is waiting for gets one more try on a new connection.
 fn retry_on_new_connection<T>(result: &Result<T>) -> bool {
     matches!(result, Err(Error::NotFound | Error::Network(_)))
 }
 
-/// The newest of `found` that no other copy in the mailbox took yet, claimed for this copy.
 fn newest_unclaimed(
     mailbox_id: i64,
     found: Vec<u32>,

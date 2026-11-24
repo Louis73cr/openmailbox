@@ -20,8 +20,6 @@ impl Store {
         })
     }
 
-    /// Addresses whose start, or the start of any word of their name, matches `query`; people
-    /// written to rank above people only heard from, then the most recent first.
     pub fn suggest_addresses(&self, query: &str, limit: u32) -> Result<Vec<Address>> {
         let escaped = query
             .trim()

@@ -1,7 +1,3 @@
-//! Store benchmark on a large generated mailbox.
-//!
-//! cargo run --release -p mail-store --example benchmark -- [messages]
-
 use std::time::{Duration, Instant};
 
 use mail_model::{
