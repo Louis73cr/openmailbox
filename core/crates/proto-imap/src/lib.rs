@@ -59,6 +59,7 @@ pub struct Capabilities {
     pub idle: bool,
     pub move_command: bool,
     pub uidplus: bool,
+    pub preview: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -78,6 +79,7 @@ pub struct FetchedSummary {
     pub size: u32,
     pub header: Vec<u8>,
     pub text: Vec<u8>,
+    pub preview: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -293,6 +295,7 @@ pub async fn connect(
         idle: capabilities.has_str("IDLE"),
         move_command: capabilities.has_str("MOVE"),
         uidplus: capabilities.has_str("UIDPLUS"),
+        preview: capabilities.has_str("PREVIEW"),
     };
     Ok(ImapConnection {
         session,
@@ -363,8 +366,12 @@ pub fn uid_set(uids: &[u32]) -> String {
 }
 
 fn flags_of(fetch: &Fetch) -> Flags {
+    flags_from(fetch.flags())
+}
+
+fn flags_from<'a>(names: impl Iterator<Item = Flag<'a>>) -> Flags {
     let mut flags = Flags::default();
-    for flag in fetch.flags() {
+    for flag in names {
         match flag {
             Flag::Seen => flags.seen = true,
             Flag::Flagged => flags.flagged = true,
@@ -569,6 +576,9 @@ impl ImapConnection {
     }
 
     pub async fn fetch_summaries(&mut self, uids: &[u32]) -> Result<Vec<FetchedSummary>> {
+        if self.capabilities.preview {
+            return timed(fetch_summaries_with_preview(&mut self.session, uids)).await;
+        }
         let hosts_without_partial_fetch = || {
             HOSTS_WITHOUT_PARTIAL_FETCH
                 .lock()
@@ -609,6 +619,7 @@ impl ImapConnection {
                     size: fetch.size.unwrap_or_default(),
                     header: fetch.header().unwrap_or_default().to_vec(),
                     text: fetch.text().unwrap_or_default().to_vec(),
+                    preview: None,
                 })
             })
             .collect();
@@ -839,6 +850,213 @@ where
         timed_within(NOOP_TIMEOUT, session.noop()).await?;
     }
     Ok(uids)
+}
+
+async fn fetch_summaries_with_preview<T>(
+    session: &mut async_imap::Session<T>,
+    uids: &[u32],
+) -> std::result::Result<Vec<FetchedSummary>, async_imap::error::Error>
+where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + std::fmt::Debug + Send,
+{
+    use async_imap::error::Error as ImapError;
+    use async_imap::imap_proto::{Response, Status};
+
+    let tag = session
+        .run_command(format!(
+            "UID FETCH {} (UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS ({SUMMARY_HEADER_FIELDS})] PREVIEW)",
+            uid_set(uids)
+        ))
+        .await?;
+    let mut summaries = Vec::new();
+    loop {
+        let response = session
+            .read_response()
+            .await?
+            .ok_or(ImapError::ConnectionLost)?;
+        match response.parsed() {
+            Response::Fetch(_, attributes) => {
+                add_to_summaries(&mut summaries, uids, attributes, response.borrow_owner());
+            }
+            Response::Done {
+                tag: done,
+                status,
+                outcome,
+            } if *done == tag => {
+                let information = outcome
+                    .information
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_owned();
+                return match status {
+                    Status::Ok => Ok(summaries),
+                    Status::No => Err(ImapError::No(information)),
+                    _ => Err(ImapError::Bad(information)),
+                };
+            }
+            _ => {}
+        }
+    }
+}
+
+fn add_to_summaries(
+    summaries: &mut Vec<FetchedSummary>,
+    uids: &[u32],
+    attributes: &[async_imap::imap_proto::AttributeValue<'_>],
+    raw: &[u8],
+) {
+    use async_imap::imap_proto::{AttributeValue, MessageSection, SectionPath};
+
+    let Some(uid) = attributes.iter().find_map(|attribute| match attribute {
+        AttributeValue::Uid(uid) => Some(*uid),
+        _ => None,
+    }) else {
+        return;
+    };
+    if !uids.contains(&uid) {
+        return;
+    }
+    let index = match summaries.iter().position(|summary| summary.uid == uid) {
+        Some(index) => index,
+        None => {
+            summaries.push(FetchedSummary {
+                uid,
+                flags: Flags::default(),
+                internal_date: None,
+                size: 0,
+                header: Vec::new(),
+                text: Vec::new(),
+                preview: None,
+            });
+            summaries.len() - 1
+        }
+    };
+    let summary = &mut summaries[index];
+    if let Some(preview) = preview_in(raw) {
+        summary.preview = Some(preview);
+    }
+    for attribute in attributes {
+        match attribute {
+            AttributeValue::Flags(names) => {
+                summary.flags = flags_from(names.iter().map(|name| Flag::from(name.as_ref())));
+            }
+            AttributeValue::InternalDate(date) => {
+                summary.internal_date =
+                    chrono::DateTime::parse_from_str(date, "%d-%b-%Y %H:%M:%S %z")
+                        .ok()
+                        .map(|date| date.timestamp_millis());
+            }
+            AttributeValue::Rfc822Size(size) => summary.size = *size,
+            AttributeValue::BodySection {
+                section: Some(SectionPath::Full(MessageSection::Header)),
+                data: Some(data),
+                ..
+            }
+            | AttributeValue::Rfc822Header(Some(data)) => summary.header = data.to_vec(),
+            _ => {}
+        }
+    }
+}
+
+fn preview_in(raw: &[u8]) -> Option<String> {
+    let mut at = raw
+        .windows(7)
+        .position(|window| window.eq_ignore_ascii_case(b"FETCH ("))?
+        + 7;
+    loop {
+        while raw.get(at) == Some(&b' ') {
+            at += 1;
+        }
+        if raw.get(at).is_none_or(|byte| *byte == b')') {
+            return None;
+        }
+        let name_start = at;
+        let mut in_section = false;
+        while let Some(&byte) = raw.get(at) {
+            match byte {
+                b'[' => in_section = true,
+                b']' => in_section = false,
+                b' ' | b')' if !in_section => break,
+                _ => {}
+            }
+            at += 1;
+        }
+        let name = &raw[name_start..at];
+        while raw.get(at) == Some(&b' ') {
+            at += 1;
+        }
+        let (value, end) = item_value(raw, at)?;
+        if name.eq_ignore_ascii_case(b"PREVIEW") {
+            return value.map(|value| String::from_utf8_lossy(&value).into_owned());
+        }
+        at = end;
+    }
+}
+
+fn item_value(raw: &[u8], at: usize) -> Option<(Option<Vec<u8>>, usize)> {
+    match raw.get(at)? {
+        b'"' => {
+            let mut value = Vec::new();
+            let mut at = at + 1;
+            loop {
+                match *raw.get(at)? {
+                    b'\\' => {
+                        value.push(*raw.get(at + 1)?);
+                        at += 2;
+                    }
+                    b'"' => return Some((Some(value), at + 1)),
+                    byte => {
+                        value.push(byte);
+                        at += 1;
+                    }
+                }
+            }
+        }
+        b'{' => {
+            let close = at + raw[at..].iter().position(|byte| *byte == b'}')?;
+            let length: usize = std::str::from_utf8(&raw[at + 1..close])
+                .ok()?
+                .trim_end_matches('+')
+                .parse()
+                .ok()?;
+            let start = close + 3;
+            let value = raw.get(start..start + length)?;
+            Some((Some(value.to_vec()), start + length))
+        }
+        b'(' => {
+            let mut depth = 0;
+            let mut at = at;
+            loop {
+                match *raw.get(at)? {
+                    b'(' => {
+                        depth += 1;
+                        at += 1;
+                    }
+                    b')' => {
+                        depth -= 1;
+                        at += 1;
+                        if depth == 0 {
+                            return Some((None, at));
+                        }
+                    }
+                    b'"' | b'{' => at = item_value(raw, at)?.1,
+                    _ => at += 1,
+                }
+            }
+        }
+        _ => {
+            let end = at
+                + raw[at..]
+                    .iter()
+                    .position(|byte| *byte == b' ' || *byte == b')')
+                    .unwrap_or(raw.len() - at);
+            let atom = &raw[at..end];
+            Some((
+                (!atom.eq_ignore_ascii_case(b"NIL")).then(|| atom.to_vec()),
+                end,
+            ))
+        }
+    }
 }
 
 /// APPEND as async-imap does it, except that untagged responses arriving before the continuation
@@ -1268,5 +1486,64 @@ mod tests {
         append_seen(&mut session, "Sent", b"hello").await.unwrap();
 
         assert_eq!(&server.await.unwrap(), b"hello\r\n");
+    }
+
+    #[test]
+    fn a_server_preview_is_read_past_a_header_literal_that_mentions_it() {
+        let header = "Subject: PREVIEW \"fake\"\r\n\r\n";
+        let raw = format!(
+            "* 1 FETCH (UID 7 FLAGS (\\Seen) BODY[HEADER.FIELDS (SUBJECT DATE)] {{{}}}\r\n{header} PREVIEW \"Hello \\\"Carol\\\" \\\\o/\")\r\n",
+            header.len()
+        );
+        assert_eq!(
+            preview_in(raw.as_bytes()).as_deref(),
+            Some("Hello \"Carol\" \\o/")
+        );
+    }
+
+    #[test]
+    fn a_server_preview_can_come_as_a_literal_or_be_nil() {
+        let text = "Déjà vu";
+        let literal = format!("* 2 FETCH (PREVIEW {{{}}}\r\n{text} UID 8)\r\n", text.len());
+        assert_eq!(preview_in(literal.as_bytes()).as_deref(), Some(text));
+        assert_eq!(preview_in(b"* 3 FETCH (UID 9 PREVIEW NIL)\r\n"), None);
+        assert_eq!(preview_in(b"* 4 FETCH (UID 10 FLAGS ())\r\n"), None);
+    }
+
+    #[tokio::test]
+    async fn summaries_take_the_preview_the_server_made() {
+        let reply = "* 1 FETCH (UID 7 FLAGS (\\Seen) INTERNALDATE \"24-Nov-2026 10:00:00 +0000\" RFC822.SIZE 2900 BODY[HEADER.FIELDS (SUBJECT)] {21}\r\nSubject: Hi there\r\n\r\n PREVIEW \"Lunch at noon?\")\r\n* 2 FETCH (UID 99 FLAGS (\\Flagged))\r\n{tag} OK FETCH completed\r\n";
+        let mut session = scripted_session(reply, false).await;
+        let summaries = timed(fetch_summaries_with_preview(&mut session, &[7]))
+            .await
+            .unwrap();
+        assert_eq!(summaries.len(), 1);
+        let summary = &summaries[0];
+        assert_eq!((summary.uid, summary.size), (7, 2900));
+        assert!(summary.flags.seen && !summary.flags.flagged);
+        assert_eq!(summary.internal_date, Some(1_795_514_400_000));
+        assert_eq!(summary.header, b"Subject: Hi there\r\n\r\n");
+        assert!(summary.text.is_empty());
+        assert_eq!(summary.preview.as_deref(), Some("Lunch at noon?"));
+    }
+
+    #[tokio::test]
+    async fn a_message_answered_in_several_fetch_responses_makes_one_summary() {
+        let reply = "* 1 FETCH (UID 7 RFC822.SIZE 2900 BODY[HEADER.FIELDS (SUBJECT)] {21}\r\nSubject: Hi there\r\n\r\n)\r\n* 1 FETCH (UID 7 FLAGS (\\Seen) PREVIEW \"Lunch at noon?\")\r\n{tag} OK FETCH completed\r\n";
+        let mut session = scripted_session(reply, false).await;
+        let summaries = timed(fetch_summaries_with_preview(&mut session, &[7]))
+            .await
+            .unwrap();
+        assert_eq!(summaries.len(), 1);
+        assert!(summaries[0].flags.seen);
+        assert_eq!(summaries[0].header, b"Subject: Hi there\r\n\r\n");
+        assert_eq!(summaries[0].preview.as_deref(), Some("Lunch at noon?"));
+    }
+
+    #[tokio::test]
+    async fn a_refused_preview_fetch_is_a_server_error() {
+        let mut session = scripted_session("{tag} NO [SERVERBUG] preview failed\r\n", false).await;
+        let result = timed(fetch_summaries_with_preview(&mut session, &[7])).await;
+        assert!(matches!(result, Err(Error::Server(_))), "{result:?}");
     }
 }

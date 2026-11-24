@@ -155,6 +155,10 @@ fn addresses(list: Option<AddressList>) -> Vec<Address> {
     .unwrap_or_default()
 }
 
+pub fn server_preview(text: &str) -> Option<String> {
+    Some(normalize_whitespace(text, PREVIEW_LENGTH)).filter(|preview| !preview.is_empty())
+}
+
 fn normalize_whitespace(text: &str, max_characters: usize) -> String {
     text.split_whitespace()
         .collect::<Vec<_>>()
@@ -737,5 +741,18 @@ Content-Type: text/plain; charset=ISO-2022-JP\r\n\r\n";
             None
         );
         assert_eq!(unsubscribe_of(""), None);
+    }
+
+    #[test]
+    fn a_server_preview_is_trimmed_like_a_computed_one() {
+        assert_eq!(
+            server_preview("  Lunch\r\n   at noon?  ").as_deref(),
+            Some("Lunch at noon?")
+        );
+        assert_eq!(server_preview(" \r\n "), None);
+        assert_eq!(
+            server_preview(&"word ".repeat(100)).map(|preview| preview.chars().count()),
+            Some(PREVIEW_LENGTH)
+        );
     }
 }

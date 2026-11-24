@@ -869,12 +869,16 @@ impl Worker {
 }
 
 fn fetched_message(summary: proto_imap::FetchedSummary) -> FetchedMessage {
+    let mut headers = mail_mime::parse_summary(&summary.header, &summary.text);
+    if let Some(preview) = &summary.preview {
+        headers.preview = mail_mime::server_preview(preview);
+    }
     FetchedMessage {
         uid: summary.uid,
         flags: summary.flags,
         internal_date: summary.internal_date,
         size: summary.size,
-        headers: mail_mime::parse_summary(&summary.header, &summary.text),
+        headers,
     }
 }
 
@@ -948,5 +952,20 @@ mod tests {
         assert_eq!(newest_unclaimed(1, vec![4, 9], &mut claimed), Some(4));
         assert_eq!(newest_unclaimed(1, vec![4, 9], &mut claimed), None);
         assert_eq!(newest_unclaimed(2, vec![4, 9], &mut claimed), Some(9));
+    }
+
+    #[test]
+    fn a_summary_shows_the_preview_the_server_made() {
+        let message = fetched_message(proto_imap::FetchedSummary {
+            uid: 7,
+            flags: Default::default(),
+            internal_date: None,
+            size: 2900,
+            header: b"Subject: Hi\r\nContent-Type: text/html\r\n\r\n".to_vec(),
+            text: Vec::new(),
+            preview: Some("Lunch\r\n at noon?".into()),
+        });
+        assert_eq!(message.headers.preview.as_deref(), Some("Lunch at noon?"));
+        assert_eq!(message.headers.subject.as_deref(), Some("Hi"));
     }
 }

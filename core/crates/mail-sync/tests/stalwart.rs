@@ -24,3 +24,39 @@ async fn stalwart_offers_what_an_open_mail_client_needs() {
         mail_auth::oauth::begin_server(&server, "carol@example.com", &["localhost"]).unwrap();
     assert!(request.url.starts_with("https://localhost/login?"));
 }
+
+#[tokio::test]
+#[ignore = "needs tools/mail-server/mail-server.sh oauth"]
+async fn stalwart_sends_message_previews() {
+    let imap = ServerEndpoint {
+        host: "localhost".into(),
+        port: 993,
+        security: Security::Tls,
+    };
+    let mut connection = proto_imap::connect(
+        &imap,
+        "carol@example.com",
+        &mail_model::Credential::Password("secret-password".into()),
+    )
+    .await
+    .unwrap();
+    assert!(connection.capabilities.preview);
+    connection.select("INBOX").await.unwrap();
+    let batch: Vec<u32> = connection
+        .search_since(0)
+        .await
+        .unwrap()
+        .into_iter()
+        .take(50)
+        .collect();
+    let summaries = connection.fetch_summaries(&batch).await.unwrap();
+    assert_eq!(summaries.len(), batch.len());
+    assert!(summaries.iter().all(|summary| {
+        summary.text.is_empty()
+            && !summary.header.is_empty()
+            && summary
+                .preview
+                .as_deref()
+                .is_some_and(|preview| !preview.is_empty())
+    }));
+}
