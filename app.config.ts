@@ -24,6 +24,9 @@ const config: ExpoConfig = {
       CFBundleDisplayName: 'Open Mailbox',
       ITSAppUsesNonExemptEncryption: false,
     },
+    entitlements: {
+      'com.apple.developer.mail-client': true,
+    },
   },
 
   android: {
