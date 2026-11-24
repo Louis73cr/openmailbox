@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Mailbox — dépôt APT</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #1a1a1a; }
+  pre { background: #f3f4f6; padding: 14px; border-radius: 8px; overflow-x: auto; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } pre { background: #222; } }
+</style>
+<h1>Open Mailbox pour Ubuntu</h1>
+<p>Installation (Ubuntu 24.04 ou plus récent), puis les mises à jour arrivent avec <code>apt upgrade</code> :</p>
+<pre>curl -fsSL https://louis73cr.github.io/openmailbox/openmailbox.gpg | sudo tee /usr/share/keyrings/openmailbox.gpg &gt;/dev/null
+echo "deb [signed-by=/usr/share/keyrings/openmailbox.gpg] https://louis73cr.github.io/openmailbox stable main" | sudo tee /etc/apt/sources.list.d/openmailbox.list
+sudo apt update &amp;&amp; sudo apt install openmailbox</pre>
+<p>Code source : <a href="https://github.com/Louis73cr/openmailbox/tree/web">github.com/Louis73cr/openmailbox</a></p>
+</html>

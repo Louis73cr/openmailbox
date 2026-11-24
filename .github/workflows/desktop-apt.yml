@@ -1,0 +1,111 @@
+# Builds the Ubuntu package on every push to `web` and publishes it to the APT repository
+# served by GitHub Pages (gh-pages branch): https://louis73cr.github.io/openmailbox
+name: Desktop package (APT)
+
+on:
+  push:
+    branches: [ web ]
+  workflow_dispatch:
+
+concurrency:
+  group: apt-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable && yarn install --immutable
+      - run: npx expo export -p web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist
+
+  deb:
+    needs: web
+    runs-on: ubuntu-latest
+    container: rust:1.99-bookworm
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dist
+      - run: apt-get update && apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/cargo/registry
+            core/target
+          key: desktop-${{ hashFiles('core/Cargo.lock') }}
+          restore-keys: desktop-
+      - working-directory: core
+        run: cargo deb -p mail-desktop --deb-version "0.1.${{ github.run_number }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: core/target/debian/*.deb
+
+  publish:
+    needs: deb
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb
+          path: new
+      - name: Check out gh-pages (created on first run)
+        run: |
+          git clone --depth 1 --branch gh-pages "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" site \
+            || (git init -b gh-pages site && git -C site remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git")
+      - name: Import signing key
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          test -n "$APT_GPG_PRIVATE_KEY" || { echo "::error::secret APT_GPG_PRIVATE_KEY missing (run web/desktop/apt-key-setup.sh)"; exit 1; }
+          echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+      - name: Build the repository
+        working-directory: site
+        run: |
+          pool=pool/main/o/openmailbox
+          mkdir -p "$pool" dists/stable/main/binary-amd64
+          cp ../new/*.deb "$pool/"
+          ls -1v "$pool"/*.deb | head -n -5 | xargs -r rm   # keep the 5 latest versions
+          apt-ftparchive packages pool > dists/stable/main/binary-amd64/Packages
+          gzip -9kf dists/stable/main/binary-amd64/Packages
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin=openmailbox -o APT::FTPArchive::Release::Label=openmailbox \
+            -o APT::FTPArchive::Release::Suite=stable -o APT::FTPArchive::Release::Codename=stable \
+            -o APT::FTPArchive::Release::Architectures=amd64 -o APT::FTPArchive::Release::Components=main \
+            release dists/stable > Release.tmp
+          mv Release.tmp dists/stable/Release
+          gpg --batch --yes --clearsign -o dists/stable/InRelease dists/stable/Release
+          gpg --batch --yes -abs -o dists/stable/Release.gpg dists/stable/Release
+          gpg --batch --yes --export > openmailbox.gpg
+          gpg --batch --yes --armor --export > openmailbox.asc
+          touch .nojekyll
+      - uses: actions/checkout@v4
+        with:
+          path: source
+          sparse-checkout: web/desktop/apt-index.html
+          sparse-checkout-cone-mode: false
+      - name: Publish
+        working-directory: site
+        run: |
+          cp ../source/web/desktop/apt-index.html index.html
+          git add -A
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "openmailbox 0.1.${{ github.run_number }}"
+          git push origin gh-pages
