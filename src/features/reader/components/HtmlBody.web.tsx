@@ -27,6 +27,19 @@ function darken(document: Document) {
 
 const INITIAL_HEIGHT = 120;
 
+/** Like the phone's refetch of broken images: sites that refuse hotlinking still answer the server. */
+function retryThroughProxy(document: Document) {
+  const retry = (image: HTMLImageElement) => {
+    if (image.dataset.proxied || !/^https:/i.test(image.src)) return;
+    image.dataset.proxied = '1';
+    image.src = `/api/image?url=${encodeURIComponent(image.src)}`;
+  };
+  for (const image of Array.from(document.images)) {
+    if (image.complete && image.naturalWidth === 0) retry(image);
+    else image.addEventListener('error', () => retry(image));
+  }
+}
+
 interface HtmlBodyProps {
   html: string;
   allowRemoteContent: boolean;
@@ -40,12 +53,17 @@ function HtmlBodyImpl({ html, allowRemoteContent, background }: HtmlBodyProps) {
   const page = useMemo(() => (background ? { ...base, background } : base), [base, background]);
   const [height, setHeight] = useState(INITIAL_HEIGHT);
   const frame = useRef<HTMLIFrameElement>(null);
-  const srcDoc = useMemo(() => documentFor(html, allowRemoteContent, page), [html, allowRemoteContent, page]);
+  // 'self' lets broken remote images fall back to the server's image proxy (see retryThroughProxy).
+  const srcDoc = useMemo(
+    () => documentFor(html, allowRemoteContent, page).replace('img-src data: https: http:', "img-src data: https: http: 'self'"),
+    [html, allowRemoteContent, page],
+  );
 
   const onLoad = () => {
     const document = frame.current?.contentDocument;
     if (!document) return;
     if (dark) darken(document);
+    if (allowRemoteContent) retryThroughProxy(document);
     const measure = () => setHeight(Math.max(INITIAL_HEIGHT, Math.ceil(document.documentElement.scrollHeight)));
     measure();
     new ResizeObserver(measure).observe(document.documentElement);

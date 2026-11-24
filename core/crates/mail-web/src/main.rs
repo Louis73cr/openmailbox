@@ -337,15 +337,17 @@ fn is_public(ip: IpAddr) -> bool {
     }
 }
 
-const MAX_IMAGE_BYTES: u64 = 512 * 1024;
+const MAX_IMAGE_BYTES: u64 = 10 * 1024 * 1024;
 
-/// Fetches a public https image (sender avatars): browsers can't, favicons send no CORS headers.
+/// Fetches a public https image: sender avatars (favicons send no CORS headers) and mail images
+/// whose site refuses hotlinking.
 /// Every hop of a redirect is checked so the proxy never reaches the local network.
 fn fetch_image(mut url: url::Url) -> Option<(String, Vec<u8>)> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .max_redirects(0)
         .http_status_as_error(false)
         .timeout_global(Some(std::time::Duration::from_secs(10)))
+        .user_agent("Mozilla/5.0 (compatible; OpenMailbox-web)")
         .build()
         .into();
     for _ in 0..4 {
