@@ -87,7 +87,8 @@ pub fn parse_summary(header: &[u8], partial_text: &[u8]) -> ParsedHeaders {
     }
 }
 
-const ORIGINAL_SENDER_HEADERS: &[&str] = &["X-SimpleLogin-Original-From"];
+const ORIGINAL_SENDER_HEADERS: &[&str] =
+    &["X-SimpleLogin-Original-From", "X-AnonAddy-Original-Sender"];
 
 fn original_sender(message: &Message) -> Option<String> {
     ORIGINAL_SENDER_HEADERS.iter().find_map(|name| {
@@ -458,7 +459,7 @@ Content-Type: multipart/alternative; boundary=\"b\"\r\n\r\n";
     }
 
     #[test]
-    fn summary_keeps_the_sender_behind_a_simplelogin_alias() {
+    fn summary_keeps_the_sender_behind_an_alias_service() {
         let header = b"From: \"Claire - claire at atlas.example\" <reply+abc@simplelogin.co>\r\n\
 X-SimpleLogin-Original-From: =?utf-8?q?Claire_Dubois?= <Claire@Atlas.example>\r\n\r\n";
         let headers = parse_summary(header, b"");
@@ -468,6 +469,13 @@ X-SimpleLogin-Original-From: =?utf-8?q?Claire_Dubois?= <Claire@Atlas.example>\r\
             Some("Claire@Atlas.example")
         );
         assert_eq!(parse_summary(HEADER, b"").original_sender, None);
+
+        let header = b"From: <shop+hello=store.example@johndoe.addy.io>\r\n\
+X-AnonAddy-Original-Sender: hello@store.example\r\n\r\n";
+        assert_eq!(
+            parse_summary(header, b"").original_sender.as_deref(),
+            Some("hello@store.example")
+        );
     }
 
     #[test]
