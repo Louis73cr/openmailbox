@@ -66,11 +66,13 @@ function ProviderButton({
   provider,
   label,
   loading,
+  disabled = false,
   onPress,
 }: {
   provider: MailProvider;
   label: string;
   loading: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   const { dark } = useTheme();
@@ -79,12 +81,13 @@ function ProviderButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ busy: loading, disabled: loading }}
-      disabled={loading}
+      accessibilityState={{ busy: loading, disabled: loading || disabled }}
+      disabled={loading || disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.brandedButton,
         { backgroundColor: palette.background, borderColor: palette.border },
+        disabled && styles.disabled,
         pressed && styles.pressed,
       ]}
     >
@@ -154,6 +157,7 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
           provider={provider}
           label={t('accounts.setup.signInWith', { provider: serverHost })}
           loading={oauth.pending !== null}
+          disabled={!setup.canUseOAuth}
           onPress={() => oauth.signInToServer(provider, setup.email, serverOAuth.servers)}
         />
         {oauth.error ? <SignInError message={oauth.error} /> : null}
@@ -321,4 +325,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
   },
   pressed: { opacity: 0.7 },
+  disabled: { opacity: 0.5 },
 });

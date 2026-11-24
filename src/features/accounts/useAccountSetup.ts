@@ -37,18 +37,25 @@ export function useAccountSetup(provider: MailProvider, onDone: (account: Accoun
   const [phase, setPhase] = useState<SetupPhase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [oauth, setOauth] = useState<ServerOAuth | null>(null);
+  const [probing, setProbing] = useState(false);
   const probeHost = servers?.imap.host;
   const probePort = servers?.imap.port;
 
   useEffect(() => {
-    setOauth(null);
-    if (!provider.probesOAuth || !isEmail(email)) return;
+    if (!provider.probesOAuth || !isEmail(email)) {
+      setProbing(false);
+      return;
+    }
     let current = true;
+    setProbing(true);
     const timer = setTimeout(async () => {
       const configuration = servers ?? (await mailCore().discover(email).catch(() => null));
-      if (!current || !configuration?.imap.host) return;
-      const issuer = await mailCore().probeOauth(email, configuration.imap).catch(() => undefined);
-      if (current && issuer) setOauth({ issuer, servers: configuration });
+      const issuer = configuration?.imap.host
+        ? await mailCore().probeOauth(email, configuration.imap).catch(() => undefined)
+        : undefined;
+      if (!current) return;
+      setOauth(issuer && configuration ? { issuer, servers: configuration } : null);
+      setProbing(false);
     }, PROBE_DELAY_MS);
     return () => {
       current = false;
@@ -110,6 +117,7 @@ export function useAccountSetup(provider: MailProvider, onDone: (account: Accoun
     password,
     displayName,
     oauth,
+    canUseOAuth: oauth !== null && !probing && isEmail(email),
     servers,
     manual,
     phase,
