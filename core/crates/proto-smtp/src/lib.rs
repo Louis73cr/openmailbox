@@ -39,7 +39,7 @@ fn transport(
         Credential::Password(password) => {
             builder.credentials(Credentials::new(username.to_owned(), password.to_owned()))
         }
-        Credential::AccessToken(token) => builder
+        Credential::AccessToken(token) | Credential::OAuthBearer(token) => builder
             .credentials(Credentials::new(username.to_owned(), token.to_owned()))
             .authentication(vec![Mechanism::Xoauth2]),
     }

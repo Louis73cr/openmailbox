@@ -89,6 +89,7 @@ pub struct OAuthServer {
 pub enum Credential {
     Password(String),
     AccessToken(String),
+    OAuthBearer(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

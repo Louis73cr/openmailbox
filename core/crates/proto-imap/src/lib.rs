@@ -140,6 +140,77 @@ pub fn xoauth2(username: &str, token: &str) -> String {
     format!("user={username}\x01auth=Bearer {token}\x01\x01")
 }
 
+pub fn oauthbearer(username: &str, endpoint: &ServerEndpoint, token: &str) -> String {
+    format!(
+        "n,a={username},\x01host={}\x01port={}\x01auth=Bearer {token}\x01\x01",
+        endpoint.host, endpoint.port
+    )
+}
+
+struct OAuthBearer {
+    payload: Option<String>,
+    challenge: Arc<std::sync::Mutex<Option<Vec<u8>>>>,
+}
+
+impl async_imap::Authenticator for OAuthBearer {
+    type Response = Vec<u8>;
+
+    fn process(&mut self, challenge: &[u8]) -> Vec<u8> {
+        match self.payload.take() {
+            Some(payload) => payload.into_bytes(),
+            None => {
+                *self
+                    .challenge
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(challenge.to_vec());
+                b"\x01".to_vec()
+            }
+        }
+    }
+}
+
+fn oauth_configuration_in(challenge: &[u8]) -> Option<String> {
+    serde_json::from_slice::<serde_json::Value>(challenge)
+        .ok()?
+        .get("openid-configuration")?
+        .as_str()
+        .map(str::to_owned)
+}
+
+async fn probe<T>(
+    client: async_imap::Client<T>,
+    endpoint: &ServerEndpoint,
+    username: &str,
+) -> Option<String>
+where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + std::fmt::Debug + Send,
+{
+    let challenge = Arc::new(std::sync::Mutex::new(None));
+    let attempt = client.authenticate(
+        "OAUTHBEARER",
+        OAuthBearer {
+            payload: Some(oauthbearer(username, endpoint, "invalid")),
+            challenge: challenge.clone(),
+        },
+    );
+    if let Ok(Ok(mut session)) = tokio::time::timeout(NETWORK_TIMEOUT, attempt).await {
+        let _ = session.logout().await;
+    }
+    let bytes = challenge
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take()?;
+    oauth_configuration_in(&bytes)
+}
+
+pub async fn oauth_configuration(
+    endpoint: &ServerEndpoint,
+    username: &str,
+) -> Result<Option<String>> {
+    let client = open_client(endpoint).await?;
+    Ok(probe(client, endpoint, username).await)
+}
+
 struct XOAuth2(Option<String>);
 
 impl async_imap::Authenticator for XOAuth2 {
@@ -152,6 +223,7 @@ impl async_imap::Authenticator for XOAuth2 {
 
 async fn log_in<T>(
     client: async_imap::Client<T>,
+    endpoint: &ServerEndpoint,
     username: &str,
     credential: &Credential,
 ) -> Result<async_imap::Session<T>>
@@ -166,6 +238,17 @@ where
                     .authenticate("XOAUTH2", XOAuth2(Some(xoauth2(username, token))))
                     .await
             }
+            Credential::OAuthBearer(token) => {
+                client
+                    .authenticate(
+                        "OAUTHBEARER",
+                        OAuthBearer {
+                            payload: Some(oauthbearer(username, endpoint, token)),
+                            challenge: Arc::default(),
+                        },
+                    )
+                    .await
+            }
         }
     };
     match tokio::time::timeout(NETWORK_TIMEOUT, attempt).await {
@@ -178,11 +261,9 @@ where
     }
 }
 
-pub async fn connect(
+async fn open_client(
     endpoint: &ServerEndpoint,
-    username: &str,
-    credential: &Credential,
-) -> Result<ImapConnection> {
+) -> Result<async_imap::Client<TlsStream<TcpStream>>> {
     let stream = tokio::time::timeout(NETWORK_TIMEOUT, open_tls_stream(endpoint))
         .await
         .map_err(|_| Error::Network("timed out".into()))??;
@@ -196,7 +277,16 @@ pub async fn connect(
         })
         .await?;
     }
-    let mut session = log_in(client, username, credential).await?;
+    Ok(client)
+}
+
+pub async fn connect(
+    endpoint: &ServerEndpoint,
+    username: &str,
+    credential: &Credential,
+) -> Result<ImapConnection> {
+    let client = open_client(endpoint).await?;
+    let mut session = log_in(client, endpoint, username, credential).await?;
     let capabilities = timed(session.capabilities()).await?;
     let capabilities = Capabilities {
         condstore: capabilities.has_str("CONDSTORE") || capabilities.has_str("QRESYNC"),
@@ -858,14 +948,107 @@ mod tests {
         client
     }
 
+    fn stalwart() -> ServerEndpoint {
+        ServerEndpoint {
+            host: "mail.example.org".into(),
+            port: 993,
+            security: Security::Tls,
+        }
+    }
+
+    #[test]
+    fn oauthbearer_payload() {
+        assert_eq!(
+            oauthbearer("alice@example.org", &stalwart(), "tok"),
+            "n,a=alice@example.org,\x01host=mail.example.org\x01port=993\x01auth=Bearer tok\x01\x01"
+        );
+    }
+
+    async fn oauthbearer_server(error: Option<&'static str>) -> tokio::io::DuplexStream {
+        use base64::Engine;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+
+        let (client, server) = tokio::io::duplex(4096);
+        tokio::spawn(async move {
+            let (read, mut write) = tokio::io::split(server);
+            let mut lines = BufReader::new(read).lines();
+            let command = lines.next_line().await.unwrap().unwrap();
+            let (tag, rest) = command.split_once(' ').unwrap();
+            assert_eq!(rest, "AUTHENTICATE OAUTHBEARER");
+            write.write_all(b"+ \r\n").await.unwrap();
+            let response = lines.next_line().await.unwrap().unwrap();
+            let decoded = base64::engine::general_purpose::STANDARD
+                .decode(response.trim())
+                .unwrap();
+            assert!(decoded.starts_with(b"n,a=alice@example.org,"));
+            match error {
+                None => write
+                    .write_all(format!("{tag} OK AUTHENTICATE completed\r\n").as_bytes())
+                    .await
+                    .unwrap(),
+                Some(json) => {
+                    let challenge = base64::engine::general_purpose::STANDARD.encode(json);
+                    write
+                        .write_all(format!("+ {challenge}\r\n").as_bytes())
+                        .await
+                        .unwrap();
+                    let answer = lines.next_line().await.unwrap().unwrap();
+                    assert_eq!(
+                        base64::engine::general_purpose::STANDARD
+                            .decode(answer.trim())
+                            .unwrap(),
+                        b"\x01"
+                    );
+                    write
+                        .write_all(format!("{tag} NO [AUTHENTICATIONFAILED] failed\r\n").as_bytes())
+                        .await
+                        .unwrap();
+                }
+            }
+            let _ = lines.next_line().await;
+        });
+        client
+    }
+
+    #[tokio::test]
+    async fn connect_authenticates_with_oauthbearer() {
+        let token = Credential::OAuthBearer("tok".into());
+        let client = async_imap::Client::new(oauthbearer_server(None).await);
+        assert!(
+            log_in(client, &stalwart(), "alice@example.org", &token)
+                .await
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_oauthbearer_attempt_tells_where_the_oauth_server_is() {
+        let error = r#"{"status":"invalid_token","scope":"urn:ietf:params:oauth:scope:mail","openid-configuration":"https://mail.example.org/.well-known/openid-configuration"}"#;
+        let client = async_imap::Client::new(oauthbearer_server(Some(error)).await);
+        assert_eq!(
+            probe(client, &stalwart(), "alice@example.org")
+                .await
+                .as_deref(),
+            Some("https://mail.example.org/.well-known/openid-configuration")
+        );
+        let client = async_imap::Client::new(
+            oauthbearer_server(Some(r#"{"status":"invalid_token"}"#)).await,
+        );
+        assert_eq!(probe(client, &stalwart(), "alice@example.org").await, None);
+    }
+
     #[tokio::test]
     async fn connect_authenticates_with_xoauth2() {
         let token = Credential::AccessToken("tok".into());
         let client = async_imap::Client::new(xoauth2_server(true).await);
-        assert!(log_in(client, "alice@outlook.com", &token).await.is_ok());
+        assert!(
+            log_in(client, &stalwart(), "alice@outlook.com", &token)
+                .await
+                .is_ok()
+        );
         let client = async_imap::Client::new(xoauth2_server(false).await);
         assert!(matches!(
-            log_in(client, "alice@outlook.com", &token).await,
+            log_in(client, &stalwart(), "alice@outlook.com", &token).await,
             Err(Error::Auth)
         ));
     }

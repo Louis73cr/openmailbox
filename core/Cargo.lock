@@ -1269,6 +1269,7 @@ dependencies = [
  "futures",
  "mail-model",
  "rustls",
+ "serde_json",
  "tokio",
  "tokio-rustls",
  "utf7-imap",
