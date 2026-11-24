@@ -28,10 +28,21 @@ interface ProviderRowProps {
   disabled?: boolean;
 }
 
+const PROVIDER_HINTS: Partial<Record<ProviderIdentifier, string>> = {
+  gmail: 'accounts.setup.googleHint',
+  microsoft: 'accounts.setup.microsoftHint',
+  icloud: 'accounts.setup.icloudHint',
+  ovhcloud: 'accounts.setup.ovhHint',
+  other: 'accounts.setup.otherProviderHint',
+  stalwart: 'accounts.setup.localStalwartHint',
+  local: 'accounts.setup.localServerHint',
+};
+
 function ProviderRow({ provider, onSelect, busy = false, disabled = false }: ProviderRowProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const title = provider.identifier === 'other' ? t('accounts.setup.otherProvider') : provider.name;
+  const hint = PROVIDER_HINTS[provider.identifier];
 
   return (
     <Pressable
@@ -47,21 +58,9 @@ function ProviderRow({ provider, onSelect, busy = false, disabled = false }: Pro
         <Typography variant="body1" weight="500">
           {title}
         </Typography>
-        {provider.identifier === 'other' ? (
+        {hint ? (
           <Typography variant="caption" color={colors.textSecondary}>
-            {t('accounts.setup.otherProviderHint')}
-          </Typography>
-        ) : provider.identifier === 'microsoft' ? (
-          <Typography variant="caption" color={colors.textSecondary}>
-            {t('accounts.setup.microsoftHint')}
-          </Typography>
-        ) : provider.identifier === 'stalwart' ? (
-          <Typography variant="caption" color={colors.textSecondary}>
-            {t('accounts.setup.localStalwartHint')}
-          </Typography>
-        ) : provider.identifier === 'local' ? (
-          <Typography variant="caption" color={colors.textSecondary}>
-            {t('accounts.setup.localServerHint')}
+            {t(hint)}
           </Typography>
         ) : null}
       </View>

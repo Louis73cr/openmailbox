@@ -23,7 +23,14 @@ describe('onboarding', () => {
     for (const name of ['Google', 'Microsoft', 'iCloud', 'OVHcloud', 'IONOS', 'Yahoo', 'Other']) {
       expect(screen.getByRole('button', { name })).toBeOnTheScreen();
     }
-    expect(screen.getByText('Outlook, Hotmail, Live, Microsoft 365')).toBeOnTheScreen();
+    for (const hint of [
+      'Gmail, Google Workspace',
+      'Outlook, Hotmail, Live, Microsoft 365',
+      'icloud.com, me.com, mac.com',
+      'MX Plan, Email Pro, Exchange, Zimbra',
+    ]) {
+      expect(screen.getByText(hint)).toBeOnTheScreen();
+    }
     expect(screen.getByRole('button', { name: 'Language' })).toBeOnTheScreen();
   });
 
