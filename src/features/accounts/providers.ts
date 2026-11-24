@@ -54,7 +54,6 @@ export const PROVIDERS: MailProvider[] = [
     identifier: 'gmail',
     name: 'Google',
     domains: ['gmail.com', 'googlemail.com'],
-    // Google's own "G", in its four colors.
     brand: {
       background: WHITE,
       viewBox: '0 0 48 48',
@@ -111,7 +110,6 @@ export const PROVIDERS: MailProvider[] = [
     identifier: 'ionos',
     name: 'IONOS',
     domains: [],
-    // The certified logo IONOS publishes in its BIMI record (vmc.digicert.com).
     brand: {
       background: WHITE,
       viewBox: '0 0 400 400',
