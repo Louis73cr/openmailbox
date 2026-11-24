@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { CircleAlert, Eye, EyeOff } from 'lucide-react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { Security, type Account, type ServerEndpoint } from '@openmailbox/mail-core';
 
 import { Button, FormField, FormSection, IconButton, SegmentedControl, Typography } from '@/ui/components';
 
 import type { MailProvider } from '../providers';
 import { useAccountSetup } from '../useAccountSetup';
+import { useOAuthSignIn } from '../useOAuthSignIn';
+import { ProviderMark } from './ProviderMark';
+import { SignInError } from './SignInError';
 
 function EndpointSection({
   title,
@@ -59,6 +62,47 @@ function EndpointSection({
   );
 }
 
+function ProviderButton({
+  provider,
+  label,
+  loading,
+  onPress,
+}: {
+  provider: MailProvider;
+  label: string;
+  loading: boolean;
+  onPress: () => void;
+}) {
+  const { dark } = useTheme();
+  const palette = dark ? BRANDED_DARK : BRANDED_LIGHT;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ busy: loading, disabled: loading }}
+      disabled={loading}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.brandedButton,
+        { backgroundColor: palette.background, borderColor: palette.border },
+        pressed && styles.pressed,
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator size="small" color={palette.text} />
+      ) : (
+        <ProviderMark brand={provider.brand} size={20} bare />
+      )}
+      <Typography variant="body1" weight="600" color={palette.text}>
+        {label}
+      </Typography>
+    </Pressable>
+  );
+}
+
+const BRANDED_LIGHT = { background: '#FFFFFF', border: '#747775', text: '#1F1F1F' };
+const BRANDED_DARK = { background: '#131314', border: '#8E918F', text: '#E3E3E3' };
+
 interface SignInFormProps {
   provider: MailProvider;
   onDone: (account: Account) => void;
@@ -68,6 +112,8 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const setup = useAccountSetup(provider, onDone);
+  const oauth = useOAuthSignIn(onDone);
+  const [withPassword, setWithPassword] = useState(!provider.oauth);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const host = setup.servers?.imap.host;
   const status =
@@ -84,60 +130,32 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
       </Typography>
     </View>
   ) : null;
-  const errorBox = setup.error ? (
-    <View accessible accessibilityRole="alert" accessibilityLiveRegion="assertive" style={[styles.error, { backgroundColor: `${colors.danger}14` }]}>
-      <CircleAlert size={18} color={colors.danger} />
-      <Typography variant="caption" color={colors.text} style={styles.flex}>
-        {setup.error}
-      </Typography>
-    </View>
-  ) : null;
-  const nameField = (
-    <FormField
-      label={t('accounts.setup.name')}
-      value={setup.displayName}
-      onChangeText={setup.setDisplayName}
-      placeholder={t('accounts.setup.namePlaceholder')}
-      autoComplete="name"
-      textContentType="name"
-      returnKeyType="next"
-    />
-  );
-  const oauthButton = provider.oauth ? (
-    <Button
-      title={t('accounts.setup.signInWith', { provider: provider.name })}
-      size="large"
-      disabled={setup.busy}
-      onPress={setup.signInWithProvider}
-    />
-  ) : null;
 
-  if (provider.oauthOnly) {
+  if (!withPassword) {
     return (
       <View style={styles.form}>
-        <FormSection>{nameField}</FormSection>
-        {errorBox}
-        <View style={styles.actions}>
-          {oauthButton}
-          {statusRow}
-        </View>
+        <ProviderButton
+          provider={provider}
+          label={t('accounts.setup.signInWith', { provider: provider.name })}
+          loading={oauth.pending !== null}
+          onPress={() => oauth.signIn(provider)}
+        />
+        {oauth.error ? <SignInError message={oauth.error} /> : null}
         <Typography variant="caption" color={colors.textSecondary} align="center" style={styles.privacy}>
           {t('accounts.setup.oauthPrivacy', { provider: provider.name })}
         </Typography>
+        <Button
+          variant="link"
+          title={t('accounts.setup.useAppPassword')}
+          disabled={oauth.pending !== null}
+          onPress={() => setWithPassword(true)}
+        />
       </View>
     );
   }
 
   return (
     <View style={styles.form}>
-      {oauthButton ? (
-        <View style={styles.actions}>
-          {oauthButton}
-          <Typography variant="caption" color={colors.textSecondary} align="center" style={styles.separator}>
-            {t('accounts.setup.orAppPassword')}
-          </Typography>
-        </View>
-      ) : null}
       <FormSection
         footer={
           provider.appPasswordHelp ? (
@@ -154,7 +172,15 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
           ) : undefined
         }
       >
-        {nameField}
+        <FormField
+          label={t('accounts.setup.name')}
+          value={setup.displayName}
+          onChangeText={setup.setDisplayName}
+          placeholder={t('accounts.setup.namePlaceholder')}
+          autoComplete="name"
+          textContentType="name"
+          returnKeyType="next"
+        />
         <FormField
           label={t('accounts.setup.email')}
           value={setup.email}
@@ -192,7 +218,7 @@ export function SignInForm({ provider, onDone }: SignInFormProps) {
         />
       </FormSection>
 
-      {errorBox}
+      {setup.error ? <SignInError message={setup.error} /> : null}
 
       {setup.manual && setup.servers ? (
         <>
@@ -240,11 +266,20 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   footer: { marginHorizontal: 16, marginTop: 6, gap: 2 },
   footerText: { fontSize: 13, lineHeight: 18 },
-  error: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 12 },
   segmentRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingHorizontal: 16, gap: 8 },
   segmentLabel: { width: 116, fontSize: 16 },
   actions: { gap: 4 },
   status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 40 },
   privacy: { marginTop: 8, paddingHorizontal: 24, fontSize: 12 },
-  separator: { marginTop: 12 },
+  brandedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    minHeight: 54,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    paddingHorizontal: 22,
+  },
+  pressed: { opacity: 0.7 },
 });

@@ -2,7 +2,7 @@ import { BackHandler } from 'react-native';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
-import { Authentication, Security } from '@openmailbox/mail-core';
+import { Authentication, CoreError, Security } from '@openmailbox/mail-core';
 
 import OnboardingScreen from '../../app/onboarding';
 import i18n from '@/utils/i18n';
@@ -38,6 +38,7 @@ describe('onboarding', () => {
 
     fireEvent.press(screen.getByRole('button', { name: 'Google' }));
     expect(screen.getByText('Google Account')).toBeOnTheScreen();
+    fireEvent.press(screen.getByText('Use an app password instead'));
     expect(screen.getByText('Google only accepts app passwords from mail apps.')).toBeOnTheScreen();
 
     fireEvent.changeText(screen.getByLabelText('Name'), 'Alice Martin');
@@ -50,28 +51,44 @@ describe('onboarding', () => {
     expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
   });
 
-  it('signs in to Microsoft on its page, without a password', async () => {
+  it('signs in to Microsoft straight from the list, showing progress on its row', async () => {
     core.beginSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
     (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({ type: 'success', url: 'openmailbox://oauth?code=c' });
-    core.addOauthAccount.mockResolvedValue(makeAccount({ email: 'alice@outlook.com', authentication: Authentication.Microsoft }));
+    let finish: (account: ReturnType<typeof makeAccount>) => void = () => undefined;
+    core.addOauthAccount.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     renderWithProviders(<OnboardingScreen />);
 
     fireEvent.press(screen.getByRole('button', { name: 'Microsoft' }));
-    expect(screen.queryByLabelText('Password')).toBeNull();
-    expect(screen.queryByLabelText('Email')).toBeNull();
-    expect(screen.getByText('You sign in on Microsoft’s page: this app never sees your password.')).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: 'Sign in with Microsoft' }));
 
+    await waitFor(() => expect(core.addOauthAccount).toHaveBeenCalledWith('openmailbox://oauth?code=c', ''));
+    expect(screen.queryByText('Microsoft Account')).toBeNull();
+    expect(screen.getByLabelText('Microsoft')).toHaveProp('accessibilityState', expect.objectContaining({ busy: true }));
+    await act(async () => finish(makeAccount({ email: 'alice@outlook.com', authentication: Authentication.Microsoft })));
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/'));
-    expect(core.addOauthAccount).toHaveBeenCalledWith('openmailbox://oauth?code=c', '');
   });
 
-  it('offers Google sign-in above the app password form', () => {
+  it('shows why Microsoft sign-in failed above the providers', async () => {
+    core.beginSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
+    (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({ type: 'success', url: 'openmailbox://oauth?code=c' });
+    core.addOauthAccount.mockRejectedValue(new CoreError.Server({ message: 'outlook.office365.com refused the sign-in of alice@outlook.com' }));
+    renderWithProviders(<OnboardingScreen />);
+
+    fireEvent.press(screen.getByRole('button', { name: 'Microsoft' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/refused the sign-in of alice@outlook.com/);
+    expect(screen.getByRole('button', { name: 'Google' })).toBeOnTheScreen();
+  });
+
+  it('offers Google sign-in first and the app password on request', () => {
     renderWithProviders(<OnboardingScreen />);
     fireEvent.press(screen.getByRole('button', { name: 'Google' }));
     expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeOnTheScreen();
-    expect(screen.getByText('Or with an app password')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Password')).toBeNull();
+
+    fireEvent.press(screen.getByText('Use an app password instead'));
+
     expect(screen.getByLabelText('Password')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Sign in with Google' })).toBeNull();
   });
 
   it('signs in to a provider it knows without looking up its servers', async () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter, useTheme } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
@@ -128,12 +128,7 @@ export default function AccountSettingsScreen() {
       </FormSection>
 
       <FormSection footer={syncFailure ? `${syncLabel} · ${syncFailure}` : (syncLabel ?? undefined)}>
-        <FormField
-          label={t('accounts.setup.email')}
-          value={account.email}
-          editable={false}
-          style={{ color: colors.textSecondary }}
-        />
+        <ListRow title={t('accounts.setup.email')} subtitle={account.email} />
         <ListRow
           title={t('accounts.syncNow')}
           leading={<RefreshCw size={20} color={colors.primary} />}
@@ -182,6 +177,7 @@ export default function AccountSettingsScreen() {
             <ListRow
               title={t('accounts.signInAgain')}
               leading={<LogIn size={20} color={colors.primary} />}
+              trailing={updating ? <ActivityIndicator testID="sign-in-again-progress" size="small" color={colors.textSecondary} /> : undefined}
               chevron={false}
               disabled={updating}
               onPress={signInAgain}

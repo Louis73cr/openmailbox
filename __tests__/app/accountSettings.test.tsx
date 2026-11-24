@@ -49,6 +49,31 @@ describe('account settings', () => {
     expect(core.renameAccount).not.toHaveBeenCalled();
   });
 
+  it('shows the whole address of the account as text', () => {
+    renderWithProviders(<AccountSettingsScreen />);
+    expect(screen.queryByDisplayValue('alice@example.com')).toBeNull();
+    expect(screen.getByText('Email')).toBeOnTheScreen();
+    expect(screen.getAllByText('alice@example.com').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('signs in again only once while a sign-in is running', async () => {
+    queryClient.setQueryData(queryKeys.accounts, [makeAccount({ authentication: Authentication.Microsoft })]);
+    core.beginSignIn.mockReturnValue({ url: 'https://login.microsoftonline.com/authorize', redirectUri: 'openmailbox://oauth' });
+    (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({ type: 'success', url: 'openmailbox://oauth?code=c' });
+    let finish: () => void = () => undefined;
+    core.reauthorize.mockReturnValueOnce(new Promise<void>((resolve) => (finish = resolve)));
+    renderWithProviders(<AccountSettingsScreen />);
+
+    fireEvent.press(screen.getByRole('button', { name: 'Sign in Again' }));
+    await waitFor(() => expect(core.reauthorize).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Sign in Again' })).toBeNull();
+    expect(screen.getByTestId('sign-in-again-progress')).toBeOnTheScreen();
+
+    await act(async () => finish());
+    expect(await screen.findByText('Signed in.')).toBeOnTheScreen();
+    expect(core.beginSignIn).toHaveBeenCalledTimes(1);
+  });
+
   it('lists sender identities and opens them', () => {
     useSettingsStore.setState({ identities: { 'account-1': [{ id: 'identity-1', name: 'Support', email: 'info@example.com', signature: { html: '', text: '' } }] } });
     renderWithProviders(<AccountSettingsScreen />);
