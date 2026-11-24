@@ -316,10 +316,11 @@ impl Engine {
         email: &str,
         servers: ServerConfig,
     ) -> Result<SignInRequest> {
-        let mut resources = vec![servers.imap.host.as_str()];
-        if servers.smtp.host != servers.imap.host {
-            resources.push(servers.smtp.host.as_str());
-        }
+        let resources = mail_auth::server::served_resources(
+            &server.issuer,
+            &[servers.imap.host.as_str(), servers.smtp.host.as_str()],
+        );
+        let resources: Vec<&str> = resources.iter().map(String::as_str).collect();
         let (request, sign_in) = oauth::begin_server(server, email, &resources)?;
         self.remember(PendingAccount {
             sign_in,

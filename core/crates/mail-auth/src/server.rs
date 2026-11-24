@@ -52,6 +52,23 @@ fn metadata_url(issuer: &str) -> Result<String> {
     ))
 }
 
+pub fn served_resources(issuer: &str, hosts: &[&str]) -> Vec<String> {
+    let Some(issuer_host) = url::Url::parse(issuer)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+    else {
+        return Vec::new();
+    };
+    let mut resources: Vec<String> = Vec::new();
+    for host in hosts {
+        let host = host.to_ascii_lowercase();
+        if host == issuer_host && !resources.contains(&host) {
+            resources.push(host);
+        }
+    }
+    resources
+}
+
 fn openid_configuration_url(issuer: &str) -> String {
     format!(
         "{}/.well-known/openid-configuration",
@@ -263,6 +280,21 @@ mod tests {
             document[key] = value.clone();
         }
         document.to_string()
+    }
+
+    #[test]
+    fn only_hosts_of_the_oauth_server_are_named_as_resources() {
+        assert_eq!(
+            served_resources(
+                "https://mail.example.org",
+                &["MAIL.example.org", "mail.example.org"]
+            ),
+            vec!["mail.example.org"]
+        );
+        assert!(
+            served_resources("https://localhost", &["10.0.2.2", "imap.example.org"]).is_empty()
+        );
+        assert!(served_resources("not a url", &["mail.example.org"]).is_empty());
     }
 
     #[test]
