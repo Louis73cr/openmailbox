@@ -30,6 +30,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0011_authentication.sql"),
     include_str!("migrations/0012_oauth_server.sql"),
     include_str!("migrations/0013_original_sender.sql"),
+    include_str!("migrations/0014_alias_senders.sql"),
 ];
 
 pub struct Store {

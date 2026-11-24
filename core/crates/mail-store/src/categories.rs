@@ -179,7 +179,8 @@ impl Store {
     }
 
     /// Classifies again, from their headers fetched anew, the messages `asked` for; those the
-    /// server no longer has keep their guess. Returns whether a thread changed category.
+    /// server no longer has keep their guess. Returns whether a thread changed category or a
+    /// message got the sender behind its alias.
     pub fn reclassify(
         &self,
         account_id: &str,
@@ -198,9 +199,13 @@ impl Store {
                 )
                 .storage()?;
             let mut update = transaction
-                .prepare_cached("UPDATE email SET category = ?2, signals = ?3 WHERE id = ?1")
+                .prepare_cached(
+                    "UPDATE email SET category = ?2, signals = ?3,
+                       original_sender = COALESCE(?4, original_sender) WHERE id = ?1",
+                )
                 .storage()?;
             let mut touched = HashSet::new();
+            let mut senders_found = false;
             for message in fetched {
                 let Some((email_id, thread_id, previous)) = find
                     .query_row(params![mailbox_id, message.uid], |row| {
@@ -213,8 +218,14 @@ impl Store {
                 };
                 let category = category_of(transaction, &account_email, &message.headers)?;
                 update
-                    .execute(params![email_id, category.code(), message.headers.signals.bits()])
+                    .execute(params![
+                        email_id,
+                        category.code(),
+                        message.headers.signals.bits(),
+                        message.headers.original_sender
+                    ])
                     .storage()?;
+                senders_found |= message.headers.original_sender.is_some();
                 if previous != Some(category.code()) {
                     touched.insert(thread_id);
                 }
@@ -229,7 +240,7 @@ impl Store {
                 forget.execute(params![mailbox_id, uid]).storage()?;
             }
             refresh_threads(transaction, &touched)?;
-            Ok(!touched.is_empty())
+            Ok(senders_found || !touched.is_empty())
         })
     }
 
@@ -605,6 +616,76 @@ mod tests {
         );
         assert_eq!(subjects(&store, Some(Category::Updates)), ["This week"]);
         assert_eq!(subjects(&store, Some(Category::Primary)), ["Lunch"]);
+        assert!(
+            store
+                .uids_with_unknown_signals(inbox, 50)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn stored_alias_mail_gets_its_original_sender_from_headers_fetched_again() {
+        let (store, directory, inbox) = setup();
+        store
+            .insert_messages(
+                "alice",
+                inbox,
+                &[
+                    message(
+                        1,
+                        "reply+qwerty@simplelogin.co",
+                        "Receipt",
+                        SendingSignals::default(),
+                        &[],
+                    ),
+                    message(
+                        2,
+                        "shop+hello=store.example@johndoe.addy.io",
+                        "Order",
+                        SendingSignals::default(),
+                        &[],
+                    ),
+                    message(
+                        3,
+                        "bob@example.com",
+                        "Lunch",
+                        SendingSignals::default(),
+                        &[],
+                    ),
+                ],
+            )
+            .unwrap();
+        drop(store);
+        let path = directory.join("mail.db");
+        Connection::open(&path)
+            .unwrap()
+            .pragma_update(None, "user_version", 13)
+            .unwrap();
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.uids_with_unknown_signals(inbox, 50).unwrap(), [2, 1]);
+        let mut refetched = message(
+            1,
+            "reply+qwerty@simplelogin.co",
+            "Receipt",
+            SendingSignals::default(),
+            &[],
+        );
+        refetched.headers.original_sender = Some("noreply@github.com".into());
+        assert!(
+            store
+                .reclassify("alice", inbox, &[2, 1], &[refetched])
+                .unwrap()
+        );
+        let senders: Vec<Option<String>> = Connection::open(&path)
+            .unwrap()
+            .prepare("SELECT original_sender FROM email ORDER BY id")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(senders, [Some("noreply@github.com".into()), None, None]);
         assert!(
             store
                 .uids_with_unknown_signals(inbox, 50)
