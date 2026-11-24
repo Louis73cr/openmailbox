@@ -165,11 +165,11 @@ describe('composer', () => {
 
   describe('mailto links', () => {
     it('fills in the message a mailto link describes', async () => {
-      mockParams = { mailto: 'mailto:bob@example.com?cc=carol@example.com&subject=Hello&body=See%20https%3A%2F%2Fopenmailbox.eu' };
+      mockParams = { mailto: 'mailto:bob@example.com?cc=carol@example.com&subject=Hello&body=Hi%0D%0A%0D%0ASee%20https%3A%2F%2Fopenmailbox.eu' };
       renderWithProviders(<ComposeScreen />);
 
       expect(screen.getByDisplayValue('Hello')).toBeOnTheScreen();
-      expect(enriched.setValue).toHaveBeenCalledWith('See <a href="https://openmailbox.eu">https://openmailbox.eu</a>');
+      expect(enriched.setValue).toHaveBeenCalledWith('<p>Hi</p><br><p>See <a href="https://openmailbox.eu">https://openmailbox.eu</a></p>');
       await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send' })));
       await waitFor(() => expect(core.send).toHaveBeenCalled());
       const draft = core.send.mock.calls[0][0];

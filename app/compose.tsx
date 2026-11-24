@@ -16,7 +16,7 @@ import { RecipientField } from '@/features/composer/components/RecipientField';
 import { FORMAT_BAR_HEIGHT, KeyboardFormatBar } from '@/features/composer/components/KeyboardFormatBar';
 import { RichBody } from '@/features/composer/components/RichBody';
 import { editorHtml } from '@/features/composer/editorHtml';
-import { composeTitleKey, linkedHtml, parseMailto, prefill, quoteHtml, type ComposeMode } from '@/features/composer/prefill';
+import { composeTitleKey, linkedHtml, linkedParagraphs, parseMailto, prefill, quoteHtml, type ComposeMode } from '@/features/composer/prefill';
 import { replySender, sendersOf } from '@/features/composer/senders';
 import { readSharedContent } from '@/features/composer/shared';
 import { HtmlBody } from '@/features/reader/components/HtmlBody';
@@ -155,7 +155,7 @@ export default function ComposeScreen() {
     setBcc(fields.bcc);
     setShowCopies(fields.cc.length + fields.bcc.length > 0);
     setSubject(fields.subject);
-    if (fields.body) body.current?.setValue(linkedHtml(fields.body));
+    if (fields.body) body.current?.setValue(linkedParagraphs(fields.body));
   }, [params.mailto]);
 
   useEffect(() => {
@@ -164,7 +164,7 @@ export default function ComposeScreen() {
       .then(async (shared) => {
         if (shared.text) {
           const current = bodyText.current.trim() ? editorHtml((await body.current?.getHTML()) ?? '') : '';
-          body.current?.setValue(linkedHtml(shared.text) + current);
+          body.current?.setValue(linkedParagraphs(shared.text) + current);
         }
         if (shared.failed) Alert.alert(t('compose.sharedFilesFailed'));
         if (shared.attachments.length === 0) return;

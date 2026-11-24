@@ -1,6 +1,6 @@
 import type { EmailSummary } from '@openmailbox/mail-core';
 
-import { linkedHtml, parseMailto, prefill, quoteHtml } from '@/features/composer/prefill';
+import { linkedHtml, linkedParagraphs, parseMailto, prefill, quoteHtml } from '@/features/composer/prefill';
 
 const labels = {
   wrote: (date: string, author: string) => `On ${date}, ${author} wrote:`,
@@ -97,5 +97,11 @@ describe('parseMailto', () => {
   it('adds to= addresses and skips what is not an address', () => {
     expect(parseMailto('mailto:?to=a@example.com&to=b@example.com&x-unknown=1').to).toEqual([{ email: 'a@example.com' }, { email: 'b@example.com' }]);
     expect(parseMailto('mailto:not-an-address%ZZ')).toEqual({ to: [], cc: [], bcc: [], subject: '', body: '' });
+  });
+});
+
+describe('linkedParagraphs', () => {
+  it('puts each line in a paragraph of the editor and keeps blank lines', () => {
+    expect(linkedParagraphs('Hi\n\nSee https://openmailbox.eu')).toBe('<p>Hi</p><br><p>See <a href="https://openmailbox.eu">https://openmailbox.eu</a></p>');
   });
 });

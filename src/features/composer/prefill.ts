@@ -85,6 +85,13 @@ export function linkedHtml(text: string): string {
     .replace(/\n/g, '<br>');
 }
 
+export function linkedParagraphs(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => (line ? `<p>${linkedHtml(line)}</p>` : '<br>'))
+    .join('');
+}
+
 export function quoteHtml(mode: ComposeMode, quoteText: string, originalHtml: string): string {
   const quote = quoteText.trim();
   if (mode === 'forward') return `<br><br><div>${textToHtml(quote.split('\n\n')[0])}</div><br>${originalHtml}`;
