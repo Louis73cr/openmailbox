@@ -6,9 +6,10 @@
 #   mail-server.sh performance [--messages N]
 #                                         start a Dovecot IMAP server on port 3994, seeded with
 #                                         a large inbox, for performance measurements
-#   mail-server.sh oauth                  start a Stalwart server (HTTPS 443, IMAPS 993, SMTPS 465)
-#                                         that offers OAuth sign-in, with carol@example.com
-#                                         / secret-password; from the Android emulator, run
+#   mail-server.sh oauth [--messages N]   start a Stalwart server (HTTPS 443, IMAPS 993, SMTPS 465)
+#                                         that offers OAuth sign-in, with carol@example.com (empty),
+#                                         alice@example.com and bob@example.com (seeded), all with
+#                                         password "secret-password"; from the Android emulator, run
 #                                         `adb reverse tcp:443 tcp:443` first (IMAP and SMTP
 #                                         are reached at 10.0.2.2)
 #   mail-server.sh stop                   stop and remove the containers
@@ -81,7 +82,7 @@ start_stalwart() {
   local certificate key
   certificate="$(python3 -c 'import json,sys; print(json.dumps(open(sys.argv[1]).read()))' "$certificates/server.pem")"
   key="$(python3 -c 'import json,sys; print(json.dumps(open(sys.argv[1]).read()))' "$certificates/server.key")"
-  stalwart_api "[\"x:Certificate/set\",{\"accountId\":\"d333333\",\"create\":{\"test\":{\"certificate\":{\"@type\":\"Text\",\"value\":$certificate},\"privateKey\":{\"@type\":\"Text\",\"secret\":$key}}}},\"c\"],[\"x:SystemSettings/set\",{\"accountId\":\"d333333\",\"update\":{\"singleton\":{\"defaultCertificateId\":\"#test\"}}},\"s\"],[\"x:Account/set\",{\"accountId\":\"d333333\",\"create\":{\"carol\":{\"@type\":\"User\",\"name\":\"carol\",\"domainId\":\"b\",\"credentials\":{\"0\":{\"@type\":\"Password\",\"secret\":\"secret-password\"}}}}},\"u\"]" >/dev/null
+  stalwart_api "[\"x:Certificate/set\",{\"accountId\":\"d333333\",\"create\":{\"test\":{\"certificate\":{\"@type\":\"Text\",\"value\":$certificate},\"privateKey\":{\"@type\":\"Text\",\"secret\":$key}}}},\"c\"],[\"x:SystemSettings/set\",{\"accountId\":\"d333333\",\"update\":{\"singleton\":{\"defaultCertificateId\":\"#test\"}}},\"s\"],[\"x:Account/set\",{\"accountId\":\"d333333\",\"create\":{\"carol\":{\"@type\":\"User\",\"name\":\"carol\",\"domainId\":\"b\",\"credentials\":{\"0\":{\"@type\":\"Password\",\"secret\":\"secret-password\"}}},\"alice\":{\"@type\":\"User\",\"name\":\"alice\",\"domainId\":\"b\",\"credentials\":{\"0\":{\"@type\":\"Password\",\"secret\":\"secret-password\"}}},\"bob\":{\"@type\":\"User\",\"name\":\"bob\",\"domainId\":\"b\",\"credentials\":{\"0\":{\"@type\":\"Password\",\"secret\":\"secret-password\"}}}}},\"u\"]" >/dev/null
   docker restart openmailbox-stalwart >/dev/null
   wait_for_stalwart https://localhost/.well-known/oauth-authorization-server
   curl -s --cacert "$certificates/ca.pem" -o /dev/null https://localhost/.well-known/oauth-authorization-server
@@ -115,7 +116,8 @@ case "$command" in
     ;;
   oauth)
     start_stalwart
-    echo "Stalwart ready: https://localhost, IMAPS localhost:993, SMTPS localhost:465 (carol@example.com / secret-password)"
+    seed --port 993 --password secret-password "$@"
+    echo "Stalwart ready: https://localhost, IMAPS localhost:993, SMTPS localhost:465 (carol, alice and bob @example.com / secret-password)"
     echo "From the Android emulator: adb reverse tcp:443 tcp:443 (IMAP and SMTP at 10.0.2.2)"
     ;;
   stop)

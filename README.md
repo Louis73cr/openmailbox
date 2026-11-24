@@ -211,7 +211,8 @@ mail for `alice@example.com` (password `secret`). Development builds list it on 
 `yarn mail:seed` resets its content.
 
 `just stalwart` runs Stalwart in Docker (HTTPS on 443, IMAPS on 993, SMTPS on
-465) to test OAuth sign-in, with `carol@example.com` (password `secret-password`). Development builds
+465) to test OAuth sign-in, with `carol@example.com` (empty) and the same demo mail as GreenMail for
+`alice@example.com` and `bob@example.com`, all with password `secret-password`. Development builds
 list it as Stalwart; build the core with `yarn core:ios:dev` or `yarn core:android:dev` so it trusts
 the test certificate, and accept the certificate warning on the sign-in page. The Android emulator
 reaches it after `adb reverse tcp:443 tcp:443`.
