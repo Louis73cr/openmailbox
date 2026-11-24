@@ -1,0 +1,32 @@
+[package]
+name = "mail-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Open Mailbox for the Linux desktop"
+
+[[bin]]
+name = "openmailbox"
+path = "src/main.rs"
+
+[dependencies]
+mail-web = { path = "../mail-web" }
+tokio.workspace = true
+uuid.workspace = true
+ureq.workspace = true
+wry = "0.57"
+tao = "0.35"
+
+[package.metadata.deb]
+name = "openmailbox"
+maintainer = "Louis Croci"
+copyright = "Soluce Technologies, MPL-2.0"
+section = "mail"
+depends = "libwebkit2gtk-4.1-0, libgtk-3-0t64 | libgtk-3-0, xdg-utils"
+extended-description = "Open Mailbox mail client (IMAP/SMTP, unified inbox) as a desktop app."
+assets = [
+  ["target/release/openmailbox", "usr/bin/", "755"],
+  ["../../../web/desktop/fr.croci.openmailbox.desktop", "usr/share/applications/", "644"],
+  ["../../../assets/icon.png", "usr/share/pixmaps/fr.croci.openmailbox.png", "644"],
+  ["../../../dist/**/*", "usr/share/openmailbox/web/", "644"],
+]

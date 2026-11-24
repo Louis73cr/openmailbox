@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Open Mailbox
+Comment=Client mail IMAP/SMTP
+Exec=openmailbox
+Icon=fr.croci.openmailbox
+Terminal=false
+Categories=Network;Email;
+StartupWMClass=fr.croci.openmailbox
