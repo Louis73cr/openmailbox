@@ -202,6 +202,7 @@
     "openLink": "Dobrir",
     "openLinkTitle": "Dobrir aqueste ligam ?",
     "remoteContentBlocked": "Los imatges distants son blocats.",
+    "searchFor": "Cercar « {{name}} »",
     "share": "Partejar",
     "threadGone": "Aquesta conversacion es pas mai disponibla.",
     "toRecipients": "A : {{recipients}}",

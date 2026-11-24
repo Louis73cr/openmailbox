@@ -202,6 +202,7 @@
     "openLink": "Open",
     "openLinkTitle": "Deze link openen?",
     "remoteContentBlocked": "Externe afbeeldingen zijn geblokkeerd.",
+    "searchFor": "Zoek naar ‘{{name}}’",
     "share": "Delen",
     "threadGone": "Dit gesprek is niet meer beschikbaar.",
     "toRecipients": "Aan: {{recipients}}",

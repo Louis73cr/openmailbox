@@ -202,6 +202,7 @@
     "openLink": "Apri",
     "openLinkTitle": "Aprire questo link?",
     "remoteContentBlocked": "Le immagini remote sono bloccate.",
+    "searchFor": "Cerca “{{name}}”",
     "share": "Condividi",
     "threadGone": "Questa conversazione non è più disponibile.",
     "toRecipients": "A: {{recipients}}",
