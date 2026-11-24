@@ -242,6 +242,12 @@
       "light": "Light",
       "system": "Automatic"
     },
+    "timeFormat": "Time Format",
+    "timeFormats": {
+      "12h": "12-Hour",
+      "24h": "24-Hour",
+      "system": "Automatic"
+    },
     "title": "Settings"
   },
   "signature": {

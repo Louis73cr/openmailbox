@@ -242,6 +242,12 @@
       "light": "Chiaro",
       "system": "Automatico"
     },
+    "timeFormat": "Formato dell’ora",
+    "timeFormats": {
+      "12h": "12 ore",
+      "24h": "24 ore",
+      "system": "Automatico"
+    },
     "title": "Impostazioni"
   },
   "signature": {

@@ -242,6 +242,12 @@
       "light": "Clar",
       "system": "Automatic"
     },
+    "timeFormat": "Format de l’ora",
+    "timeFormats": {
+      "12h": "12 oras",
+      "24h": "24 oras",
+      "system": "Automatic"
+    },
     "title": "Paramètres"
   },
   "signature": {
