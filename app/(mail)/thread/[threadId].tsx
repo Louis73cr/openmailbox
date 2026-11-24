@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ellipsis, Flag, FolderInput, Forward, Reply, ReplyAll, Trash2 } from 'lucide-react-native';
 import { Category, Keyword, type ThreadSummary } from '@openmailbox/mail-core';
 
-import { routeScreen, useInPane, usePaneParams } from '@/navigation/pane';
+import { routeScreen, setThreadCommands, useInPane, usePaneParams, type ThreadCommand } from '@/navigation/pane';
 import { setThreadRead, type ThreadReference } from '@/core/actions';
 import { useMailboxes, useThreadEmails } from '@/core/hooks';
 import { mailCore } from '@/core/mailCore';
@@ -122,6 +122,21 @@ export function ThreadScreen() {
     if (COMPOSE_ACTIONS.includes(action)) compose(action as ComposeMode);
     else if (thread) onAction(action, thread);
   };
+  // Desktop keyboard shortcuts (app/(mail)/_layout.tsx) act on the open pane.
+  const runCommand = (command: ThreadCommand) => {
+    if (!thread && !COMPOSE_ACTIONS.includes(command)) return;
+    if (command === 'flag') runMenuAction(flagged ? 'unflag' : 'flag');
+    else if (command === 'move') setMoving(thread);
+    else if (command !== 'archive' || actions.includes('archive')) runMenuAction(command);
+  };
+  const runCommandRef = useRef(runCommand);
+  runCommandRef.current = runCommand;
+  useEffect(() => {
+    if (!inPane) return;
+    setThreadCommands((command) => runCommandRef.current(command));
+    return () => setThreadCommands(null);
+  }, [inPane]);
+
   const swipeButton = (action: ThreadActionId, color: string) => {
     const { label, Icon } = THREAD_ACTION_PRESENTATION[action];
     return (

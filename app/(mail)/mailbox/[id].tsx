@@ -7,7 +7,7 @@ import { FlashList } from '@shopify/flash-list';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Inbox } from 'lucide-react-native';
 import { MailboxRole, type ThreadSummary } from '@openmailbox/mail-core';
-import { routeScreen, useInPane, usePaneParams } from '@/navigation/pane';
+import { routeScreen, setPaneThreads, useInPane, usePaneParams } from '@/navigation/pane';
 import type { ThreadActionId } from '@/features/threads/threadActions';
 
 import { BottomBar } from '@/components/BottomBar';
@@ -203,6 +203,9 @@ export function MailboxScreen() {
     .filter(Boolean)
     .join(' · ');
   const data = threads.data ?? [];
+  useEffect(() => {
+    if (inPane) setPaneThreads(data.map(({ threadId, mailboxId }) => ({ threadId, mailboxId })));
+  }, [inPane, data]);
   const allSelected = selection.active && everySelected(selection.selected, data);
   const toggleAll = () => {
     markKept(data.map((thread) => thread.threadId));

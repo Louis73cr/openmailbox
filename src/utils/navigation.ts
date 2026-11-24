@@ -1,14 +1,14 @@
 import { router } from 'expo-router';
 
-let splitBack: (() => void) | null = null;
+let splitBack: (() => boolean) | null = null;
 
 /** The split layout closes the open pane instead of walking the browser history. */
-export function setSplitBack(back: (() => void) | null): void {
+export function setSplitBack(back: (() => boolean) | null): void {
   splitBack = back;
 }
 
 export function goBack(): void {
-  if (splitBack) splitBack();
-  else if (router.canGoBack()) router.back();
+  if (splitBack?.()) return;
+  if (router.canGoBack()) router.back();
   else router.replace('/');
 }

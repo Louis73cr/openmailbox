@@ -29,3 +29,24 @@ export function routeScreen(Screen: ComponentType): ComponentType {
     return useContext(SplitHiddenContext) ? null : <Screen />;
   };
 }
+
+export interface PaneThread {
+  threadId: string;
+  mailboxId: string;
+}
+
+let paneThreads: PaneThread[] = [];
+/** The thread list shown in the middle pane, in display order (keyboard navigation). */
+export const setPaneThreads = (threads: PaneThread[]) => {
+  paneThreads = threads;
+};
+export const getPaneThreads = () => paneThreads;
+
+export type ThreadCommand = 'delete' | 'archive' | 'reply' | 'replyAll' | 'forward' | 'flag' | 'markUnread' | 'move';
+
+let threadCommands: ((command: ThreadCommand) => void) | null = null;
+/** Registered by the open thread pane so keyboard shortcuts act on it. */
+export const setThreadCommands = (run: ((command: ThreadCommand) => void) | null) => {
+  threadCommands = run;
+};
+export const runThreadCommand = (command: ThreadCommand) => threadCommands?.(command);
